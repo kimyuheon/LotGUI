@@ -1,0 +1,72 @@
+#pragma once
+
+#include "core/layout.h"
+#include "core/paint_command.h"
+#include "core/pointer_router.h"
+
+#include <vector>
+
+namespace lotui {
+
+enum class WidgetPointerEventType {
+    Enter,
+    Leave,
+    Move,
+    Press,
+    Release,
+    Cancel,
+};
+
+struct WidgetPointerEvent {
+    WidgetPointerEventType type{WidgetPointerEventType::Move};
+    Point position{};
+    PointerButton button{PointerButton::Unspecified};
+    bool inside{false};
+};
+
+class Widget {
+public:
+    Widget();
+    virtual ~Widget() = default;
+
+    Widget(const Widget&) = delete;
+    Widget& operator=(const Widget&) = delete;
+    Widget(Widget&&) = delete;
+    Widget& operator=(Widget&&) = delete;
+
+    virtual Size measure(const LayoutConstraints& constraints) const = 0;
+
+    void arrange(Rect bounds, Rect parentClip);
+    void paint(std::vector<PaintCommand>& commands) const;
+
+    Rect bounds() const noexcept;
+    Rect clip() const noexcept;
+    PointerTargetId pointerTargetId() const noexcept;
+
+private:
+    friend class WidgetTree;
+    friend class LinearLayout;
+    friend class SingleChildWidget;
+
+    void collectHitTestEntries(std::vector<HitTestEntry>& entries) const;
+    Widget* findByPointerTarget(PointerTargetId target) noexcept;
+    bool dispatchPointerEvent(const WidgetPointerEvent& event);
+
+protected:
+    virtual void onArrange();
+    virtual void onPaint(std::vector<PaintCommand>& commands) const;
+    virtual void paintChildren(std::vector<PaintCommand>& commands) const;
+    virtual void collectChildHitTestEntries(
+        std::vector<HitTestEntry>& entries) const;
+    virtual Widget* findChildByPointerTarget(
+        PointerTargetId target) noexcept;
+    virtual bool acceptsPointerEvents() const noexcept;
+    virtual bool onPointerEvent(const WidgetPointerEvent& event);
+
+private:
+    PointerTargetId pointerTargetId_{invalidPointerTarget};
+    Rect bounds_{};
+    Rect clip_{};
+};
+
+} // namespace lotui

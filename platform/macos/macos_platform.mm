@@ -1,0 +1,430 @@
+#import <AppKit/AppKit.h>
+#import <QuartzCore/CAMetalLayer.h>
+
+#include "platform/platform_backend.h"
+
+#include <cstdint>
+#include <deque>
+#include <memory>
+#include <stdexcept>
+
+class MacOSWindowImpl;
+
+@interface LotUIProbeView : NSView {
+@public
+    MacOSWindowImpl* owner;
+}
+- (void)pushMousePosition:(NSEvent*)event;
+- (void)pushMouseButton:(NSEvent*)event
+                  button:(lotui::PointerButton)button
+                 pressed:(BOOL)pressed;
+@end
+
+@interface LotUIWindowDelegate : NSObject <NSWindowDelegate> {
+@public
+    MacOSWindowImpl* owner;
+}
+@end
+
+class MacOSWindowImpl final : public lotui::PlatformWindow {
+public:
+    explicit MacOSWindowImpl(const lotui::WindowOptions& options);
+    ~MacOSWindowImpl() override;
+
+    void show() override;
+    bool pollEvent(lotui::PlatformEvent& event) override;
+    bool setPointerCapture(bool enabled) override;
+    lotui::WindowMetrics metrics() const override;
+    lotui::NativeWindowHandle nativeHandle() const override;
+
+    void pushCloseRequested();
+    void pushResize();
+    void pushMouse(float x, float y);
+    void pushMouseButton(
+        float x,
+        float y,
+        lotui::PointerButton button,
+        bool pressed);
+    void pushKey(std::uint32_t key, bool pressed, bool repeat);
+    void pushFocus(bool focused);
+    void pushDpiChanged();
+
+private:
+    void updateMetalLayer();
+
+    NSWindow* window_{nil};
+    LotUIProbeView* view_{nil};
+    CAMetalLayer* metalLayer_{nil};
+    LotUIWindowDelegate* delegate_{nil};
+    lotui::WindowMetrics metrics_{};
+    std::deque<lotui::PlatformEvent> events_;
+    bool closeRequested_{false};
+    bool pointerCaptured_{false};
+};
+
+@implementation LotUIProbeView
+
+- (BOOL)acceptsFirstResponder {
+    return YES;
+}
+
+- (BOOL)acceptsFirstMouse:(NSEvent*)event {
+    (void)event;
+    return YES;
+}
+
+- (void)pushMousePosition:(NSEvent*)event {
+    if (owner == nullptr) {
+        return;
+    }
+    const NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    owner->pushMouse(
+        static_cast<float>(point.x),
+        static_cast<float>(self.bounds.size.height - point.y));
+}
+
+- (void)pushMouseButton:(NSEvent*)event
+                  button:(lotui::PointerButton)button
+                 pressed:(BOOL)pressed {
+    if (owner == nullptr) {
+        return;
+    }
+    const NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    owner->pushMouseButton(
+        static_cast<float>(point.x),
+        static_cast<float>(self.bounds.size.height - point.y),
+        button,
+        pressed == YES);
+}
+
+- (void)mouseMoved:(NSEvent*)event {
+    [self pushMousePosition:event];
+}
+
+- (void)mouseDragged:(NSEvent*)event {
+    [self pushMousePosition:event];
+}
+
+- (void)rightMouseDragged:(NSEvent*)event {
+    [self pushMousePosition:event];
+}
+
+- (void)otherMouseDragged:(NSEvent*)event {
+    [self pushMousePosition:event];
+}
+
+- (void)mouseDown:(NSEvent*)event {
+    [self pushMouseButton:event
+                   button:lotui::PointerButton::Primary
+                  pressed:YES];
+}
+
+- (void)mouseUp:(NSEvent*)event {
+    [self pushMouseButton:event
+                   button:lotui::PointerButton::Primary
+                  pressed:NO];
+}
+
+- (void)rightMouseDown:(NSEvent*)event {
+    [self pushMouseButton:event
+                   button:lotui::PointerButton::Secondary
+                  pressed:YES];
+}
+
+- (void)rightMouseUp:(NSEvent*)event {
+    [self pushMouseButton:event
+                   button:lotui::PointerButton::Secondary
+                  pressed:NO];
+}
+
+- (void)otherMouseDown:(NSEvent*)event {
+    const auto button = event.buttonNumber == 2
+        ? lotui::PointerButton::Middle
+        : lotui::PointerButton::Auxiliary1;
+    [self pushMouseButton:event button:button pressed:YES];
+}
+
+- (void)otherMouseUp:(NSEvent*)event {
+    const auto button = event.buttonNumber == 2
+        ? lotui::PointerButton::Middle
+        : lotui::PointerButton::Auxiliary1;
+    [self pushMouseButton:event button:button pressed:NO];
+}
+
+- (void)keyDown:(NSEvent*)event {
+    if (owner != nullptr) {
+        owner->pushKey(
+            static_cast<std::uint32_t>(event.keyCode),
+            true,
+            event.isARepeat == YES);
+    }
+}
+
+- (void)keyUp:(NSEvent*)event {
+    if (owner != nullptr) {
+        owner->pushKey(
+            static_cast<std::uint32_t>(event.keyCode),
+            false,
+            false);
+    }
+}
+
+@end
+
+@implementation LotUIWindowDelegate
+
+- (BOOL)windowShouldClose:(NSWindow*)sender {
+    if (owner != nullptr) {
+        owner->pushCloseRequested();
+    }
+    [sender orderOut:nil];
+    return NO;
+}
+
+- (void)windowDidResize:(NSNotification*)notification {
+    (void)notification;
+    if (owner != nullptr) {
+        owner->pushResize();
+    }
+}
+
+- (void)windowDidBecomeKey:(NSNotification*)notification {
+    (void)notification;
+    if (owner != nullptr) {
+        owner->pushFocus(true);
+    }
+}
+
+- (void)windowDidResignKey:(NSNotification*)notification {
+    (void)notification;
+    if (owner != nullptr) {
+        owner->pushFocus(false);
+    }
+}
+
+- (void)windowDidChangeBackingProperties:(NSNotification*)notification {
+    (void)notification;
+    if (owner != nullptr) {
+        owner->pushDpiChanged();
+    }
+}
+
+@end
+
+MacOSWindowImpl::MacOSWindowImpl(const lotui::WindowOptions& options) {
+    [NSApplication sharedApplication];
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+    [NSApp finishLaunching];
+
+    NSWindowStyleMask style =
+        NSWindowStyleMaskTitled |
+        NSWindowStyleMaskClosable |
+        NSWindowStyleMaskMiniaturizable;
+    if (options.resizable) {
+        style |= NSWindowStyleMaskResizable;
+    }
+
+    window_ = [[NSWindow alloc]
+        initWithContentRect:NSMakeRect(0, 0, options.width, options.height)
+                  styleMask:style
+                    backing:NSBackingStoreBuffered
+                      defer:NO];
+    if (window_ == nil) {
+        throw std::runtime_error("failed to create the Cocoa window");
+    }
+
+    delegate_ = [[LotUIWindowDelegate alloc] init];
+    delegate_->owner = this;
+    window_.delegate = delegate_;
+    window_.releasedWhenClosed = NO;
+    window_.title = [NSString stringWithUTF8String:options.title.c_str()];
+    [window_ center];
+    [window_ setAcceptsMouseMovedEvents:YES];
+
+    view_ = [[LotUIProbeView alloc] initWithFrame:window_.contentView.bounds];
+    view_->owner = this;
+    view_.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    view_.wantsLayer = YES;
+    metalLayer_ = [CAMetalLayer layer];
+    view_.layer = metalLayer_;
+    window_.contentView = view_;
+    [window_ makeFirstResponder:view_];
+
+    const NSRect content = window_.contentView.bounds;
+    metrics_.width = static_cast<int>(content.size.width);
+    metrics_.height = static_cast<int>(content.size.height);
+    metrics_.dpiScale = static_cast<float>(window_.backingScaleFactor);
+    updateMetalLayer();
+}
+
+MacOSWindowImpl::~MacOSWindowImpl() {
+    if (view_ != nil) {
+        view_->owner = nullptr;
+    }
+    if (delegate_ != nil) {
+        delegate_->owner = nullptr;
+    }
+    if (window_ != nil) {
+        window_.delegate = nil;
+        [window_ orderOut:nil];
+        [window_ close];
+    }
+    view_ = nil;
+    metalLayer_ = nil;
+    delegate_ = nil;
+    window_ = nil;
+}
+
+void MacOSWindowImpl::show() {
+    [window_ makeKeyAndOrderFront:nil];
+    [window_ makeFirstResponder:view_];
+    [NSApp activateIgnoringOtherApps:YES];
+}
+
+bool MacOSWindowImpl::pollEvent(lotui::PlatformEvent& event) {
+    @autoreleasepool {
+        while (events_.empty()) {
+            NSEvent* nativeEvent = [NSApp
+                nextEventMatchingMask:NSEventMaskAny
+                            untilDate:[NSDate distantPast]
+                               inMode:NSDefaultRunLoopMode
+                              dequeue:YES];
+            if (nativeEvent == nil) {
+                break;
+            }
+            [NSApp sendEvent:nativeEvent];
+        }
+        [NSApp updateWindows];
+    }
+
+    if (events_.empty()) {
+        return false;
+    }
+    event = events_.front();
+    events_.pop_front();
+    return true;
+}
+
+bool MacOSWindowImpl::setPointerCapture(bool enabled) {
+    pointerCaptured_ = enabled;
+    return true;
+}
+
+lotui::WindowMetrics MacOSWindowImpl::metrics() const {
+    return metrics_;
+}
+
+lotui::NativeWindowHandle MacOSWindowImpl::nativeHandle() const {
+    return {
+        lotui::NativeWindowSystem::MetalLayer,
+        nullptr,
+        reinterpret_cast<std::uintptr_t>((__bridge void*)metalLayer_),
+    };
+}
+
+void MacOSWindowImpl::pushCloseRequested() {
+    if (!closeRequested_) {
+        closeRequested_ = true;
+        events_.push_back({lotui::PlatformEventType::CloseRequested});
+    }
+}
+
+void MacOSWindowImpl::pushResize() {
+    const NSRect content = window_.contentView.bounds;
+    metrics_.width = static_cast<int>(content.size.width);
+    metrics_.height = static_cast<int>(content.size.height);
+    updateMetalLayer();
+    lotui::PlatformEvent event{lotui::PlatformEventType::Resized};
+    event.width = metrics_.width;
+    event.height = metrics_.height;
+    events_.push_back(event);
+}
+
+void MacOSWindowImpl::pushMouse(float x, float y) {
+    lotui::PlatformEvent event{lotui::PlatformEventType::MouseMoved};
+    event.x = x;
+    event.y = y;
+    events_.push_back(event);
+}
+
+void MacOSWindowImpl::pushMouseButton(
+    float x,
+    float y,
+    lotui::PointerButton button,
+    bool pressed) {
+    lotui::PlatformEvent event{
+        pressed
+            ? lotui::PlatformEventType::MouseButtonPressed
+            : lotui::PlatformEventType::MouseButtonReleased};
+    event.x = x;
+    event.y = y;
+    event.button = button;
+    events_.push_back(event);
+}
+
+void MacOSWindowImpl::pushKey(
+    std::uint32_t key, bool pressed, bool repeat) {
+    lotui::PlatformEvent event{
+        pressed
+            ? lotui::PlatformEventType::KeyPressed
+            : lotui::PlatformEventType::KeyReleased};
+    event.key = key;
+    event.repeat = repeat;
+    events_.push_back(event);
+}
+
+void MacOSWindowImpl::pushFocus(bool focused) {
+    metrics_.focused = focused;
+    events_.push_back({
+        focused
+            ? lotui::PlatformEventType::FocusGained
+            : lotui::PlatformEventType::FocusLost});
+}
+
+void MacOSWindowImpl::pushDpiChanged() {
+    metrics_.dpiScale = static_cast<float>(window_.backingScaleFactor);
+    updateMetalLayer();
+    lotui::PlatformEvent event{lotui::PlatformEventType::DpiChanged};
+    event.dpiScale = metrics_.dpiScale;
+    events_.push_back(event);
+}
+
+void MacOSWindowImpl::updateMetalLayer() {
+    if (metalLayer_ == nil || view_ == nil) {
+        return;
+    }
+
+    const CGFloat scale = window_ != nil
+        ? window_.backingScaleFactor
+        : NSScreen.mainScreen.backingScaleFactor;
+    metalLayer_.contentsScale = scale;
+    metalLayer_.frame = view_.bounds;
+    metalLayer_.drawableSize = CGSizeMake(
+        view_.bounds.size.width * scale,
+        view_.bounds.size.height * scale);
+
+    metrics_.dpiScale = static_cast<float>(scale);
+    metrics_.framebufferWidth =
+        static_cast<int>(metalLayer_.drawableSize.width);
+    metrics_.framebufferHeight =
+        static_cast<int>(metalLayer_.drawableSize.height);
+}
+
+namespace lotui {
+namespace {
+
+class MacOSPlatformBackend final : public PlatformBackend {
+public:
+    std::unique_ptr<PlatformWindow> createWindow(
+        const WindowOptions& options) override {
+        return std::make_unique<MacOSWindowImpl>(options);
+    }
+};
+
+} // namespace
+
+std::unique_ptr<PlatformBackend> createPlatformBackend() {
+    return std::make_unique<MacOSPlatformBackend>();
+}
+
+} // namespace lotui

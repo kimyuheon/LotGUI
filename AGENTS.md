@@ -31,7 +31,9 @@ LotUI/
 │   ├── style
 │   └── paint_command
 ├── platform/
-│   └── sdl3/
+│   ├── windows/
+│   ├── macos/
+│   └── linux/
 ├── renderer/
 │   └── vulkan/
 ├── text/
@@ -50,11 +52,31 @@ LotUI/
 ├── examples/
 └── tests/
 
+## 경로 규칙
+
+- CMake와 소스 코드에 개발자 PC의 절대경로를 넣지 않는다.
+- 프로젝트 내부 경로는 `${CMAKE_CURRENT_SOURCE_DIR}` 또는 `${PROJECT_SOURCE_DIR}`를 기준으로 구성한다.
+- 형제 프로젝트와 SDK는 프로젝트 루트 기준 상대경로로 참조한다.
+- 기본 Vulkan SDK 경로는 `../VulkanSdk/<platform>` 형식을 사용한다.
+- 외부 경로가 필요한 경우 CMake cache 변수로 재정의할 수 있게 하되, 기본값은 상대경로로 둔다.
+- 런타임 리소스는 현재 작업 디렉터리가 아니라 실행 파일 또는 설치 리소스 루트를 기준으로 찾는다.
+- `C:/...`, `D:/...`, `/Users/...`, `/home/...` 형태의 개인 환경 경로를 커밋하지 않는다.
+
+## 크로스플랫폼 규칙
+
+- Windows, macOS, Linux에서 동일한 공개 API와 Widget 동작을 제공한다.
+- 공통 코드는 운영체제별 `#ifdef`로 흩뜨리지 않고 platform 및 renderer 구현 계층으로 분리한다.
+- CMake는 `WIN32`, `APPLE`, `UNIX`별 설정을 제공하고 어느 한 플랫폼의 경로 또는 라이브러리를 공통 타깃에 강제하지 않는다.
+- Vulkan SDK 기본 경로는 프로젝트 기준 `../VulkanSdk/Win`, `../VulkanSdk/Apple`, `../VulkanSdk/Linux`처럼 선택한다.
+- macOS에서는 Vulkan 호환 계층으로 MoltenVK를 사용한다.
+- Vulkan 및 플랫폼별 CMake 구성은 `../3dEngine`을 참고할 수 있지만 코드를 직접 의존하거나 링크하지 않는다.
+- LotUI는 `3dEngine` 없이도 독립적으로 구성, 빌드, 설치할 수 있어야 한다.
+
 ## 기술 선택
 
 - 언어: C++17 이상
 - 빌드: CMake
-- 플랫폼 및 입력: SDL3
+- 플랫폼 및 입력: OS별 네이티브 백엔드(Win32, Cocoa, X11/Wayland)
 - 기본 렌더러: Vulkan
 - 글리프 생성: FreeType
 - 문자 shaping: HarfBuzz
@@ -63,7 +85,7 @@ LotUI/
 
 ## 의존성 규칙
 
-- core는 Vulkan, SDL 타입을 알지 못한다.
+- core는 Vulkan과 OS 네이티브 타입을 알지 못한다.
 - platform 계층은 창, 입력, DPI, 클립보드, IME를 담당한다.
 - renderer 계층은 PaintCommand만 입력받는다.
 - widgets는 특정 렌더링 API에 의존하지 않는다.
@@ -86,7 +108,7 @@ struct PaintCommand {
 
 ## 개발 순서
 
-1. SDL3 창 생성
+1. OS별 네이티브 창 생성
 2. Vulkan Surface와 Swapchain
 3. 사각형 렌더링
 4. PaintCommand와 clipping
