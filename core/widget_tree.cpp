@@ -23,8 +23,12 @@ void WidgetTree::setRoot(std::unique_ptr<Widget> root) {
     }
     pointerRouter_.cancelPointer();
     visualHoverTarget_ = invalidPointerTarget;
+    if (root_) {
+        applyFocusChange(focusManager_.clear());
+    }
     root_ = std::move(root);
     syncHitTests();
+    syncFocusTargets();
 }
 
 void WidgetTree::layout(Rect bounds) {
@@ -34,6 +38,7 @@ void WidgetTree::layout(Rect bounds) {
 void WidgetTree::layout(Rect bounds, Rect clip) {
     root_->arrange(bounds, clip);
     syncHitTests();
+    syncFocusTargets();
 }
 
 void WidgetTree::paint(std::vector<PaintCommand>& commands) const {
@@ -63,10 +68,18 @@ WidgetPointerUpdate WidgetTree::pointerPressed(
     Point position,
     PointerButton button) {
     syncHitTests();
+    const bool focusTargetsChanged = syncFocusTargets();
     const PointerRoute route = pointerRouter_.pointerPressed(position, button);
     WidgetPointerUpdate update;
     update.captureStarted = route.captureStarted;
-    update.needsRepaint = transitionHover(route.target, position);
+    update.needsRepaint = focusTargetsChanged ||
+        transitionHover(route.target, position);
+    if (button == PointerButton::Primary) {
+        const FocusChange focus = focusManager_.focus(route.target);
+        update.focusChanged = focus.changed();
+        update.needsRepaint = applyFocusChange(focus) ||
+            update.needsRepaint;
+    }
     update.needsRepaint = dispatch(
         route.target,
         WidgetPointerEventType::Press,
@@ -114,10 +127,111 @@ WidgetPointerUpdate WidgetTree::cancelPointer() {
     return update;
 }
 
+WidgetKeyUpdate WidgetTree::keyPressed(
+    KeyCode key,
+    KeyModifiers modifiers,
+    bool repeat) {
+    WidgetKeyUpdate update;
+    update.needsRepaint = syncFocusTargets();
+    if (key == KeyCode::Tab && !modifiers.control &&
+        !modifiers.alt && !modifiers.meta) {
+        const FocusChange change = focusManager_.moveFocus(modifiers.shift);
+        update.handled = true;
+        update.focusChanged = change.changed();
+        update.needsRepaint = applyFocusChange(change) ||
+            update.needsRepaint;
+        return update;
+    }
+
+    Widget* focused = focusedWidget();
+    if (focused != nullptr) {
+        update.handled = focused->dispatchKeyEvent({
+            WidgetKeyEventType::Press, key, modifiers, repeat});
+        update.needsRepaint = update.handled || update.needsRepaint;
+    }
+    return update;
+}
+
+WidgetKeyUpdate WidgetTree::keyReleased(
+    KeyCode key,
+    KeyModifiers modifiers) {
+    WidgetKeyUpdate update;
+    update.needsRepaint = syncFocusTargets();
+    Widget* focused = focusedWidget();
+    if (focused != nullptr) {
+        update.handled = focused->dispatchKeyEvent({
+            WidgetKeyEventType::Release, key, modifiers, false});
+        update.needsRepaint = update.handled || update.needsRepaint;
+    }
+    return update;
+}
+
+WidgetKeyUpdate WidgetTree::cancelKeyboard() {
+    WidgetKeyUpdate update;
+    Widget* focused = focusedWidget();
+    if (focused != nullptr) {
+        update.handled = focused->dispatchKeyEvent({
+            WidgetKeyEventType::Cancel, KeyCode::Unknown, {}, false});
+        update.needsRepaint = update.handled;
+    }
+    return update;
+}
+
+WidgetKeyUpdate WidgetTree::moveFocus(bool reverse) {
+    WidgetKeyUpdate update;
+    update.needsRepaint = syncFocusTargets();
+    const FocusChange change = focusManager_.moveFocus(reverse);
+    update.handled = !focusManager_.targets().empty();
+    update.focusChanged = change.changed();
+    update.needsRepaint = applyFocusChange(change) || update.needsRepaint;
+    return update;
+}
+
+WidgetKeyUpdate WidgetTree::clearFocus() {
+    const FocusChange change = focusManager_.clear();
+    return {
+        change.changed(),
+        change.changed(),
+        applyFocusChange(change),
+    };
+}
+
+Widget* WidgetTree::focusedWidget() noexcept {
+    return root_->findByPointerTarget(focusManager_.focusedTarget());
+}
+
+const Widget* WidgetTree::focusedWidget() const noexcept {
+    return const_cast<WidgetTree*>(this)->focusedWidget();
+}
+
 void WidgetTree::syncHitTests() {
     std::vector<HitTestEntry> entries;
     root_->collectHitTestEntries(entries);
     pointerRouter_.setHitTestEntries(std::move(entries));
+}
+
+bool WidgetTree::syncFocusTargets() {
+    std::vector<PointerTargetId> targets;
+    root_->collectFocusTargets(targets);
+    return applyFocusChange(focusManager_.setTargets(std::move(targets)));
+}
+
+bool WidgetTree::applyFocusChange(const FocusChange& change) {
+    if (!change.changed()) {
+        return false;
+    }
+    bool needsRepaint = false;
+    if (change.previous != invalidPointerTarget) {
+        if (Widget* previous = root_->findByPointerTarget(change.previous)) {
+            needsRepaint = previous->dispatchFocusChanged(false);
+        }
+    }
+    if (change.current != invalidPointerTarget) {
+        if (Widget* current = root_->findByPointerTarget(change.current)) {
+            needsRepaint = current->dispatchFocusChanged(true) || needsRepaint;
+        }
+    }
+    return needsRepaint;
 }
 
 bool WidgetTree::dispatch(

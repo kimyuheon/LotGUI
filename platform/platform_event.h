@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/key_event.h"
 #include "core/pointer_event.h"
 
 #include <cstdint>
@@ -28,7 +29,8 @@ struct PlatformEvent {
     float y{0.0F};
     float dpiScale{1.0F};
     PointerButton button{PointerButton::Unspecified};
-    std::uint32_t key{0};
+    KeyCode key{KeyCode::Unknown};
+    KeyModifiers modifiers{};
     bool repeat{false};
 };
 

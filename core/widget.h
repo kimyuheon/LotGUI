@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/layout.h"
+#include "core/key_event.h"
 #include "core/paint_command.h"
 #include "core/pointer_router.h"
 
@@ -49,8 +50,11 @@ private:
     friend class SingleChildWidget;
 
     void collectHitTestEntries(std::vector<HitTestEntry>& entries) const;
+    void collectFocusTargets(std::vector<PointerTargetId>& targets) const;
     Widget* findByPointerTarget(PointerTargetId target) noexcept;
     bool dispatchPointerEvent(const WidgetPointerEvent& event);
+    bool dispatchFocusChanged(bool focused);
+    bool dispatchKeyEvent(const WidgetKeyEvent& event);
 
 protected:
     virtual void onArrange();
@@ -58,10 +62,15 @@ protected:
     virtual void paintChildren(std::vector<PaintCommand>& commands) const;
     virtual void collectChildHitTestEntries(
         std::vector<HitTestEntry>& entries) const;
+    virtual void collectChildFocusTargets(
+        std::vector<PointerTargetId>& targets) const;
     virtual Widget* findChildByPointerTarget(
         PointerTargetId target) noexcept;
     virtual bool acceptsPointerEvents() const noexcept;
     virtual bool onPointerEvent(const WidgetPointerEvent& event);
+    virtual bool acceptsFocus() const noexcept;
+    virtual bool onFocusChanged(bool focused);
+    virtual bool onKeyEvent(const WidgetKeyEvent& event);
 
 private:
     PointerTargetId pointerTargetId_{invalidPointerTarget};

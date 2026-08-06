@@ -57,6 +57,14 @@ void Widget::collectHitTestEntries(
     collectChildHitTestEntries(entries);
 }
 
+void Widget::collectFocusTargets(
+    std::vector<PointerTargetId>& targets) const {
+    if (acceptsFocus()) {
+        targets.push_back(pointerTargetId_);
+    }
+    collectChildFocusTargets(targets);
+}
+
 Widget* Widget::findByPointerTarget(PointerTargetId target) noexcept {
     if (pointerTargetId_ == target) {
         return this;
@@ -66,6 +74,14 @@ Widget* Widget::findByPointerTarget(PointerTargetId target) noexcept {
 
 bool Widget::dispatchPointerEvent(const WidgetPointerEvent& event) {
     return onPointerEvent(event);
+}
+
+bool Widget::dispatchFocusChanged(bool focused) {
+    return onFocusChanged(focused);
+}
+
+bool Widget::dispatchKeyEvent(const WidgetKeyEvent& event) {
+    return onKeyEvent(event);
 }
 
 void Widget::onArrange() {
@@ -81,6 +97,10 @@ void Widget::collectChildHitTestEntries(
     std::vector<HitTestEntry>&) const {
 }
 
+void Widget::collectChildFocusTargets(
+    std::vector<PointerTargetId>&) const {
+}
+
 Widget* Widget::findChildByPointerTarget(PointerTargetId) noexcept {
     return nullptr;
 }
@@ -90,6 +110,18 @@ bool Widget::acceptsPointerEvents() const noexcept {
 }
 
 bool Widget::onPointerEvent(const WidgetPointerEvent&) {
+    return false;
+}
+
+bool Widget::acceptsFocus() const noexcept {
+    return false;
+}
+
+bool Widget::onFocusChanged(bool) {
+    return false;
+}
+
+bool Widget::onKeyEvent(const WidgetKeyEvent&) {
     return false;
 }
 

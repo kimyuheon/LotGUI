@@ -12,7 +12,9 @@ struct ButtonStyle {
     Color hovered{0.23F, 0.58F, 1.0F, 1.0F};
     Color pressed{0.08F, 0.35F, 0.78F, 1.0F};
     Color disabled{0.22F, 0.24F, 0.28F, 1.0F};
+    Color focusRing{0.96F, 0.82F, 0.32F, 1.0F};
     float cornerRadius{8.0F};
+    float focusRingWidth{2.0F};
     EdgeInsets contentPadding{12.0F, 8.0F, 12.0F, 8.0F};
 };
 
@@ -48,12 +50,16 @@ public:
     bool isEnabled() const noexcept;
     bool isHovered() const noexcept;
     bool isPressed() const noexcept;
+    bool isFocused() const noexcept;
 
 protected:
     void onArrange() override;
     void onPaint(std::vector<PaintCommand>& commands) const override;
     bool acceptsPointerEvents() const noexcept override;
     bool onPointerEvent(const WidgetPointerEvent& event) override;
+    bool acceptsFocus() const noexcept override;
+    bool onFocusChanged(bool focused) override;
+    bool onKeyEvent(const WidgetKeyEvent& event) override;
 
 private:
     Color currentColor() const noexcept;
@@ -64,6 +70,9 @@ private:
     bool enabled_{true};
     bool hovered_{false};
     bool pressed_{false};
+    bool focused_{false};
+    bool keyboardPressed_{false};
+    KeyCode keyboardActivationKey_{KeyCode::Unknown};
 };
 
 } // namespace lotui

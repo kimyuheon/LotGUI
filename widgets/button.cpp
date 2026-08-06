@@ -13,6 +13,7 @@ float sanitizedDimension(float value) noexcept {
 
 void sanitize(ButtonStyle& style) noexcept {
     style.cornerRadius = sanitizedDimension(style.cornerRadius);
+    style.focusRingWidth = sanitizedDimension(style.focusRingWidth);
     style.contentPadding.left = sanitizedDimension(style.contentPadding.left);
     style.contentPadding.top = sanitizedDimension(style.contentPadding.top);
     style.contentPadding.right = sanitizedDimension(style.contentPadding.right);
@@ -116,6 +117,9 @@ void Button::setEnabled(bool enabled) noexcept {
     if (!enabled_) {
         hovered_ = false;
         pressed_ = false;
+        focused_ = false;
+        keyboardPressed_ = false;
+        keyboardActivationKey_ = KeyCode::Unknown;
     }
 }
 
@@ -128,7 +132,11 @@ bool Button::isHovered() const noexcept {
 }
 
 bool Button::isPressed() const noexcept {
-    return pressed_;
+    return pressed_ || keyboardPressed_;
+}
+
+bool Button::isFocused() const noexcept {
+    return focused_;
 }
 
 void Button::onArrange() {
@@ -156,13 +164,84 @@ void Button::onArrange() {
 }
 
 void Button::onPaint(std::vector<PaintCommand>& commands) const {
-    commands.push_back({
-        bounds(), clip(), currentColor(), invalidTextureId,
-        style_.cornerRadius});
+    const float ringWidth = std::min(
+        style_.focusRingWidth,
+        std::min(bounds().width, bounds().height) * 0.5F);
+    if (focused_ && ringWidth > 0.0F) {
+        commands.push_back({
+            bounds(), clip(), style_.focusRing, invalidTextureId,
+            style_.cornerRadius});
+        commands.push_back({
+            {
+                bounds().x + ringWidth,
+                bounds().y + ringWidth,
+                std::max(0.0F, bounds().width - ringWidth * 2.0F),
+                std::max(0.0F, bounds().height - ringWidth * 2.0F),
+            },
+            clip(),
+            currentColor(),
+            invalidTextureId,
+            std::max(0.0F, style_.cornerRadius - ringWidth),
+        });
+    } else {
+        commands.push_back({
+            bounds(), clip(), currentColor(), invalidTextureId,
+            style_.cornerRadius});
+    }
 }
 
 bool Button::acceptsPointerEvents() const noexcept {
     return enabled_;
+}
+
+bool Button::acceptsFocus() const noexcept {
+    return enabled_;
+}
+
+bool Button::onFocusChanged(bool focused) {
+    const bool changed = focused_ != focused ||
+        (!focused && keyboardPressed_);
+    focused_ = focused;
+    if (!focused_) {
+        keyboardPressed_ = false;
+        keyboardActivationKey_ = KeyCode::Unknown;
+    }
+    return changed;
+}
+
+bool Button::onKeyEvent(const WidgetKeyEvent& event) {
+    if (!enabled_) {
+        return false;
+    }
+    if (event.type == WidgetKeyEventType::Cancel) {
+        if (!keyboardPressed_) {
+            return false;
+        }
+        keyboardPressed_ = false;
+        keyboardActivationKey_ = KeyCode::Unknown;
+        return true;
+    }
+    if (event.key != KeyCode::Enter && event.key != KeyCode::Space) {
+        return false;
+    }
+    if (event.type == WidgetKeyEventType::Press) {
+        if (!event.repeat && !keyboardPressed_) {
+            keyboardPressed_ = true;
+            keyboardActivationKey_ = event.key;
+        }
+        return true;
+    }
+    if (event.type == WidgetKeyEventType::Release &&
+        keyboardPressed_ && keyboardActivationKey_ == event.key) {
+        keyboardPressed_ = false;
+        keyboardActivationKey_ = KeyCode::Unknown;
+        if (onClick_) {
+            ClickHandler callback = onClick_;
+            callback();
+        }
+        return true;
+    }
+    return false;
 }
 
 bool Button::onPointerEvent(const WidgetPointerEvent& event) {
@@ -216,7 +295,7 @@ Color Button::currentColor() const noexcept {
     if (!enabled_) {
         return style_.disabled;
     }
-    if (pressed_ && hovered_) {
+    if ((pressed_ && hovered_) || keyboardPressed_) {
         return style_.pressed;
     }
     return hovered_ ? style_.hovered : style_.normal;

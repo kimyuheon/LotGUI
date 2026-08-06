@@ -10,6 +10,41 @@
 
 class MacOSWindowImpl;
 
+lotui::KeyModifiers keyModifiers(NSEvent* event) {
+    const NSEventModifierFlags flags = event.modifierFlags;
+    return {
+        (flags & NSEventModifierFlagShift) != 0,
+        (flags & NSEventModifierFlagControl) != 0,
+        (flags & NSEventModifierFlagOption) != 0,
+        (flags & NSEventModifierFlagCommand) != 0,
+    };
+}
+
+lotui::KeyCode keyCode(NSEvent* event) {
+    NSString* characters = event.charactersIgnoringModifiers;
+    if (characters.length == 0) {
+        return lotui::KeyCode::Unknown;
+    }
+    switch ([characters characterAtIndex:0]) {
+    case '\t': return lotui::KeyCode::Tab;
+    case '\r':
+    case '\n': return lotui::KeyCode::Enter;
+    case ' ': return lotui::KeyCode::Space;
+    case 0x1B: return lotui::KeyCode::Escape;
+    case 0x7F: return lotui::KeyCode::Backspace;
+    case NSDeleteFunctionKey: return lotui::KeyCode::Delete;
+    case NSLeftArrowFunctionKey: return lotui::KeyCode::Left;
+    case NSRightArrowFunctionKey: return lotui::KeyCode::Right;
+    case NSUpArrowFunctionKey: return lotui::KeyCode::Up;
+    case NSDownArrowFunctionKey: return lotui::KeyCode::Down;
+    case NSHomeFunctionKey: return lotui::KeyCode::Home;
+    case NSEndFunctionKey: return lotui::KeyCode::End;
+    case NSPageUpFunctionKey: return lotui::KeyCode::PageUp;
+    case NSPageDownFunctionKey: return lotui::KeyCode::PageDown;
+    default: return lotui::KeyCode::Unknown;
+    }
+}
+
 @interface LotUIProbeView : NSView {
 @public
     MacOSWindowImpl* owner;
@@ -45,7 +80,11 @@ public:
         float y,
         lotui::PointerButton button,
         bool pressed);
-    void pushKey(std::uint32_t key, bool pressed, bool repeat);
+    void pushKey(
+        lotui::KeyCode key,
+        lotui::KeyModifiers modifiers,
+        bool pressed,
+        bool repeat);
     void pushFocus(bool focused);
     void pushDpiChanged();
 
@@ -154,7 +193,8 @@ private:
 - (void)keyDown:(NSEvent*)event {
     if (owner != nullptr) {
         owner->pushKey(
-            static_cast<std::uint32_t>(event.keyCode),
+            keyCode(event),
+            keyModifiers(event),
             true,
             event.isARepeat == YES);
     }
@@ -163,7 +203,8 @@ private:
 - (void)keyUp:(NSEvent*)event {
     if (owner != nullptr) {
         owner->pushKey(
-            static_cast<std::uint32_t>(event.keyCode),
+            keyCode(event),
+            keyModifiers(event),
             false,
             false);
     }
@@ -363,12 +404,16 @@ void MacOSWindowImpl::pushMouseButton(
 }
 
 void MacOSWindowImpl::pushKey(
-    std::uint32_t key, bool pressed, bool repeat) {
+    lotui::KeyCode key,
+    lotui::KeyModifiers modifiers,
+    bool pressed,
+    bool repeat) {
     lotui::PlatformEvent event{
         pressed
             ? lotui::PlatformEventType::KeyPressed
             : lotui::PlatformEventType::KeyReleased};
     event.key = key;
+    event.modifiers = modifiers;
     event.repeat = repeat;
     events_.push_back(event);
 }

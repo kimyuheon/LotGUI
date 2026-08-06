@@ -274,7 +274,11 @@ void printEvent(const lotui::PlatformEvent& event) {
         break;
     case lotui::PlatformEventType::KeyPressed:
     case lotui::PlatformEventType::KeyReleased:
-        std::cout << " key=" << event.key
+        std::cout << " key=" << lotui::keyCodeName(event.key)
+                  << " shift=" << event.modifiers.shift
+                  << " control=" << event.modifiers.control
+                  << " alt=" << event.modifiers.alt
+                  << " meta=" << event.modifiers.meta
                   << " repeat=" << std::boolalpha << event.repeat;
         break;
     case lotui::PlatformEventType::DpiChanged:
@@ -336,6 +340,17 @@ int main() {
                     event.type == lotui::PlatformEventType::Resized ||
                     event.type == lotui::PlatformEventType::DpiChanged) {
                     updateLayout(*tree, window->metrics());
+                }
+
+                if (event.type == lotui::PlatformEventType::KeyPressed) {
+                    tree->keyPressed(
+                        event.key, event.modifiers, event.repeat);
+                } else if (
+                    event.type == lotui::PlatformEventType::KeyReleased) {
+                    tree->keyReleased(event.key, event.modifiers);
+                } else if (
+                    event.type == lotui::PlatformEventType::FocusLost) {
+                    tree->cancelKeyboard();
                 }
 
                 const lotui::Point position{event.x, event.y};

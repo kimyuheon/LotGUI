@@ -38,6 +38,13 @@ void SingleChildWidget::collectChildHitTestEntries(
     }
 }
 
+void SingleChildWidget::collectChildFocusTargets(
+    std::vector<PointerTargetId>& targets) const {
+    if (child_) {
+        child_->collectFocusTargets(targets);
+    }
+}
+
 Widget* SingleChildWidget::findChildByPointerTarget(
     PointerTargetId target) noexcept {
     return child_ ? child_->findByPointerTarget(target) : nullptr;

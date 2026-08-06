@@ -119,6 +119,13 @@ void LinearLayout::collectChildHitTestEntries(
     }
 }
 
+void LinearLayout::collectChildFocusTargets(
+    std::vector<PointerTargetId>& targets) const {
+    for (const Slot& child : children_) {
+        child.widget->collectFocusTargets(targets);
+    }
+}
+
 Widget* LinearLayout::findChildByPointerTarget(
     PointerTargetId target) noexcept {
     for (const Slot& child : children_) {

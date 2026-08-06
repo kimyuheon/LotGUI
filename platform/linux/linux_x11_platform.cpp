@@ -44,6 +44,46 @@ PointerButton pointerButton(unsigned int button) noexcept {
     }
 }
 
+KeyCode keyCode(KeySym key) noexcept {
+    switch (key) {
+    case XK_Tab:
+    case XK_ISO_Left_Tab: return KeyCode::Tab;
+    case XK_Return:
+    case XK_KP_Enter: return KeyCode::Enter;
+    case XK_space: return KeyCode::Space;
+    case XK_Escape: return KeyCode::Escape;
+    case XK_BackSpace: return KeyCode::Backspace;
+    case XK_Delete:
+    case XK_KP_Delete: return KeyCode::Delete;
+    case XK_Left:
+    case XK_KP_Left: return KeyCode::Left;
+    case XK_Right:
+    case XK_KP_Right: return KeyCode::Right;
+    case XK_Up:
+    case XK_KP_Up: return KeyCode::Up;
+    case XK_Down:
+    case XK_KP_Down: return KeyCode::Down;
+    case XK_Home:
+    case XK_KP_Home: return KeyCode::Home;
+    case XK_End:
+    case XK_KP_End: return KeyCode::End;
+    case XK_Page_Up:
+    case XK_KP_Page_Up: return KeyCode::PageUp;
+    case XK_Page_Down:
+    case XK_KP_Page_Down: return KeyCode::PageDown;
+    default: return KeyCode::Unknown;
+    }
+}
+
+KeyModifiers keyModifiers(unsigned int state) noexcept {
+    return {
+        (state & ShiftMask) != 0,
+        (state & ControlMask) != 0,
+        (state & Mod1Mask) != 0,
+        (state & Mod4Mask) != 0,
+    };
+}
+
 class X11Window final : public PlatformWindow {
 public:
     explicit X11Window(const WindowOptions& options);
@@ -258,8 +298,8 @@ void X11Window::processEvent(const XEvent& nativeEvent) {
             nativeEvent.type == KeyPress
                 ? PlatformEventType::KeyPressed
                 : PlatformEventType::KeyReleased};
-        event.key = static_cast<std::uint32_t>(
-            XLookupKeysym(&keyEvent, 0));
+        event.key = keyCode(XLookupKeysym(&keyEvent, 0));
+        event.modifiers = keyModifiers(nativeEvent.xkey.state);
         event.repeat = false;
         events_.push_back(event);
         break;

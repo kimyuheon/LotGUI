@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/focus_manager.h"
 #include "core/widget.h"
 
 #include <memory>
@@ -10,6 +11,13 @@ namespace lotui {
 struct WidgetPointerUpdate {
     bool captureStarted{false};
     bool captureEnded{false};
+    bool focusChanged{false};
+    bool needsRepaint{false};
+};
+
+struct WidgetKeyUpdate {
+    bool handled{false};
+    bool focusChanged{false};
     bool needsRepaint{false};
 };
 
@@ -39,8 +47,23 @@ public:
         PointerButton button);
     WidgetPointerUpdate cancelPointer();
 
+    WidgetKeyUpdate keyPressed(
+        KeyCode key,
+        KeyModifiers modifiers = {},
+        bool repeat = false);
+    WidgetKeyUpdate keyReleased(
+        KeyCode key,
+        KeyModifiers modifiers = {});
+    WidgetKeyUpdate cancelKeyboard();
+    WidgetKeyUpdate moveFocus(bool reverse = false);
+    WidgetKeyUpdate clearFocus();
+    Widget* focusedWidget() noexcept;
+    const Widget* focusedWidget() const noexcept;
+
 private:
     void syncHitTests();
+    bool syncFocusTargets();
+    bool applyFocusChange(const FocusChange& change);
     bool dispatch(
         PointerTargetId target,
         WidgetPointerEventType type,
@@ -51,6 +74,7 @@ private:
 
     std::unique_ptr<Widget> root_;
     PointerRouter pointerRouter_;
+    FocusManager focusManager_;
     PointerTargetId visualHoverTarget_{invalidPointerTarget};
 };
 

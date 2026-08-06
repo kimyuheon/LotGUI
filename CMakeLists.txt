@@ -34,6 +34,7 @@ function(lotui_copy_legal_notices target)
 endfunction()
 
 add_library(lotui_core STATIC
+    core/focus_manager.cpp
     core/layout.cpp
     core/pointer_router.cpp
     core/widget.cpp
@@ -426,6 +427,12 @@ if(BUILD_TESTING)
     target_link_libraries(layout_tests PRIVATE lotui_core)
     add_test(NAME layout_tests COMMAND layout_tests)
 
+    add_executable(focus_manager_tests
+        tests/focus_manager_tests.cpp
+    )
+    target_link_libraries(focus_manager_tests PRIVATE lotui_core)
+    add_test(NAME focus_manager_tests COMMAND focus_manager_tests)
+
     add_executable(widget_tree_tests
         tests/widget_tree_tests.cpp
     )
@@ -464,6 +471,8 @@ if(BUILD_TESTING)
         target_compile_options(paint_batch_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(pointer_router_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(layout_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_options(focus_manager_tests PRIVATE
+            /W4 /permissive- /utf-8)
         target_compile_options(widget_tree_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(text_widget_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(texture_tests PRIVATE /W4 /permissive- /utf-8)
@@ -475,6 +484,8 @@ if(BUILD_TESTING)
         target_compile_options(paint_batch_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(pointer_router_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(layout_tests PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(focus_manager_tests PRIVATE
+            -Wall -Wextra -Wpedantic)
         target_compile_options(widget_tree_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(text_widget_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(texture_tests PRIVATE -Wall -Wextra -Wpedantic)

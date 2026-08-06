@@ -1,7 +1,9 @@
 #pragma once
 
 #include "core/color.h"
+#include "core/focus_manager.h"
 #include "core/geometry.h"
+#include "core/key_event.h"
 #include "core/layout.h"
 #include "core/paint_command.h"
 #include "core/pointer_event.h"

@@ -109,12 +109,79 @@ void propagatesAncestorClipping() {
             "hit testing must reject the clipped portion");
 }
 
+void routesKeyboardFocusAndActivation() {
+    int firstClicks = 0;
+    int secondClicks = 0;
+    auto row = std::make_unique<lotui::Row>();
+    auto first = std::make_unique<lotui::Button>(
+        lotui::Size{100.0F, 40.0F},
+        [&firstClicks]() { ++firstClicks; });
+    auto second = std::make_unique<lotui::Button>(
+        lotui::Size{100.0F, 40.0F},
+        [&secondClicks]() { ++secondClicks; });
+    lotui::Button* firstButton = first.get();
+    lotui::Button* secondButton = second.get();
+    row->addChild(std::move(first));
+    row->addChild(std::move(second));
+
+    lotui::WidgetTree tree(std::move(row));
+    tree.layout({0.0F, 0.0F, 200.0F, 40.0F});
+
+    const auto firstTab = tree.keyPressed(lotui::KeyCode::Tab);
+    require(firstTab.handled && firstTab.focusChanged &&
+            firstButton->isFocused(),
+        "Tab must focus the first button");
+
+    tree.keyPressed(lotui::KeyCode::Space);
+    require(firstButton->isPressed(),
+        "Space press must show the button pressed state");
+    tree.keyPressed(lotui::KeyCode::Space, {}, true);
+    tree.keyReleased(lotui::KeyCode::Space);
+    require(firstClicks == 1 && !firstButton->isPressed(),
+        "Space release must click exactly once");
+
+    tree.keyPressed(lotui::KeyCode::Tab);
+    require(secondButton->isFocused() && !firstButton->isFocused(),
+        "Tab must advance focus in tree order");
+    tree.keyPressed(lotui::KeyCode::Enter);
+    tree.keyReleased(lotui::KeyCode::Enter);
+    require(secondClicks == 1,
+        "Enter must activate the focused button");
+
+    lotui::KeyModifiers reverse;
+    reverse.shift = true;
+    tree.keyPressed(lotui::KeyCode::Tab, reverse);
+    require(firstButton->isFocused(),
+        "Shift+Tab must move focus backward");
+
+    tree.keyPressed(lotui::KeyCode::Enter);
+    tree.cancelKeyboard();
+    tree.keyReleased(lotui::KeyCode::Enter);
+    require(firstClicks == 1 && !firstButton->isPressed(),
+        "keyboard cancellation must prevent activation");
+
+    tree.pointerPressed(
+        {150.0F, 20.0F}, lotui::PointerButton::Primary);
+    require(secondButton->isFocused(),
+        "primary pointer press must focus its button");
+    tree.pointerReleased(
+        {150.0F, 20.0F}, lotui::PointerButton::Primary);
+    require(secondClicks == 2,
+        "pointer activation must keep using the same callback");
+
+    secondButton->setEnabled(false);
+    tree.keyPressed(lotui::KeyCode::Tab);
+    require(firstButton->isFocused() && !secondButton->isFocused(),
+        "disabled buttons must leave the focus traversal order");
+}
+
 } // namespace
 
 int main() {
     laysOutAndPaintsOwnedWidgets();
     routesCapturedButtonClicks();
     propagatesAncestorClipping();
+    routesKeyboardFocusAndActivation();
     std::cout << "widget_tree_tests passed\n";
     return EXIT_SUCCESS;
 }

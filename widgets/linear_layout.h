@@ -58,6 +58,8 @@ protected:
     void paintChildren(std::vector<PaintCommand>& commands) const override;
     void collectChildHitTestEntries(
         std::vector<HitTestEntry>& entries) const override;
+    void collectChildFocusTargets(
+        std::vector<PointerTargetId>& targets) const override;
     Widget* findChildByPointerTarget(
         PointerTargetId target) noexcept override;
 

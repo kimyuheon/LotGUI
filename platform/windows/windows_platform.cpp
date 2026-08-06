@@ -14,6 +14,36 @@ namespace {
 
 constexpr wchar_t kWindowClassName[] = L"LotUI.PlatformWindow";
 
+KeyCode keyCode(WPARAM key) noexcept {
+    switch (key) {
+    case VK_TAB: return KeyCode::Tab;
+    case VK_RETURN: return KeyCode::Enter;
+    case VK_SPACE: return KeyCode::Space;
+    case VK_ESCAPE: return KeyCode::Escape;
+    case VK_BACK: return KeyCode::Backspace;
+    case VK_DELETE: return KeyCode::Delete;
+    case VK_LEFT: return KeyCode::Left;
+    case VK_RIGHT: return KeyCode::Right;
+    case VK_UP: return KeyCode::Up;
+    case VK_DOWN: return KeyCode::Down;
+    case VK_HOME: return KeyCode::Home;
+    case VK_END: return KeyCode::End;
+    case VK_PRIOR: return KeyCode::PageUp;
+    case VK_NEXT: return KeyCode::PageDown;
+    default: return KeyCode::Unknown;
+    }
+}
+
+KeyModifiers keyModifiers() noexcept {
+    return {
+        (GetKeyState(VK_SHIFT) & 0x8000) != 0,
+        (GetKeyState(VK_CONTROL) & 0x8000) != 0,
+        (GetKeyState(VK_MENU) & 0x8000) != 0,
+        (GetKeyState(VK_LWIN) & 0x8000) != 0 ||
+            (GetKeyState(VK_RWIN) & 0x8000) != 0,
+    };
+}
+
 std::wstring utf8ToWide(const std::string& value) {
     if (value.empty()) {
         return {};
@@ -303,7 +333,8 @@ LRESULT WindowsWindow::handleMessage(
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN: {
         PlatformEvent event{PlatformEventType::KeyPressed};
-        event.key = static_cast<std::uint32_t>(wParam);
+        event.key = keyCode(wParam);
+        event.modifiers = keyModifiers();
         event.repeat = (lParam & (1LL << 30)) != 0;
         pushEvent(event);
         return 0;
@@ -312,7 +343,8 @@ LRESULT WindowsWindow::handleMessage(
     case WM_KEYUP:
     case WM_SYSKEYUP: {
         PlatformEvent event{PlatformEventType::KeyReleased};
-        event.key = static_cast<std::uint32_t>(wParam);
+        event.key = keyCode(wParam);
+        event.modifiers = keyModifiers();
         pushEvent(event);
         return 0;
     }

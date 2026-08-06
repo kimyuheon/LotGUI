@@ -49,6 +49,11 @@ The application forwards normalized pointer events to `WidgetTree` and applies
 the returned `captureStarted` and `captureEnded` flags to its platform window.
 Widgets do not depend on Vulkan or operating-system native types.
 
+Native keyboard values are normalized into `KeyCode` and `KeyModifiers`.
+`WidgetTree` provides Tab/Shift+Tab traversal, pointer-to-focus behavior, and
+focused key dispatch. Buttons display a focus ring and activate with Enter or
+Space. See [`docs/input-and-focus.md`](docs/input-and-focus.md).
+
 `Label` and content-bearing `Button` use the backend-neutral `TextEngine` and
 `TextLayout` contracts. `LotUI::TextFreeType` provides real UTF-8 shaping,
 per-code-point font fallback, FreeType rasterization, and an R8 glyph atlas.
