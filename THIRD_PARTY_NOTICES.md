@@ -45,3 +45,9 @@ or SDK. It does not copy the Vulkan SDK into its source package. If a binary
 distribution bundles the Vulkan Loader, MoltenVK, or another SDK component,
 the distributor must include that component's own license and NOTICE files.
 The official Vulkan Loader and MoltenVK are primarily Apache-2.0 licensed.
+
+## TinyXML-2
+
+`LotUI::Declarative` uses TinyXML-2 to parse LotML documents. TinyXML-2 is
+distributed under the zlib license. The complete notice is in
+[`licenses/TINYXML2-ZLIB.txt`](licenses/TINYXML2-ZLIB.txt).

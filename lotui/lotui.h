@@ -9,6 +9,7 @@
 #include "core/pointer_event.h"
 #include "core/widget.h"
 #include "core/widget_tree.h"
+#include "declarative/lotml.h"
 #include "platform/runtime_paths.h"
 #include "renderer/texture.h"
 #include "text/text_layout.h"

@@ -9,13 +9,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(LOTUI_BUILD_EXAMPLES "Build LotUI examples" ON)
 option(LOTUI_BUILD_VULKAN_RENDERER "Build the Vulkan renderer" ON)
 option(LOTUI_BUILD_FREETYPE_TEXT "Build the FreeType/HarfBuzz text engine" ON)
+option(LOTUI_BUILD_DECLARATIVE_UI "Build the LotML declarative UI module" ON)
 option(LOTUI_FETCH_TEXT_DEPENDENCIES
     "Download pinned text dependencies when local packages are unavailable" ON)
+option(LOTUI_FETCH_DECLARATIVE_DEPENDENCIES
+    "Download pinned declarative UI dependencies when unavailable" ON)
 set(LOTUI_EXAMPLE_FONT_FILE
     "${CMAKE_CURRENT_SOURCE_DIR}/../imgui/misc/fonts/NotoSansKR-Regular.ttf"
     CACHE FILEPATH "Font copied beside examples and text integration tests")
 
 include(CTest)
+include(FetchContent)
 
 function(lotui_copy_legal_notices target)
     add_custom_command(TARGET ${target} POST_BUILD
@@ -203,6 +207,59 @@ if(MSVC)
     target_compile_options(lotui_renderer PRIVATE /W4 /permissive- /utf-8)
 else()
     target_compile_options(lotui_renderer PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+if(LOTUI_BUILD_DECLARATIVE_UI)
+    set(LOTUI_TINYXML2_SOURCE_DIR
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tinyxml2"
+        CACHE PATH "Optional TinyXML-2 source directory")
+
+    find_package(tinyxml2 11 CONFIG QUIET)
+    if(TARGET tinyxml2::tinyxml2)
+        set(_lotui_tinyxml2_target tinyxml2::tinyxml2)
+    elseif(TARGET tinyxml2)
+        set(_lotui_tinyxml2_target tinyxml2)
+    endif()
+
+    if(NOT _lotui_tinyxml2_target)
+        set(tinyxml2_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+        set(tinyxml2_INSTALL_PKGCONFIG OFF CACHE BOOL "" FORCE)
+        if(EXISTS "${LOTUI_TINYXML2_SOURCE_DIR}/CMakeLists.txt")
+            add_subdirectory(
+                "${LOTUI_TINYXML2_SOURCE_DIR}"
+                "${CMAKE_CURRENT_BINARY_DIR}/_deps/tinyxml2-build"
+                EXCLUDE_FROM_ALL)
+        elseif(LOTUI_FETCH_DECLARATIVE_DEPENDENCIES)
+            FetchContent_Declare(lotui_tinyxml2
+                GIT_REPOSITORY https://github.com/leethomason/tinyxml2.git
+                GIT_TAG 11.0.0
+                GIT_SHALLOW TRUE)
+            FetchContent_MakeAvailable(lotui_tinyxml2)
+        else()
+            message(FATAL_ERROR
+                "TinyXML-2 was not found. Set LOTUI_TINYXML2_SOURCE_DIR or enable LOTUI_FETCH_DECLARATIVE_DEPENDENCIES.")
+        endif()
+        set(_lotui_tinyxml2_target tinyxml2::tinyxml2)
+    endif()
+
+    add_library(lotui_declarative STATIC
+        declarative/lotml.cpp
+    )
+    add_library(LotUI::Declarative ALIAS lotui_declarative)
+    target_link_libraries(lotui_declarative
+        PUBLIC lotui_widgets
+        PRIVATE ${_lotui_tinyxml2_target})
+    target_include_directories(lotui_declarative PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:include>)
+
+    if(MSVC)
+        target_compile_options(lotui_declarative PRIVATE
+            /W4 /permissive- /utf-8)
+    else()
+        target_compile_options(lotui_declarative PRIVATE
+            -Wall -Wextra -Wpedantic)
+    endif()
 endif()
 
 add_library(lotui_platform STATIC)
@@ -451,6 +508,14 @@ if(BUILD_TESTING)
     target_link_libraries(texture_tests PRIVATE lotui_renderer lotui_widgets)
     add_test(NAME texture_tests COMMAND texture_tests)
 
+    if(LOTUI_BUILD_DECLARATIVE_UI)
+        add_executable(lotml_tests
+            tests/lotml_tests.cpp
+        )
+        target_link_libraries(lotml_tests PRIVATE lotui_declarative)
+        add_test(NAME lotml_tests COMMAND lotml_tests)
+    endif()
+
     if(LOTUI_BUILD_FREETYPE_TEXT AND EXISTS "${LOTUI_EXAMPLE_FONT_FILE}")
         add_executable(freetype_text_tests
             tests/freetype_text_tests.cpp
@@ -476,6 +541,10 @@ if(BUILD_TESTING)
         target_compile_options(widget_tree_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(text_widget_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(texture_tests PRIVATE /W4 /permissive- /utf-8)
+        if(TARGET lotml_tests)
+            target_compile_options(lotml_tests PRIVATE
+                /W4 /permissive- /utf-8)
+        endif()
         if(TARGET freetype_text_tests)
             target_compile_options(freetype_text_tests PRIVATE
                 /W4 /permissive- /utf-8)
@@ -489,6 +558,10 @@ if(BUILD_TESTING)
         target_compile_options(widget_tree_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(text_widget_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(texture_tests PRIVATE -Wall -Wextra -Wpedantic)
+        if(TARGET lotml_tests)
+            target_compile_options(lotml_tests PRIVATE
+                -Wall -Wextra -Wpedantic)
+        endif()
         if(TARGET freetype_text_tests)
             target_compile_options(freetype_text_tests PRIVATE
                 -Wall -Wextra -Wpedantic)

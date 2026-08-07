@@ -14,7 +14,8 @@ cmake --build build --config Debug
 ```
 
 The reusable targets are `LotUI::Core`, `LotUI::Text`, `LotUI::TextFreeType`,
-`LotUI::Widgets`, `LotUI::Platform`, `LotUI::Renderer`, and `LotUI::Vulkan`.
+`LotUI::Widgets`, `LotUI::Declarative`, `LotUI::Platform`, `LotUI::Renderer`,
+and `LotUI::Vulkan`.
 Applications can initially consume LotUI with `add_subdirectory()` and link
 only the targets they use. `platform_probe` demonstrates the full native-window
 to widget-tree to Vulkan path.
@@ -48,6 +49,25 @@ tree.paint(commands);
 The application forwards normalized pointer events to `WidgetTree` and applies
 the returned `captureStarted` and `captureEnded` flags to its platform window.
 Widgets do not depend on Vulkan or operating-system native types.
+
+## Declarative layout
+
+`LotUI::Declarative` adds the optional LotML format for WPF-style layout while
+keeping normal C++ construction fully supported. Both forms create the same
+`WidgetTree`, so they share layout, input, focus, painting, and renderer code.
+
+```xml
+<Column spacing="12" padding="20">
+  <Label text="프로젝트 설정" fontSize="22" />
+  <Button id="save" text="저장" onClick="save" />
+</Column>
+```
+
+The initial schema supports `Row`, `Column`, `Label`, `Box`, and `Button`, plus
+IDs, child sizing, colors, text properties, and named button events. Its public
+widget/property metadata is intended to power future Visual Studio and VS Code
+preview extensions. See [`docs/declarative-ui.md`](docs/declarative-ui.md) and
+[`examples/settings.lotml`](examples/settings.lotml).
 
 Native keyboard values are normalized into `KeyCode` and `KeyModifiers`.
 `WidgetTree` provides Tab/Shift+Tab traversal, pointer-to-focus behavior, and
