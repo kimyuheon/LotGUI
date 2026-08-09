@@ -13,6 +13,22 @@
   <Label text="LotML과 C++ 코드는 같은 WidgetTree를 만듭니다."
          color="#B9C2D0FF" />
 
+  <Checkbox id="snapToGrid"
+            text="격자에 맞춤"
+            checked="true"
+            onChanged="settingsChanged" />
+
+  <Row spacing="12" crossAlign="center">
+    <Label text="격자 크기" minWidth="100" />
+    <NumericInput id="gridSize"
+                  value="10"
+                  minimum="0.5"
+                  maximum="100"
+                  step="0.5"
+                  decimalPlaces="1"
+                  onChanged="settingsChanged" />
+  </Row>
+
   <Row spacing="8" mainAlign="end">
     <Button id="cancelButton"
             text="취소"

@@ -175,8 +175,10 @@ endif()
 add_library(lotui_widgets STATIC
     widgets/box.cpp
     widgets/button.cpp
+    widgets/checkbox.cpp
     widgets/label.cpp
     widgets/linear_layout.cpp
+    widgets/numeric_input.cpp
     widgets/single_child_widget.cpp
 )
 add_library(LotUI::Widgets ALIAS lotui_widgets)
@@ -502,6 +504,12 @@ if(BUILD_TESTING)
     target_link_libraries(text_widget_tests PRIVATE lotui_widgets)
     add_test(NAME text_widget_tests COMMAND text_widget_tests)
 
+    add_executable(form_widget_tests
+        tests/form_widget_tests.cpp
+    )
+    target_link_libraries(form_widget_tests PRIVATE lotui_widgets)
+    add_test(NAME form_widget_tests COMMAND form_widget_tests)
+
     add_executable(texture_tests
         tests/texture_tests.cpp
     )
@@ -540,6 +548,7 @@ if(BUILD_TESTING)
             /W4 /permissive- /utf-8)
         target_compile_options(widget_tree_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(text_widget_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_options(form_widget_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(texture_tests PRIVATE /W4 /permissive- /utf-8)
         if(TARGET lotml_tests)
             target_compile_options(lotml_tests PRIVATE
@@ -557,6 +566,7 @@ if(BUILD_TESTING)
             -Wall -Wextra -Wpedantic)
         target_compile_options(widget_tree_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(text_widget_tests PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(form_widget_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(texture_tests PRIVATE -Wall -Wextra -Wpedantic)
         if(TARGET lotml_tests)
             target_compile_options(lotml_tests PRIVATE

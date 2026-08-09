@@ -16,6 +16,8 @@
 #include "text/freetype/freetype_text_engine.h"
 #include "widgets/box.h"
 #include "widgets/button.h"
+#include "widgets/checkbox.h"
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
+#include "widgets/numeric_input.h"
 #include "widgets/single_child_widget.h"

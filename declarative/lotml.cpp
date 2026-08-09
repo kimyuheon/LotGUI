@@ -2,8 +2,10 @@
 
 #include "widgets/box.h"
 #include "widgets/button.h"
+#include "widgets/checkbox.h"
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
+#include "widgets/numeric_input.h"
 
 #include <tinyxml2.h>
 
@@ -417,6 +419,140 @@ std::unique_ptr<Widget> buildButton(
     return std::make_unique<Button>(minimum, std::move(callback), style);
 }
 
+std::unique_ptr<Widget> buildCheckbox(
+    const LotmlElement& element,
+    BuildContext& context) {
+    if (element.children.size() > 1) {
+        fail(element, "Checkbox accepts at most one child");
+    }
+    const std::string text = stringValue(element, "text", element.text);
+    if (!element.children.empty() && !text.empty()) {
+        fail(element, "Checkbox cannot use both text and a child widget");
+    }
+
+    std::unique_ptr<Widget> content;
+    if (!element.children.empty()) {
+        content = context.buildChild(element.children.front());
+    } else if (!text.empty()) {
+        const auto engine = context.textEngine();
+        if (!engine) {
+            fail(element, "text Checkbox requires LoadOptions.textEngine");
+        }
+        TextStyle textStyle;
+        textStyle.fontFamilies = {
+            stringValue(element, "fontFamily", "sans-serif")};
+        textStyle.fontSize = std::max(
+            1.0F, number(element, "fontSize", 14.0F));
+        auto label = std::make_unique<Label>(engine, text, textStyle);
+        label->setColor(colorValue(
+            element, "textColor", {0.93F, 0.95F, 1.0F, 1.0F}));
+        label->setVerticalAlignment(VerticalTextAlignment::Center);
+        content = std::move(label);
+    }
+
+    CheckboxStyle style;
+    style.unchecked = colorValue(element, "unchecked", style.unchecked);
+    style.hovered = colorValue(element, "hovered", style.hovered);
+    style.checked = colorValue(element, "checkedColor", style.checked);
+    style.checkmark = colorValue(element, "checkmark", style.checkmark);
+    style.disabled = colorValue(element, "disabled", style.disabled);
+    style.focusRing = colorValue(element, "focusRing", style.focusRing);
+    style.boxSize = std::max(
+        0.0F, number(element, "boxSize", style.boxSize));
+    style.spacing = std::max(
+        0.0F, number(element, "spacing", style.spacing));
+    style.cornerRadius = std::max(
+        0.0F, number(element, "cornerRadius", style.cornerRadius));
+    style.focusRingWidth = std::max(
+        0.0F, number(element, "focusRingWidth", style.focusRingWidth));
+
+    Checkbox::ChangedHandler callback;
+    if (const std::string* eventName = attribute(element, "onChanged")) {
+        auto event = context.event(*eventName);
+        callback = [event = std::move(event)](bool) { event(); };
+    }
+    auto checkbox = content
+        ? std::make_unique<Checkbox>(
+            std::move(content),
+            boolean(element, "checked", false),
+            std::move(callback),
+            style)
+        : std::make_unique<Checkbox>(
+            boolean(element, "checked", false),
+            std::move(callback),
+            style);
+    checkbox->setEnabled(boolean(element, "enabled", true));
+    return checkbox;
+}
+
+std::unique_ptr<Widget> buildNumericInput(
+    const LotmlElement& element,
+    BuildContext& context) {
+    const auto engine = context.textEngine();
+    if (!engine) {
+        fail(element, "NumericInput requires LoadOptions.textEngine");
+    }
+
+    NumericInputOptions options;
+    options.value = number(element, "value", 0.0F);
+    options.minimum = number(element, "minimum", 0.0F);
+    options.maximum = number(element, "maximum", 100.0F);
+    options.step = number(element, "step", 1.0F);
+    const float decimals = number(element, "decimalPlaces", 0.0F);
+    const int roundedDecimals = static_cast<int>(std::round(decimals));
+    if (options.minimum > options.maximum) {
+        fail(element, "minimum must not exceed maximum");
+    }
+    if (options.step <= 0.0) {
+        fail(element, "step must be greater than zero");
+    }
+    if (roundedDecimals < 0 || roundedDecimals > 9 ||
+        std::abs(decimals - static_cast<float>(roundedDecimals)) > 0.01F) {
+        fail(element, "decimalPlaces must be an integer from 0 through 9");
+    }
+    options.decimalPlaces = roundedDecimals;
+    options.preferredSize = {
+        std::max(0.0F, number(element, "width", 160.0F)),
+        std::max(0.0F, number(element, "height", 40.0F)),
+    };
+
+    NumericInputStyle style;
+    style.normal = colorValue(element, "normal", style.normal);
+    style.hovered = colorValue(element, "hovered", style.hovered);
+    style.stepButton = colorValue(
+        element, "stepButton", style.stepButton);
+    style.stepButtonPressed = colorValue(
+        element, "stepButtonPressed", style.stepButtonPressed);
+    style.indicator = colorValue(element, "indicator", style.indicator);
+    style.text = colorValue(element, "textColor", style.text);
+    style.disabled = colorValue(element, "disabled", style.disabled);
+    style.focusRing = colorValue(element, "focusRing", style.focusRing);
+    style.contentPadding = insets(
+        element, "contentPadding", style.contentPadding);
+    style.stepButtonWidth = std::max(
+        0.0F, number(element, "stepButtonWidth", style.stepButtonWidth));
+    style.cornerRadius = std::max(
+        0.0F, number(element, "cornerRadius", style.cornerRadius));
+    style.focusRingWidth = std::max(
+        0.0F, number(element, "focusRingWidth", style.focusRingWidth));
+
+    TextStyle textStyle;
+    textStyle.fontFamilies = {
+        stringValue(element, "fontFamily", "sans-serif")};
+    textStyle.fontSize = std::max(
+        1.0F, number(element, "fontSize", 14.0F));
+
+    NumericInput::ChangedHandler callback;
+    if (const std::string* eventName = attribute(element, "onChanged")) {
+        auto event = context.event(*eventName);
+        callback = [event = std::move(event)](double) { event(); };
+    }
+    auto input = std::make_unique<NumericInput>(
+        engine, options, std::move(callback), style, textStyle);
+    input->setEnabled(boolean(element, "enabled", true));
+    return input;
+}
+
 const std::unordered_set<std::string>& layoutAttributeNames() {
     static const std::unordered_set<std::string> names{
         "id", "flex", "minWidth", "minHeight", "maxWidth", "maxHeight"};
@@ -488,7 +624,7 @@ std::unique_ptr<Widget> BuildContext::buildChild(
         fail(element, "<" + element.type + "> does not accept child widgets");
     }
     if (!element.text.empty() && element.type != "Label" &&
-        element.type != "Button") {
+        element.type != "Button" && element.type != "Checkbox") {
         fail(element, "<" + element.type +
             "> does not accept text content");
     }
@@ -668,6 +804,62 @@ WidgetRegistry createDefaultWidgetRegistry() {
             },
         },
         buildButton);
+    registry.registerWidget(
+        {
+            "Checkbox",
+            true,
+            {
+                {"text", PropertyType::String, ""},
+                {"fontFamily", PropertyType::String, "sans-serif"},
+                {"fontSize", PropertyType::Number, "14"},
+                {"checked", PropertyType::Boolean, "false"},
+                {"enabled", PropertyType::Boolean, "true"},
+                {"onChanged", PropertyType::Event, ""},
+                {"unchecked", PropertyType::Color, "#292F40FF"},
+                {"hovered", PropertyType::Color, "#38455CFF"},
+                {"checkedColor", PropertyType::Color, "#2678F0FF"},
+                {"checkmark", PropertyType::Color, "#F2F7FFFF"},
+                {"textColor", PropertyType::Color, "#EDF2FFFF"},
+                {"disabled", PropertyType::Color, "#40454FFF"},
+                {"focusRing", PropertyType::Color, "#F5D151FF"},
+                {"boxSize", PropertyType::Number, "22"},
+                {"spacing", PropertyType::Number, "10"},
+                {"cornerRadius", PropertyType::Number, "5"},
+                {"focusRingWidth", PropertyType::Number, "2"},
+            },
+        },
+        buildCheckbox);
+    registry.registerWidget(
+        {
+            "NumericInput",
+            false,
+            {
+                {"value", PropertyType::Number, "0"},
+                {"minimum", PropertyType::Number, "0"},
+                {"maximum", PropertyType::Number, "100"},
+                {"step", PropertyType::Number, "1"},
+                {"decimalPlaces", PropertyType::Number, "0"},
+                {"width", PropertyType::Number, "160"},
+                {"height", PropertyType::Number, "40"},
+                {"fontFamily", PropertyType::String, "sans-serif"},
+                {"fontSize", PropertyType::Number, "14"},
+                {"enabled", PropertyType::Boolean, "true"},
+                {"onChanged", PropertyType::Event, ""},
+                {"normal", PropertyType::Color, "#1F2636FF"},
+                {"hovered", PropertyType::Color, "#293347FF"},
+                {"stepButton", PropertyType::Color, "#33425CFF"},
+                {"stepButtonPressed", PropertyType::Color, "#1A5CB8FF"},
+                {"indicator", PropertyType::Color, "#E8F0FFFF"},
+                {"textColor", PropertyType::Color, "#EDF2FFFF"},
+                {"disabled", PropertyType::Color, "#383D47FF"},
+                {"focusRing", PropertyType::Color, "#F5D151FF"},
+                {"contentPadding", PropertyType::Insets, "12,8,8,8"},
+                {"stepButtonWidth", PropertyType::Number, "28"},
+                {"cornerRadius", PropertyType::Number, "7"},
+                {"focusRingWidth", PropertyType::Number, "2"},
+            },
+        },
+        buildNumericInput);
     return registry;
 }
 

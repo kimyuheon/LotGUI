@@ -63,10 +63,11 @@ keeping normal C++ construction fully supported. Both forms create the same
 </Column>
 ```
 
-The initial schema supports `Row`, `Column`, `Label`, `Box`, and `Button`, plus
-IDs, child sizing, colors, text properties, and named button events. Its public
-widget/property metadata is intended to power future Visual Studio and VS Code
-preview extensions. See [`docs/declarative-ui.md`](docs/declarative-ui.md) and
+The initial schema supports `Row`, `Column`, `Label`, `Box`, `Button`,
+`Checkbox`, and `NumericInput`, plus IDs, child sizing, colors, text properties,
+and named events. Its public widget/property metadata is intended to power
+future Visual Studio and VS Code preview extensions. See
+[`docs/declarative-ui.md`](docs/declarative-ui.md) and
 [`examples/settings.lotml`](examples/settings.lotml).
 
 Native keyboard values are normalized into `KeyCode` and `KeyModifiers`.

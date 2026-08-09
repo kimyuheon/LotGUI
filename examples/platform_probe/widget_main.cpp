@@ -8,8 +8,10 @@
 #endif
 #include "widgets/box.h"
 #include "widgets/button.h"
+#include "widgets/checkbox.h"
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
+#include "widgets/numeric_input.h"
 
 #include <algorithm>
 #include <chrono>
@@ -209,12 +211,60 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         lotui::Color{0.62F, 0.38F, 0.92F, 1.0F}, 16.0F);
     texturedBox->setTexture(demoMaskTexture);
     rightContent->addChild(std::move(texturedBox), fixedHeight(70.0F));
-    rightContent->addChild(
-        std::make_unique<lotui::Box>(
-            lotui::Size{0.0F, 86.0F},
-            lotui::Color{0.96F, 0.55F, 0.24F, 1.0F}, 16.0F),
-        {1.0F, {0.0F, 50.0F},
-            {lotui::unboundedLayoutSize, 132.0F}});
+    if (textEngine) {
+        auto form = std::make_unique<lotui::Column>();
+        lotui::LinearLayoutOptions formOptions;
+        formOptions.spacing = 12.0F;
+        formOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
+        form->setOptions(formOptions);
+
+        lotui::TextStyle controlTextStyle;
+        controlTextStyle.fontFamilies = {"Noto Sans KR"};
+        controlTextStyle.fontSize = 16.0F;
+        auto checkboxLabel = std::make_unique<lotui::Label>(
+            textEngine, "격자에 맞춤", controlTextStyle);
+        checkboxLabel->setVerticalAlignment(
+            lotui::VerticalTextAlignment::Center);
+        form->addChild(
+            std::make_unique<lotui::Checkbox>(
+                std::move(checkboxLabel),
+                true,
+                [](bool checked) {
+                    std::cout << "checkbox-changed: "
+                              << std::boolalpha << checked << '\n';
+                }),
+            fixedHeight(34.0F));
+
+        lotui::NumericInputOptions numberOptions;
+        numberOptions.value = 10.0;
+        numberOptions.minimum = 0.5;
+        numberOptions.maximum = 100.0;
+        numberOptions.step = 0.5;
+        numberOptions.decimalPlaces = 1;
+        numberOptions.preferredSize = {0.0F, 44.0F};
+        form->addChild(
+            std::make_unique<lotui::NumericInput>(
+                textEngine,
+                numberOptions,
+                [](double value) {
+                    std::cout << "numeric-input-changed: "
+                              << value << '\n';
+                },
+                lotui::NumericInputStyle{},
+                controlTextStyle),
+            fixedHeight(44.0F));
+        rightContent->addChild(
+            std::move(form),
+            {1.0F, {0.0F, 76.0F},
+                {lotui::unboundedLayoutSize, 100.0F}});
+    } else {
+        rightContent->addChild(
+            std::make_unique<lotui::Box>(
+                lotui::Size{0.0F, 86.0F},
+                lotui::Color{0.96F, 0.55F, 0.24F, 1.0F}, 16.0F),
+            {1.0F, {0.0F, 50.0F},
+                {lotui::unboundedLayoutSize, 132.0F}});
+    }
     rightPanel->addChild(
         std::move(rightContent),
         {1.0F, {0.0F, 120.0F},

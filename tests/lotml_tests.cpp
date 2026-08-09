@@ -1,8 +1,10 @@
 #include "declarative/lotml.h"
 
 #include "widgets/button.h"
+#include "widgets/checkbox.h"
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
+#include "widgets/numeric_input.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -128,6 +130,42 @@ void exposesMetadataForFutureDesignTools() {
         "design tools must be able to identify event properties");
 }
 
+void loadsFormControlsThroughTheSharedWidgetTree() {
+    constexpr std::string_view source = R"lotml(
+<Column spacing="8">
+  <Checkbox id="snap" text="격자에 맞춤" checked="true"
+            onChanged="formChanged" />
+  <NumericInput id="gridSize" value="10" minimum="1" maximum="20"
+                step="0.5" decimalPlaces="1" onChanged="formChanged" />
+</Column>)lotml";
+
+    int changes = 0;
+    lotui::declarative::LoadOptions options;
+    options.textEngine = std::make_shared<TestTextEngine>();
+    options.events.emplace(
+        "formChanged", [&changes]() { ++changes; });
+
+    lotui::declarative::LotmlLoader loader;
+    auto loaded = loader.loadString(source, std::move(options));
+    auto* checkbox = dynamic_cast<lotui::Checkbox*>(loaded.find("snap"));
+    auto* number = dynamic_cast<lotui::NumericInput*>(
+        loaded.find("gridSize"));
+    require(checkbox != nullptr && checkbox->isChecked(),
+        "LotML must construct the configured Checkbox");
+    require(number != nullptr && std::abs(number->value() - 10.0) < 0.001,
+        "LotML must construct the configured NumericInput");
+
+    loaded.tree().layout({0.0F, 0.0F, 320.0F, 120.0F});
+    loaded.tree().keyPressed(lotui::KeyCode::Tab);
+    loaded.tree().keyPressed(lotui::KeyCode::Space);
+    loaded.tree().keyReleased(lotui::KeyCode::Space);
+    loaded.tree().keyPressed(lotui::KeyCode::Tab);
+    loaded.tree().keyPressed(lotui::KeyCode::Up);
+    require(!checkbox->isChecked() &&
+            std::abs(number->value() - 10.5) < 0.001 && changes == 2,
+        "declarative form controls must share focus and event dispatch");
+}
+
 void rejectsInvalidDocuments() {
     lotui::declarative::LotmlLoader loader;
     const auto engine = std::make_shared<TestTextEngine>();
@@ -175,6 +213,7 @@ void rejectsInvalidDocuments() {
 int main() {
     loadsLayoutAndDispatchesNamedEvents();
     exposesMetadataForFutureDesignTools();
+    loadsFormControlsThroughTheSharedWidgetTree();
     rejectsInvalidDocuments();
     std::cout << "lotml_tests passed\n";
     return EXIT_SUCCESS;
