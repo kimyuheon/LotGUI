@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Ribbon id="mainRibbon"
+        selectedTab="home"
+        onChanged="ribbonTabChanged"
+        height="150">
+  <RibbonTab tabId="home" title="홈">
+    <Row spacing="8" crossAlign="stretch">
+      <RibbonGroup title="파일">
+        <Row spacing="6" crossAlign="center">
+          <Button text="새로 만들기" width="104" onClick="newDocument" />
+          <Button text="저장" width="104" onClick="saveDocument" />
+        </Row>
+      </RibbonGroup>
+      <RibbonGroup title="편집">
+        <Row spacing="6" crossAlign="center">
+          <Button text="실행 취소" width="104" onClick="undo" />
+          <Button text="다시 실행" width="104" onClick="redo" />
+        </Row>
+      </RibbonGroup>
+    </Row>
+  </RibbonTab>
+  <RibbonTab tabId="view" title="보기">
+    <Row spacing="8" crossAlign="stretch">
+      <RibbonGroup title="표시">
+        <Checkbox text="격자 표시" checked="true" onChanged="gridChanged" />
+      </RibbonGroup>
+    </Row>
+  </RibbonTab>
+</Ribbon>

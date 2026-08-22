@@ -5,6 +5,7 @@
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/numeric_input.h"
+#include "widgets/ribbon.h"
 #include "widgets/text_field.h"
 
 #include <cmath>
@@ -180,6 +181,61 @@ void loadsFormControlsThroughTheSharedWidgetTree() {
         "declarative form controls must share focus and event dispatch");
 }
 
+void loadsRibbonTabsAndGroups() {
+    constexpr std::string_view source = R"lotml(
+<Ribbon id="mainRibbon" selectedTab="view" onChanged="tabChanged">
+  <RibbonTab id="homeTab" tabId="home" title="홈">
+    <Row spacing="8" crossAlign="stretch">
+      <RibbonGroup id="clipboardGroup" title="클립보드">
+        <Button id="pasteButton" text="붙여넣기" onClick="paste" />
+      </RibbonGroup>
+    </Row>
+  </RibbonTab>
+  <RibbonTab id="viewTab" tabId="view" title="보기">
+    <Row spacing="8" crossAlign="stretch">
+      <RibbonGroup id="displayGroup" title="표시">
+        <Checkbox id="gridToggle" text="격자" checked="true" />
+      </RibbonGroup>
+    </Row>
+  </RibbonTab>
+</Ribbon>)lotml";
+
+    int tabChanges = 0;
+    int pasteClicks = 0;
+    lotui::declarative::LoadOptions options;
+    options.textEngine = std::make_shared<TestTextEngine>();
+    options.events.emplace(
+        "tabChanged", [&tabChanges]() { ++tabChanges; });
+    options.events.emplace(
+        "paste", [&pasteClicks]() { ++pasteClicks; });
+
+    lotui::declarative::LotmlLoader loader;
+    auto loaded = loader.loadString(source, std::move(options));
+    auto* ribbon = dynamic_cast<lotui::Ribbon*>(loaded.find("mainRibbon"));
+    auto* homeTab = dynamic_cast<lotui::RibbonTab*>(loaded.find("homeTab"));
+    auto* group = dynamic_cast<lotui::RibbonGroup*>(
+        loaded.find("clipboardGroup"));
+    auto* paste = dynamic_cast<lotui::Button*>(loaded.find("pasteButton"));
+    require(ribbon != nullptr && homeTab != nullptr && group != nullptr &&
+            paste != nullptr && ribbon->tabCount() == 2 &&
+            ribbon->selectedId() == "view" && tabChanges == 0,
+        "LotML must construct ribbon tabs and groups without firing an initial change");
+
+    loaded.tree().layout({0.0F, 0.0F, 640.0F, 160.0F});
+    require(ribbon->selectTab("home") && tabChanges == 1 &&
+            paste->bounds().width > 0.0F,
+        "declarative ribbon tab selection must activate its retained content");
+    const lotui::Rect bounds = paste->bounds();
+    const lotui::Point center{
+        bounds.x + bounds.width * 0.5F,
+        bounds.y + bounds.height * 0.5F,
+    };
+    loaded.tree().pointerPressed(center, lotui::PointerButton::Primary);
+    loaded.tree().pointerReleased(center, lotui::PointerButton::Primary);
+    require(pasteClicks == 1,
+        "commands nested in a declarative ribbon must dispatch named events");
+}
+
 void rejectsInvalidDocuments() {
     lotui::declarative::LotmlLoader loader;
     const auto engine = std::make_shared<TestTextEngine>();
@@ -228,6 +284,7 @@ int main() {
     loadsLayoutAndDispatchesNamedEvents();
     exposesMetadataForFutureDesignTools();
     loadsFormControlsThroughTheSharedWidgetTree();
+    loadsRibbonTabsAndGroups();
     rejectsInvalidDocuments();
     std::cout << "lotml_tests passed\n";
     return EXIT_SUCCESS;

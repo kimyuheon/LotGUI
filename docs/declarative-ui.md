@@ -37,7 +37,7 @@ auto* save = dynamic_cast<lotui::Button*>(ui.find("saveButton"));
 
 ## Initial schema
 
-- Containers: `Row`, `Column`
+- Containers: `Row`, `Column`, `Ribbon`, `RibbonTab`, `RibbonGroup`
 - Content: `Label`, `Box`, `Button`, `Checkbox`, `NumericInput`, `TextField`
 - Child layout: `flex`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`
 - Shared lookup: optional unique `id`
@@ -67,3 +67,28 @@ the `WidgetTree` or renderer contracts.
 Up/Down/PageUp/PageDown/Home/End. Direct digit entry will reuse `TextField`'s
 committed text and IME event path; it is intentionally not implemented as
 platform-specific virtual-key parsing.
+
+## Ribbon layout
+
+`RibbonTab` and `RibbonGroup` are retained structural widgets. A group accepts
+one child, normally a `Row` or `Column`, and that child may contain any normal
+LotUI controls.
+
+```xml
+<Ribbon selectedTab="home" onChanged="tabChanged">
+  <RibbonTab tabId="home" title="홈">
+    <Row spacing="8" crossAlign="stretch">
+      <RibbonGroup title="파일">
+        <Row spacing="6">
+          <Button text="새로 만들기" onClick="newDocument" />
+          <Button text="저장" onClick="saveDocument" />
+        </Row>
+      </RibbonGroup>
+    </Row>
+  </RibbonTab>
+</Ribbon>
+```
+
+`tabId` is the stable application identity used by `selectedTab` and the C++
+selection API. The optional normal `id` still identifies the widget for
+`LoadedUi::find()` and designer tooling.

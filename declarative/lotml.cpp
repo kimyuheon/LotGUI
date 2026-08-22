@@ -6,6 +6,7 @@
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/numeric_input.h"
+#include "widgets/ribbon.h"
 #include "widgets/text_field.h"
 
 #include <tinyxml2.h>
@@ -612,6 +613,152 @@ std::unique_ptr<Widget> buildTextField(
     return field;
 }
 
+std::unique_ptr<Widget> buildRibbonGroup(
+    const LotmlElement& element,
+    BuildContext& context) {
+    if (element.children.size() > 1) {
+        fail(element, "RibbonGroup accepts at most one child");
+    }
+    const auto engine = context.textEngine();
+    if (!engine) {
+        fail(element, "RibbonGroup requires LoadOptions.textEngine");
+    }
+    const std::string title = stringValue(element, "title");
+    if (title.empty()) {
+        fail(element, "RibbonGroup title must not be empty");
+    }
+
+    std::unique_ptr<Widget> content;
+    if (!element.children.empty()) {
+        content = context.buildChild(element.children.front());
+    }
+    RibbonGroupStyle style;
+    style.background = colorValue(
+        element, "background", style.background);
+    style.titleColor = colorValue(
+        element, "titleColor", style.titleColor);
+    style.separator = colorValue(
+        element, "separator", style.separator);
+    style.contentPadding = insets(
+        element, "contentPadding", style.contentPadding);
+    style.titleHeight = std::max(
+        0.0F, number(element, "titleHeight", style.titleHeight));
+    style.separatorWidth = std::max(
+        0.0F, number(element, "separatorWidth", style.separatorWidth));
+    style.cornerRadius = std::max(
+        0.0F, number(element, "cornerRadius", style.cornerRadius));
+
+    TextStyle titleStyle;
+    titleStyle.fontFamilies = {
+        stringValue(element, "fontFamily", "sans-serif")};
+    titleStyle.fontSize = std::max(
+        1.0F, number(element, "fontSize", 12.0F));
+    return std::make_unique<RibbonGroup>(
+        engine,
+        title,
+        std::move(content),
+        style,
+        titleStyle);
+}
+
+std::unique_ptr<Widget> buildRibbonTab(
+    const LotmlElement& element,
+    BuildContext& context) {
+    if (element.children.size() > 1) {
+        fail(element, "RibbonTab accepts at most one child");
+    }
+    std::unique_ptr<Widget> content;
+    if (!element.children.empty()) {
+        content = context.buildChild(element.children.front());
+    }
+    const std::string tabId = stringValue(element, "tabId");
+    const std::string title = stringValue(element, "title");
+    if (tabId.empty() || title.empty()) {
+        fail(element, "RibbonTab tabId and title must not be empty");
+    }
+    return std::make_unique<RibbonTab>(
+        tabId,
+        title,
+        std::move(content));
+}
+
+std::unique_ptr<Widget> buildRibbon(
+    const LotmlElement& element,
+    BuildContext& context) {
+    const auto engine = context.textEngine();
+    if (!engine) {
+        fail(element, "Ribbon requires LoadOptions.textEngine");
+    }
+
+    RibbonStyle style;
+    style.background = colorValue(
+        element, "background", style.background);
+    style.tabBar = colorValue(element, "tabBar", style.tabBar);
+    style.tabNormal = colorValue(
+        element, "tabNormal", style.tabNormal);
+    style.tabHovered = colorValue(
+        element, "tabHovered", style.tabHovered);
+    style.tabPressed = colorValue(
+        element, "tabPressed", style.tabPressed);
+    style.tabSelected = colorValue(
+        element, "tabSelected", style.tabSelected);
+    style.text = colorValue(element, "textColor", style.text);
+    style.selectedText = colorValue(
+        element, "selectedTextColor", style.selectedText);
+    style.focusRing = colorValue(
+        element, "focusRing", style.focusRing);
+    style.contentPadding = insets(
+        element, "contentPadding", style.contentPadding);
+    style.tabBarHeight = std::max(
+        0.0F, number(element, "tabBarHeight", style.tabBarHeight));
+    style.tabHorizontalPadding = std::max(
+        0.0F, number(element, "tabHorizontalPadding",
+            style.tabHorizontalPadding));
+    style.tabSpacing = std::max(
+        0.0F, number(element, "tabSpacing", style.tabSpacing));
+    style.minimumTabWidth = std::max(
+        0.0F, number(element, "minimumTabWidth",
+            style.minimumTabWidth));
+    style.tabCornerRadius = std::max(
+        0.0F, number(element, "tabCornerRadius",
+            style.tabCornerRadius));
+    style.focusRingWidth = std::max(
+        0.0F, number(element, "focusRingWidth",
+            style.focusRingWidth));
+    style.preferredHeight = std::max(
+        0.0F, number(element, "height", style.preferredHeight));
+
+    TextStyle tabTextStyle;
+    tabTextStyle.fontFamilies = {
+        stringValue(element, "fontFamily", "sans-serif")};
+    tabTextStyle.fontSize = std::max(
+        1.0F, number(element, "fontSize", 14.0F));
+
+    Ribbon::TabChangedHandler changed;
+    if (const std::string* eventName = attribute(element, "onChanged")) {
+        auto event = context.event(*eventName);
+        changed = [event = std::move(event)](
+            std::size_t, std::string_view) { event(); };
+    }
+    auto ribbon = std::make_unique<Ribbon>(
+        engine, style, tabTextStyle);
+    for (const LotmlElement& child : element.children) {
+        std::unique_ptr<Widget> widget = context.buildChild(child);
+        if (dynamic_cast<RibbonTab*>(widget.get()) == nullptr) {
+            fail(child, "Ribbon children must be RibbonTab widgets");
+        }
+        ribbon->addTab(std::move(widget));
+    }
+    ribbon->setEnabled(boolean(element, "enabled", true));
+    const std::string selected = stringValue(element, "selectedTab");
+    if (!selected.empty() && selected != ribbon->selectedId() &&
+        !ribbon->selectTab(selected)) {
+        fail(element, "selectedTab does not match a RibbonTab tabId");
+    }
+    ribbon->setOnTabChanged(std::move(changed));
+    return ribbon;
+}
+
 const std::unordered_set<std::string>& layoutAttributeNames() {
     static const std::unordered_set<std::string> names{
         "id", "flex", "minWidth", "minHeight", "maxWidth", "maxHeight"};
@@ -947,6 +1094,64 @@ WidgetRegistry createDefaultWidgetRegistry() {
             },
         },
         buildTextField);
+    registry.registerWidget(
+        {
+            "RibbonGroup",
+            true,
+            {
+                {"title", PropertyType::String, "", true},
+                {"fontFamily", PropertyType::String, "sans-serif"},
+                {"fontSize", PropertyType::Number, "12"},
+                {"background", PropertyType::Color, "#242B3BFF"},
+                {"titleColor", PropertyType::Color, "#B8C4DBFF"},
+                {"separator", PropertyType::Color, "#475266FF"},
+                {"contentPadding", PropertyType::Insets, "8,8,8,6"},
+                {"titleHeight", PropertyType::Number, "22"},
+                {"separatorWidth", PropertyType::Number, "1"},
+                {"cornerRadius", PropertyType::Number, "5"},
+            },
+        },
+        buildRibbonGroup);
+    registry.registerWidget(
+        {
+            "RibbonTab",
+            true,
+            {
+                {"tabId", PropertyType::String, "", true},
+                {"title", PropertyType::String, "", true},
+            },
+        },
+        buildRibbonTab);
+    registry.registerWidget(
+        {
+            "Ribbon",
+            true,
+            {
+                {"selectedTab", PropertyType::String, ""},
+                {"enabled", PropertyType::Boolean, "true"},
+                {"onChanged", PropertyType::Event, ""},
+                {"fontFamily", PropertyType::String, "sans-serif"},
+                {"fontSize", PropertyType::Number, "14"},
+                {"height", PropertyType::Number, "150"},
+                {"background", PropertyType::Color, "#171C29FF"},
+                {"tabBar", PropertyType::Color, "#1F2636FF"},
+                {"tabNormal", PropertyType::Color, "#1F2636FF"},
+                {"tabHovered", PropertyType::Color, "#334057FF"},
+                {"tabPressed", PropertyType::Color, "#26334AFF"},
+                {"tabSelected", PropertyType::Color, "#2E3B52FF"},
+                {"textColor", PropertyType::Color, "#D6E0F2FF"},
+                {"selectedTextColor", PropertyType::Color, "#FAFCFFFF"},
+                {"focusRing", PropertyType::Color, "#F5D151FF"},
+                {"contentPadding", PropertyType::Insets, "8"},
+                {"tabBarHeight", PropertyType::Number, "38"},
+                {"tabHorizontalPadding", PropertyType::Number, "16"},
+                {"tabSpacing", PropertyType::Number, "2"},
+                {"minimumTabWidth", PropertyType::Number, "72"},
+                {"tabCornerRadius", PropertyType::Number, "6"},
+                {"focusRingWidth", PropertyType::Number, "2"},
+            },
+        },
+        buildRibbon);
     return registry;
 }
 

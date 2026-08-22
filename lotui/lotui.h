@@ -21,5 +21,6 @@
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/numeric_input.h"
+#include "widgets/ribbon.h"
 #include "widgets/single_child_widget.h"
 #include "widgets/text_field.h"

@@ -12,15 +12,19 @@
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/numeric_input.h"
+#include "widgets/ribbon.h"
 #include "widgets/text_field.h"
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <exception>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <cmath>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -294,7 +298,115 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         std::move(rightPanel),
         {1.0F, {180.0F, 180.0F},
             {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
-    return std::make_unique<lotui::WidgetTree>(std::move(root));
+    if (!textEngine) {
+        return std::make_unique<lotui::WidgetTree>(std::move(root));
+    }
+
+    lotui::TextStyle ribbonTextStyle;
+    ribbonTextStyle.fontFamilies = {"Noto Sans KR"};
+    ribbonTextStyle.fontSize = 15.0F;
+    auto ribbon = std::make_unique<lotui::Ribbon>(
+        textEngine,
+        lotui::RibbonStyle{},
+        ribbonTextStyle,
+        [](std::size_t, std::string_view id) {
+            std::cout << "ribbon-tab-changed: " << id << '\n';
+        });
+
+    const auto commandButton = [&](
+        std::string text,
+        std::function<void()> callback) -> std::unique_ptr<lotui::Button> {
+        auto label = std::make_unique<lotui::Label>(
+            textEngine, std::move(text), ribbonTextStyle);
+        label->setHorizontalAlignment(
+            lotui::HorizontalTextAlignment::Center);
+        label->setVerticalAlignment(
+            lotui::VerticalTextAlignment::Center);
+        return std::make_unique<lotui::Button>(
+            std::move(label),
+            lotui::Size{104.0F, 52.0F},
+            std::move(callback));
+    };
+
+    auto homeGroups = std::make_unique<lotui::Row>();
+    lotui::LinearLayoutOptions groupRowOptions;
+    groupRowOptions.spacing = 8.0F;
+    groupRowOptions.crossAxisAlignment =
+        lotui::CrossAxisAlignment::Stretch;
+    homeGroups->setOptions(groupRowOptions);
+    auto fileCommands = std::make_unique<lotui::Row>();
+    lotui::LinearLayoutOptions commandOptions;
+    commandOptions.spacing = 6.0F;
+    commandOptions.crossAxisAlignment =
+        lotui::CrossAxisAlignment::Center;
+    fileCommands->setOptions(commandOptions);
+    fileCommands->addChild(commandButton(
+        "새로 만들기",
+        []() { std::cout << "ribbon-command: new\n"; }),
+        {1.0F, {104.0F, 52.0F}, {150.0F, 60.0F}});
+    fileCommands->addChild(commandButton(
+        "저장",
+        []() { std::cout << "ribbon-command: save\n"; }),
+        {1.0F, {104.0F, 52.0F}, {150.0F, 60.0F}});
+    homeGroups->addChild(
+        std::make_unique<lotui::RibbonGroup>(
+            textEngine, "파일", std::move(fileCommands),
+            lotui::RibbonGroupStyle{}, ribbonTextStyle),
+        {0.0F, {230.0F, 88.0F}, {320.0F, 110.0F}});
+
+    auto editCommands = std::make_unique<lotui::Row>();
+    editCommands->setOptions(commandOptions);
+    editCommands->addChild(commandButton(
+        "실행 취소",
+        []() { std::cout << "ribbon-command: undo\n"; }),
+        {1.0F, {104.0F, 52.0F}, {150.0F, 60.0F}});
+    editCommands->addChild(commandButton(
+        "다시 실행",
+        []() { std::cout << "ribbon-command: redo\n"; }),
+        {1.0F, {104.0F, 52.0F}, {150.0F, 60.0F}});
+    homeGroups->addChild(
+        std::make_unique<lotui::RibbonGroup>(
+            textEngine, "편집", std::move(editCommands),
+            lotui::RibbonGroupStyle{}, ribbonTextStyle),
+        {0.0F, {230.0F, 88.0F}, {320.0F, 110.0F}});
+    ribbon->addTab(std::make_unique<lotui::RibbonTab>(
+        "home", "홈", std::move(homeGroups)));
+
+    auto viewGroups = std::make_unique<lotui::Row>();
+    viewGroups->setOptions(groupRowOptions);
+    auto displayCommands = std::make_unique<lotui::Row>();
+    displayCommands->setOptions(commandOptions);
+    auto gridLabel = std::make_unique<lotui::Label>(
+        textEngine, "격자 표시", ribbonTextStyle);
+    gridLabel->setVerticalAlignment(
+        lotui::VerticalTextAlignment::Center);
+    displayCommands->addChild(
+        std::make_unique<lotui::Checkbox>(
+            std::move(gridLabel), true,
+            [](bool checked) {
+                std::cout << "ribbon-grid: " << std::boolalpha
+                          << checked << '\n';
+            }),
+        {0.0F, {140.0F, 42.0F}, {180.0F, 54.0F}});
+    viewGroups->addChild(
+        std::make_unique<lotui::RibbonGroup>(
+            textEngine, "표시", std::move(displayCommands),
+            lotui::RibbonGroupStyle{}, ribbonTextStyle),
+        {0.0F, {190.0F, 88.0F}, {260.0F, 110.0F}});
+    ribbon->addTab(std::make_unique<lotui::RibbonTab>(
+        "view", "보기", std::move(viewGroups)));
+
+    auto shell = std::make_unique<lotui::Column>();
+    lotui::LinearLayoutOptions shellOptions;
+    shellOptions.spacing = 12.0F;
+    shellOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
+    shell->setOptions(shellOptions);
+    shell->addChild(std::move(ribbon), fixedHeight(150.0F));
+    shell->addChild(
+        std::move(root),
+        {1.0F, {0.0F, 260.0F},
+            {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
+    return std::make_unique<lotui::WidgetTree>(std::move(shell));
 }
 
 void updateLayout(
@@ -306,8 +418,8 @@ void updateLayout(
     const float height =
         static_cast<float>(metrics.framebufferHeight) / scale;
     tree.layout(
-        {48.0F, 44.0F, std::max(0.0F, width - 96.0F),
-            std::min(400.0F, std::max(0.0F, height - 88.0F))},
+        {32.0F, 20.0F, std::max(0.0F, width - 64.0F),
+            std::min(570.0F, std::max(0.0F, height - 40.0F))},
         {0.0F, 0.0F, width, height});
 }
 

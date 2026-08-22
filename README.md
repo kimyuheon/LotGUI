@@ -70,11 +70,18 @@ keeping normal C++ construction fully supported. Both forms create the same
 ```
 
 The initial schema supports `Row`, `Column`, `Label`, `Box`, `Button`,
-`Checkbox`, `NumericInput`, and `TextField`, plus IDs, child sizing, colors,
-text properties, and named events. Its public widget/property metadata is
-intended to power future Visual Studio and VS Code preview extensions. See
+`Checkbox`, `NumericInput`, `TextField`, and `Ribbon` with tabs and groups,
+plus IDs, child sizing, colors, text properties, and named events. Its public
+widget/property metadata is intended to power future Visual Studio and VS Code
+preview extensions. See
 [`docs/declarative-ui.md`](docs/declarative-ui.md) and
 [`examples/settings.lotml`](examples/settings.lotml).
+
+The ribbon foundation provides retained `RibbonTab` selection and reusable
+`RibbonGroup` containers. Groups accept ordinary LotUI widgets, so buttons,
+checkboxes, text fields, and future controls share the same input and focus
+behavior inside and outside a ribbon. See [`docs/ribbon.md`](docs/ribbon.md)
+and [`examples/ribbon.lotml`](examples/ribbon.lotml).
 
 Native keyboard values are normalized into `KeyCode` and `KeyModifiers`.
 `WidgetTree` provides Tab/Shift+Tab traversal, pointer-to-focus behavior, and

@@ -14,7 +14,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 |---|---|---|
 | `lot_ui_manager` | application overlay, dock host, document tabs, viewport reservation | Planned |
 | `lot_main_menu` | menu bar, nested menus, checked/disabled items, shortcuts, separators | Planned |
-| `lot_toolbar` | tool window, internal tabs, toggle/action buttons, tooltips | Planned |
+| `lot_toolbar` | tool window, internal tabs, toggle/action buttons, tooltips | Ribbon tabs/groups foundation complete |
 | `lot_status_bar` | fixed bar, command `TextField`, history, transcript popup, state toggles | Text input foundation complete |
 | `lot_properties_panel` | property grid, numeric/vector editors, combo boxes, checkboxes, color editor | Partial |
 | `lot_material_panel` | list/selection, numeric editors, colors, actions | Partial |
@@ -42,6 +42,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `Combo`, `BeginCombo`, `Selectable` | `ComboBox`, `ListView`, selection model | Planned |
 | `ColorEdit3` | RGB/RGBA field and `ColorPicker` popup | Planned |
 | `BeginTabBar`, `BeginTabItem`, `TabItemButton` | `TabView` and closeable `DocumentTabView` | Next after text input |
+| Office-style application commands | `Ribbon`, `RibbonTab`, reusable `RibbonGroup` content | Foundation complete |
 | `CollapsingHeader`, `Indent` | `DisclosurePanel` and `TreeView` | Planned |
 | `BeginChild` | clipped `ScrollView` | Planned |
 | `BeginPopup`, `OpenPopup` | anchored `Popup` managed by an overlay host | Planned |
