@@ -121,6 +121,15 @@ void handlesCommittedUtf8AndCompositionSeparately() {
     const lotui::TextInputState state = tree.textInputState();
     require(state.enabled && state.inputRect.x > input->bounds().x,
         "painting must update the native IME candidate position");
+
+    tree.textInput({lotui::TextInputEventType::Composition, "한", 0, 0});
+    commands.clear();
+    tree.paint(commands);
+    const float committedCaretX = input->bounds().x +
+        input->style().contentPadding.left +
+        static_cast<float>(input->cursorByteOffset()) * 5.0F;
+    require(tree.textInputState().inputRect.x > committedCaretX,
+        "an IME without a cursor offset must draw the caret after pre-edit text");
 }
 
 void cancelsCompositionWhenFocusLeaves() {

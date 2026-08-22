@@ -86,6 +86,7 @@ private:
     std::string composition_;
     std::size_t cursorByteOffset_{0};
     std::size_t compositionSelectionStart_{0};
+    std::size_t compositionSelectionLength_{0};
     Size preferredSize_{220.0F, 40.0F};
     ChangedHandler onChanged_{};
     SubmittedHandler onSubmitted_{};

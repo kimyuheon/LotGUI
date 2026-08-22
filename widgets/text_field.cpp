@@ -207,11 +207,21 @@ void TextField::onPaint(std::vector<PaintCommand>& commands) const {
         });
     }
     if (focused_) {
+        const std::size_t selectionStart = std::min(
+            compositionSelectionStart_, composition_.size());
+        std::size_t compositionCaretOffset = selectionStart + std::min(
+            compositionSelectionLength_,
+            composition_.size() - selectionStart);
+        // Some IMEs report an empty selection at byte zero while composing.
+        // With no editable composition cursor support yet, the natural caret
+        // position is after the visible pre-edit run.
+        if (compositionCaretOffset == 0 && !composition_.empty()) {
+            compositionCaretOffset = composition_.size();
+        }
         const float compositionCaret = composition_.empty()
             ? 0.0F
-            : measureTextWidth(composition_.substr(
-                0, std::min(
-                    compositionSelectionStart_, composition_.size())));
+            : measureTextWidth(
+                composition_.substr(0, compositionCaretOffset));
         caretOffset_ = prefix + compositionCaret;
         commands.push_back({
             {
@@ -380,6 +390,9 @@ bool TextField::onTextInputEvent(const TextInputEvent& event) {
         composition_ = event.text;
         compositionSelectionStart_ = std::min(
             event.selectionStart, composition_.size());
+        compositionSelectionLength_ = std::min(
+            event.selectionLength,
+            composition_.size() - compositionSelectionStart_);
         invalidateLayouts();
         return true;
     case TextInputEventType::CompositionEnd:
@@ -455,6 +468,7 @@ void TextField::moveCursorRight() noexcept {
 void TextField::clearComposition() noexcept {
     composition_.clear();
     compositionSelectionStart_ = 0;
+    compositionSelectionLength_ = 0;
 }
 
 void TextField::notifyChanged() {
