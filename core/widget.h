@@ -4,6 +4,7 @@
 #include "core/key_event.h"
 #include "core/paint_command.h"
 #include "core/pointer_router.h"
+#include "core/text_input_event.h"
 
 #include <vector>
 
@@ -55,6 +56,9 @@ private:
     bool dispatchPointerEvent(const WidgetPointerEvent& event);
     bool dispatchFocusChanged(bool focused);
     bool dispatchKeyEvent(const WidgetKeyEvent& event);
+    bool dispatchTextInputEvent(const TextInputEvent& event);
+    bool requestsTextInput() const noexcept;
+    Rect requestedTextInputRect() const noexcept;
 
 protected:
     virtual void onArrange();
@@ -71,6 +75,9 @@ protected:
     virtual bool acceptsFocus() const noexcept;
     virtual bool onFocusChanged(bool focused);
     virtual bool onKeyEvent(const WidgetKeyEvent& event);
+    virtual bool acceptsTextInput() const noexcept;
+    virtual Rect textInputRect() const noexcept;
+    virtual bool onTextInputEvent(const TextInputEvent& event);
 
 private:
     PointerTargetId pointerTargetId_{invalidPointerTarget};

@@ -2,11 +2,14 @@
 
 #include <windows.h>
 #include <windowsx.h>
+#include <imm.h>
 
 #include <deque>
+#include <cmath>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace lotui {
@@ -63,6 +66,41 @@ std::wstring utf8ToWide(const std::string& value) {
     return result;
 }
 
+std::string wideToUtf8(std::wstring_view value) {
+    if (value.empty()) {
+        return {};
+    }
+    const int length = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, value.data(),
+        static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
+    if (length <= 0) {
+        return {};
+    }
+    std::string result(static_cast<std::size_t>(length), '\0');
+    WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, value.data(),
+        static_cast<int>(value.size()), result.data(), length,
+        nullptr, nullptr);
+    return result;
+}
+
+std::wstring compositionString(HIMC context, DWORD index) {
+    const LONG byteCount = ImmGetCompositionStringW(
+        context, index, nullptr, 0);
+    if (byteCount <= 0) {
+        return {};
+    }
+    std::wstring result(
+        static_cast<std::size_t>(byteCount) / sizeof(wchar_t), L'\0');
+    const LONG copied = ImmGetCompositionStringW(
+        context, index, result.data(), static_cast<DWORD>(byteCount));
+    if (copied < 0) {
+        return {};
+    }
+    result.resize(static_cast<std::size_t>(copied) / sizeof(wchar_t));
+    return result;
+}
+
 void enablePerMonitorDpiAwareness() {
     using SetDpiAwarenessContextFn = BOOL(WINAPI*)(DPI_AWARENESS_CONTEXT);
 
@@ -85,6 +123,7 @@ public:
     void show() override;
     bool pollEvent(PlatformEvent& event) override;
     bool setPointerCapture(bool enabled) override;
+    void setTextInputState(const TextInputState& state) override;
     WindowMetrics metrics() const override;
     NativeWindowHandle nativeHandle() const override;
 
@@ -101,6 +140,8 @@ private:
     std::deque<PlatformEvent> events_;
     bool closeRequested_{false};
     bool pointerCaptured_{false};
+    TextInputState textInputState_{};
+    wchar_t pendingHighSurrogate_{0};
 };
 
 WindowsWindow::WindowsWindow(const WindowOptions& options) {
@@ -207,6 +248,47 @@ bool WindowsWindow::setPointerCapture(bool enabled) {
         ReleaseCapture();
     }
     return GetCapture() != window_;
+}
+
+void WindowsWindow::setTextInputState(const TextInputState& state) {
+    const bool wasEnabled = textInputState_.enabled;
+    textInputState_ = state;
+    if (window_ == nullptr) {
+        return;
+    }
+
+    HIMC context = ImmGetContext(window_);
+    if (context == nullptr) {
+        return;
+    }
+    if (!state.enabled) {
+        pendingHighSurrogate_ = 0;
+        if (wasEnabled) {
+            ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_CANCEL, 0);
+        }
+        ImmReleaseContext(window_, context);
+        return;
+    }
+
+    const float scale = metrics_.dpiScale > 0.0F
+        ? metrics_.dpiScale
+        : 1.0F;
+    const POINT position{
+        static_cast<LONG>(std::lround(state.inputRect.x * scale)),
+        static_cast<LONG>(std::lround(
+            (state.inputRect.y + state.inputRect.height) * scale)),
+    };
+    COMPOSITIONFORM composition{};
+    composition.dwStyle = CFS_POINT;
+    composition.ptCurrentPos = position;
+    ImmSetCompositionWindow(context, &composition);
+
+    CANDIDATEFORM candidate{};
+    candidate.dwIndex = 0;
+    candidate.dwStyle = CFS_CANDIDATEPOS;
+    candidate.ptCurrentPos = position;
+    ImmSetCandidateWindow(context, &candidate);
+    ImmReleaseContext(window_, context);
 }
 
 WindowMetrics WindowsWindow::metrics() const {
@@ -349,6 +431,87 @@ LRESULT WindowsWindow::handleMessage(
         return 0;
     }
 
+    case WM_CHAR: {
+        if (!textInputState_.enabled) {
+            return DefWindowProcW(window_, message, wParam, lParam);
+        }
+        const wchar_t value = static_cast<wchar_t>(wParam);
+        if (value < 0x20 || value == 0x7F) {
+            return 0;
+        }
+        std::wstring text;
+        if (value >= 0xD800 && value <= 0xDBFF) {
+            pendingHighSurrogate_ = value;
+            return 0;
+        }
+        if (value >= 0xDC00 && value <= 0xDFFF &&
+            pendingHighSurrogate_ != 0) {
+            text.push_back(pendingHighSurrogate_);
+            text.push_back(value);
+            pendingHighSurrogate_ = 0;
+        } else {
+            pendingHighSurrogate_ = 0;
+            text.push_back(value);
+        }
+        PlatformEvent event{PlatformEventType::TextInput};
+        event.text = wideToUtf8(text);
+        if (!event.text.empty()) {
+            pushEvent(std::move(event));
+        }
+        return 0;
+    }
+
+    case WM_IME_STARTCOMPOSITION:
+        if (textInputState_.enabled) {
+            pushEvent({PlatformEventType::TextComposition});
+            return 0;
+        }
+        break;
+
+    case WM_IME_COMPOSITION: {
+        if (!textInputState_.enabled) {
+            break;
+        }
+        HIMC context = ImmGetContext(window_);
+        if (context == nullptr) {
+            return 0;
+        }
+        if ((lParam & GCS_RESULTSTR) != 0) {
+            PlatformEvent event{PlatformEventType::TextInput};
+            event.text = wideToUtf8(
+                compositionString(context, GCS_RESULTSTR));
+            if (!event.text.empty()) {
+                pushEvent(std::move(event));
+            }
+        }
+        if ((lParam & GCS_COMPSTR) != 0) {
+            const std::wstring composition =
+                compositionString(context, GCS_COMPSTR);
+            const LONG cursor = ImmGetCompositionStringW(
+                context, GCS_CURSORPOS, nullptr, 0);
+            const std::size_t cursorUnits = cursor < 0
+                ? composition.size()
+                : std::min(
+                    static_cast<std::size_t>(cursor), composition.size());
+            PlatformEvent event{PlatformEventType::TextComposition};
+            event.text = wideToUtf8(composition);
+            event.selectionStart = wideToUtf8(std::wstring_view(
+                composition.data(), cursorUnits)).size();
+            pushEvent(std::move(event));
+        } else if ((lParam & GCS_RESULTSTR) == 0) {
+            pushEvent({PlatformEventType::TextCompositionEnd});
+        }
+        ImmReleaseContext(window_, context);
+        return 0;
+    }
+
+    case WM_IME_ENDCOMPOSITION:
+        if (textInputState_.enabled) {
+            pushEvent({PlatformEventType::TextCompositionEnd});
+            return 0;
+        }
+        break;
+
     case WM_SETFOCUS:
         metrics_.focused = true;
         pushEvent({PlatformEventType::FocusGained});
@@ -397,6 +560,7 @@ LRESULT WindowsWindow::handleMessage(
     default:
         return DefWindowProcW(window_, message, wParam, lParam);
     }
+    return DefWindowProcW(window_, message, wParam, lParam);
 }
 
 void WindowsWindow::pushEvent(PlatformEvent event) {

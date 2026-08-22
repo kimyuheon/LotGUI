@@ -84,6 +84,18 @@ bool Widget::dispatchKeyEvent(const WidgetKeyEvent& event) {
     return onKeyEvent(event);
 }
 
+bool Widget::dispatchTextInputEvent(const TextInputEvent& event) {
+    return onTextInputEvent(event);
+}
+
+bool Widget::requestsTextInput() const noexcept {
+    return acceptsTextInput();
+}
+
+Rect Widget::requestedTextInputRect() const noexcept {
+    return textInputRect();
+}
+
 void Widget::onArrange() {
 }
 
@@ -122,6 +134,18 @@ bool Widget::onFocusChanged(bool) {
 }
 
 bool Widget::onKeyEvent(const WidgetKeyEvent&) {
+    return false;
+}
+
+bool Widget::acceptsTextInput() const noexcept {
+    return false;
+}
+
+Rect Widget::textInputRect() const noexcept {
+    return bounds_;
+}
+
+bool Widget::onTextInputEvent(const TextInputEvent&) {
     return false;
 }
 

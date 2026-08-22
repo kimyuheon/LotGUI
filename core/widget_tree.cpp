@@ -177,6 +177,24 @@ WidgetKeyUpdate WidgetTree::cancelKeyboard() {
     return update;
 }
 
+WidgetTextInputUpdate WidgetTree::textInput(
+    const TextInputEvent& event) {
+    Widget* focused = focusedWidget();
+    if (focused == nullptr || !focused->requestsTextInput()) {
+        return {};
+    }
+    const bool handled = focused->dispatchTextInputEvent(event);
+    return {handled, handled};
+}
+
+TextInputState WidgetTree::textInputState() const noexcept {
+    const Widget* focused = focusedWidget();
+    if (focused == nullptr || !focused->requestsTextInput()) {
+        return {};
+    }
+    return {true, focused->requestedTextInputRect()};
+}
+
 WidgetKeyUpdate WidgetTree::moveFocus(bool reverse) {
     WidgetKeyUpdate update;
     update.needsRepaint = syncFocusTargets();

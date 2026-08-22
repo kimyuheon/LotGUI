@@ -3,10 +3,13 @@
 
 #include "platform/platform_backend.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <deque>
 #include <memory>
 #include <stdexcept>
+#include <string>
+#include <utility>
 
 class MacOSWindowImpl;
 
@@ -45,9 +48,11 @@ lotui::KeyCode keyCode(NSEvent* event) {
     }
 }
 
-@interface LotUIProbeView : NSView {
+@interface LotUIProbeView : NSView <NSTextInputClient> {
 @public
     MacOSWindowImpl* owner;
+    NSUInteger markedTextLength;
+    NSRange markedSelection;
 }
 - (void)pushMousePosition:(NSEvent*)event;
 - (void)pushMouseButton:(NSEvent*)event
@@ -69,6 +74,8 @@ public:
     void show() override;
     bool pollEvent(lotui::PlatformEvent& event) override;
     bool setPointerCapture(bool enabled) override;
+    void setTextInputState(
+        const lotui::TextInputState& state) override;
     lotui::WindowMetrics metrics() const override;
     lotui::NativeWindowHandle nativeHandle() const override;
 
@@ -87,6 +94,11 @@ public:
         bool repeat);
     void pushFocus(bool focused);
     void pushDpiChanged();
+    void pushTextInput(NSString* text);
+    void pushComposition(NSString* text, NSRange selection);
+    void pushCompositionEnd();
+    bool textInputEnabled() const noexcept;
+    NSRect textInputScreenRect() const;
 
 private:
     void updateMetalLayer();
@@ -99,9 +111,19 @@ private:
     std::deque<lotui::PlatformEvent> events_;
     bool closeRequested_{false};
     bool pointerCaptured_{false};
+    lotui::TextInputState textInputState_{};
 };
 
 @implementation LotUIProbeView
+
+- (instancetype)initWithFrame:(NSRect)frame {
+    self = [super initWithFrame:frame];
+    if (self != nil) {
+        markedTextLength = 0;
+        markedSelection = NSMakeRange(0, 0);
+    }
+    return self;
+}
 
 - (BOOL)acceptsFirstResponder {
     return YES;
@@ -197,7 +219,90 @@ private:
             keyModifiers(event),
             true,
             event.isARepeat == YES);
+        if (owner->textInputEnabled()) {
+            [self interpretKeyEvents:@[event]];
+        }
     }
+}
+
+- (BOOL)hasMarkedText {
+    return markedTextLength > 0;
+}
+
+- (NSRange)markedRange {
+    return markedTextLength > 0
+        ? NSMakeRange(0, markedTextLength)
+        : NSMakeRange(NSNotFound, 0);
+}
+
+- (NSRange)selectedRange {
+    return markedSelection;
+}
+
+- (void)setMarkedText:(id)value
+         selectedRange:(NSRange)selection
+       replacementRange:(NSRange)replacement {
+    (void)replacement;
+    NSString* text = [value isKindOfClass:[NSAttributedString class]]
+        ? [(NSAttributedString*)value string]
+        : (NSString*)value;
+    markedTextLength = text.length;
+    markedSelection = selection;
+    if (owner != nullptr) {
+        owner->pushComposition(text, selection);
+    }
+}
+
+- (void)unmarkText {
+    const BOOL hadMarkedText = markedTextLength > 0;
+    markedTextLength = 0;
+    markedSelection = NSMakeRange(0, 0);
+    if (hadMarkedText && owner != nullptr) {
+        owner->pushCompositionEnd();
+    }
+}
+
+- (NSArray<NSAttributedStringKey>*)validAttributesForMarkedText {
+    return @[];
+}
+
+- (NSAttributedString*)attributedSubstringForProposedRange:(NSRange)range
+                                                actualRange:(NSRangePointer)actual {
+    (void)range;
+    if (actual != nullptr) {
+        *actual = NSMakeRange(NSNotFound, 0);
+    }
+    return nil;
+}
+
+- (void)insertText:(id)value replacementRange:(NSRange)replacement {
+    (void)replacement;
+    NSString* text = [value isKindOfClass:[NSAttributedString class]]
+        ? [(NSAttributedString*)value string]
+        : (NSString*)value;
+    markedTextLength = 0;
+    markedSelection = NSMakeRange(0, 0);
+    if (owner != nullptr) {
+        owner->pushTextInput(text);
+        owner->pushCompositionEnd();
+    }
+}
+
+- (NSUInteger)characterIndexForPoint:(NSPoint)point {
+    (void)point;
+    return NSNotFound;
+}
+
+- (NSRect)firstRectForCharacterRange:(NSRange)range
+                          actualRange:(NSRangePointer)actual {
+    if (actual != nullptr) {
+        *actual = range;
+    }
+    return owner != nullptr ? owner->textInputScreenRect() : NSZeroRect;
+}
+
+- (void)doCommandBySelector:(SEL)selector {
+    (void)selector;
 }
 
 - (void)keyUp:(NSEvent*)event {
@@ -351,6 +456,19 @@ bool MacOSWindowImpl::setPointerCapture(bool enabled) {
     return true;
 }
 
+void MacOSWindowImpl::setTextInputState(
+    const lotui::TextInputState& state) {
+    const bool wasEnabled = textInputState_.enabled;
+    textInputState_ = state;
+    if (wasEnabled && !state.enabled && view_ != nil) {
+        [view_ unmarkText];
+    }
+    if (state.enabled && window_ != nil && view_ != nil) {
+        [window_ makeFirstResponder:view_];
+        [[view_ inputContext] invalidateCharacterCoordinates];
+    }
+}
+
 lotui::WindowMetrics MacOSWindowImpl::metrics() const {
     return metrics_;
 }
@@ -432,6 +550,67 @@ void MacOSWindowImpl::pushDpiChanged() {
     lotui::PlatformEvent event{lotui::PlatformEventType::DpiChanged};
     event.dpiScale = metrics_.dpiScale;
     events_.push_back(event);
+}
+
+void MacOSWindowImpl::pushTextInput(NSString* text) {
+    if (!textInputState_.enabled || text == nil || text.length == 0) {
+        return;
+    }
+    lotui::PlatformEvent event{lotui::PlatformEventType::TextInput};
+    event.text = text.UTF8String == nullptr ? "" : text.UTF8String;
+    if (!event.text.empty()) {
+        events_.push_back(std::move(event));
+    }
+}
+
+void MacOSWindowImpl::pushComposition(
+    NSString* text,
+    NSRange selection) {
+    if (!textInputState_.enabled || text == nil) {
+        return;
+    }
+    const NSUInteger selectionLocation = std::min(
+        selection.location == NSNotFound ? text.length : selection.location,
+        text.length);
+    const NSUInteger selectionEnd = std::min(
+        selectionLocation + selection.length, text.length);
+    NSString* prefix = [text substringToIndex:selectionLocation];
+    NSString* selected = [text substringWithRange:NSMakeRange(
+        selectionLocation, selectionEnd - selectionLocation)];
+
+    lotui::PlatformEvent event{lotui::PlatformEventType::TextComposition};
+    event.text = text.UTF8String == nullptr ? "" : text.UTF8String;
+    event.selectionStart = prefix.UTF8String == nullptr
+        ? 0
+        : std::char_traits<char>::length(prefix.UTF8String);
+    event.selectionLength = selected.UTF8String == nullptr
+        ? 0
+        : std::char_traits<char>::length(selected.UTF8String);
+    events_.push_back(std::move(event));
+}
+
+void MacOSWindowImpl::pushCompositionEnd() {
+    if (textInputState_.enabled) {
+        events_.push_back({lotui::PlatformEventType::TextCompositionEnd});
+    }
+}
+
+bool MacOSWindowImpl::textInputEnabled() const noexcept {
+    return textInputState_.enabled;
+}
+
+NSRect MacOSWindowImpl::textInputScreenRect() const {
+    if (window_ == nil || view_ == nil) {
+        return NSZeroRect;
+    }
+    const lotui::Rect& logical = textInputState_.inputRect;
+    const NSRect viewRect = NSMakeRect(
+        logical.x,
+        view_.bounds.size.height - logical.y - logical.height,
+        std::max(1.0F, logical.width),
+        std::max(1.0F, logical.height));
+    const NSRect windowRect = [view_ convertRect:viewRect toView:nil];
+    return [window_ convertRectToScreen:windowRect];
 }
 
 void MacOSWindowImpl::updateMetalLayer() {

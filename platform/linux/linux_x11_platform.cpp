@@ -5,12 +5,15 @@
 #include <X11/Xutil.h>
 
 #include <algorithm>
+#include <clocale>
 #include <cmath>
 #include <cstdint>
 #include <deque>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace lotui {
 namespace {
@@ -84,6 +87,26 @@ KeyModifiers keyModifiers(unsigned int state) noexcept {
     };
 }
 
+std::string lookupUtf8(
+    XIC context,
+    XKeyEvent& event,
+    KeySym& symbol,
+    Status& status) {
+    std::vector<char> buffer(64);
+    int length = Xutf8LookupString(
+        context, &event, buffer.data(),
+        static_cast<int>(buffer.size()), &symbol, &status);
+    if (status == XBufferOverflow) {
+        buffer.resize(static_cast<std::size_t>(length) + 1);
+        length = Xutf8LookupString(
+            context, &event, buffer.data(),
+            static_cast<int>(buffer.size()), &symbol, &status);
+    }
+    return length > 0
+        ? std::string(buffer.data(), static_cast<std::size_t>(length))
+        : std::string{};
+}
+
 class X11Window final : public PlatformWindow {
 public:
     explicit X11Window(const WindowOptions& options);
@@ -92,6 +115,7 @@ public:
     void show() override;
     bool pollEvent(PlatformEvent& event) override;
     bool setPointerCapture(bool enabled) override;
+    void setTextInputState(const TextInputState& state) override;
     WindowMetrics metrics() const override;
     NativeWindowHandle nativeHandle() const override;
 
@@ -105,9 +129,15 @@ private:
     WindowMetrics metrics_{};
     std::deque<PlatformEvent> events_;
     bool pointerCaptured_{false};
+    XIM inputMethod_{nullptr};
+    XIC inputContext_{nullptr};
+    XIMStyle inputStyle_{0};
+    TextInputState textInputState_{};
 };
 
 X11Window::X11Window(const WindowOptions& options) {
+    std::setlocale(LC_CTYPE, "");
+    XSetLocaleModifiers("");
     display_ = XOpenDisplay(nullptr);
     if (display_ == nullptr) {
         throw std::runtime_error("failed to open the X11 display");
@@ -146,6 +176,51 @@ X11Window::X11Window(const WindowOptions& options) {
     deleteMessage_ = XInternAtom(display_, "WM_DELETE_WINDOW", False);
     XSetWMProtocols(display_, window_, &deleteMessage_, 1);
 
+    inputMethod_ = XOpenIM(display_, nullptr, nullptr, nullptr);
+    if (inputMethod_ != nullptr) {
+        XIMStyles* styles = nullptr;
+        if (XGetIMValues(
+                inputMethod_, XNQueryInputStyle, &styles, nullptr) == nullptr &&
+            styles != nullptr) {
+            const XIMStyle positioned =
+                XIMPreeditPosition | XIMStatusNothing;
+            const XIMStyle external =
+                XIMPreeditNothing | XIMStatusNothing;
+            for (unsigned short index = 0; index < styles->count_styles; ++index) {
+                if (styles->supported_styles[index] == positioned) {
+                    inputStyle_ = positioned;
+                    break;
+                }
+                if (styles->supported_styles[index] == external) {
+                    inputStyle_ = external;
+                }
+            }
+            XFree(styles);
+        }
+        if (inputStyle_ == (XIMPreeditPosition | XIMStatusNothing)) {
+            XPoint spot{0, 0};
+            XVaNestedList preedit = XVaCreateNestedList(
+                0, XNSpotLocation, &spot, nullptr);
+            inputContext_ = XCreateIC(
+                inputMethod_,
+                XNInputStyle, inputStyle_,
+                XNClientWindow, window_,
+                XNFocusWindow, window_,
+                XNPreeditAttributes, preedit,
+                nullptr);
+            XFree(preedit);
+        }
+        if (inputContext_ == nullptr) {
+            inputStyle_ = XIMPreeditNothing | XIMStatusNothing;
+            inputContext_ = XCreateIC(
+                inputMethod_,
+                XNInputStyle, inputStyle_,
+                XNClientWindow, window_,
+                XNFocusWindow, window_,
+                nullptr);
+        }
+    }
+
     if (!options.resizable) {
         XSizeHints hints{};
         hints.flags = PMinSize | PMaxSize;
@@ -170,6 +245,14 @@ X11Window::~X11Window() {
             pointerCaptured_ = false;
         }
         if (window_ != 0) {
+            if (inputContext_ != nullptr) {
+                XDestroyIC(inputContext_);
+                inputContext_ = nullptr;
+            }
+            if (inputMethod_ != nullptr) {
+                XCloseIM(inputMethod_);
+                inputMethod_ = nullptr;
+            }
             XDestroyWindow(display_, window_);
             window_ = 0;
         }
@@ -187,6 +270,9 @@ bool X11Window::pollEvent(PlatformEvent& event) {
     while (events_.empty() && XPending(display_) > 0) {
         XEvent nativeEvent{};
         XNextEvent(display_, &nativeEvent);
+        if (XFilterEvent(&nativeEvent, window_) != False) {
+            continue;
+        }
         processEvent(nativeEvent);
     }
 
@@ -226,6 +312,36 @@ bool X11Window::setPointerCapture(bool enabled) {
         pointerCaptured_ = false;
     }
     return true;
+}
+
+void X11Window::setTextInputState(const TextInputState& state) {
+    const bool changed = textInputState_.enabled != state.enabled;
+    textInputState_ = state;
+    if (inputContext_ == nullptr) {
+        return;
+    }
+    if (changed) {
+        if (state.enabled && metrics_.focused) {
+            XSetICFocus(inputContext_);
+        } else if (!state.enabled) {
+            XUnsetICFocus(inputContext_);
+        }
+    }
+    if (state.enabled &&
+        inputStyle_ == (XIMPreeditPosition | XIMStatusNothing)) {
+        const float scale = metrics_.dpiScale > 0.0F
+            ? metrics_.dpiScale
+            : 1.0F;
+        XPoint spot{
+            static_cast<short>(std::lround(state.inputRect.x * scale)),
+            static_cast<short>(std::lround(
+                (state.inputRect.y + state.inputRect.height) * scale)),
+        };
+        XVaNestedList preedit = XVaCreateNestedList(
+            0, XNSpotLocation, &spot, nullptr);
+        XSetICValues(inputContext_, XNPreeditAttributes, preedit, nullptr);
+        XFree(preedit);
+    }
 }
 
 WindowMetrics X11Window::metrics() const {
@@ -291,27 +407,64 @@ void X11Window::processEvent(const XEvent& nativeEvent) {
         break;
     }
 
-    case KeyPress:
-    case KeyRelease: {
+    case KeyPress: {
         XKeyEvent keyEvent = nativeEvent.xkey;
-        PlatformEvent event{
-            nativeEvent.type == KeyPress
-                ? PlatformEventType::KeyPressed
-                : PlatformEventType::KeyReleased};
-        event.key = keyCode(XLookupKeysym(&keyEvent, 0));
+        KeySym symbol = NoSymbol;
+        Status status = XLookupNone;
+        std::string text;
+        if (inputContext_ != nullptr) {
+            text = lookupUtf8(inputContext_, keyEvent, symbol, status);
+        } else {
+            std::vector<char> buffer(64);
+            const int length = XLookupString(
+                &keyEvent,
+                buffer.data(),
+                static_cast<int>(buffer.size()),
+                &symbol,
+                nullptr);
+            if (length > 0) {
+                text.assign(buffer.data(), static_cast<std::size_t>(length));
+                status = XLookupBoth;
+            } else {
+                status = XLookupKeySym;
+            }
+        }
+        PlatformEvent event{PlatformEventType::KeyPressed};
+        event.key = keyCode(symbol);
         event.modifiers = keyModifiers(nativeEvent.xkey.state);
         event.repeat = false;
+        events_.push_back(event);
+        if (textInputState_.enabled && !text.empty() &&
+            (status == XLookupChars || status == XLookupBoth)) {
+            PlatformEvent textEvent{PlatformEventType::TextInput};
+            textEvent.text = std::move(text);
+            events_.push_back(std::move(textEvent));
+        }
+        break;
+    }
+
+    case KeyRelease: {
+        XKeyEvent keyEvent = nativeEvent.xkey;
+        PlatformEvent event{PlatformEventType::KeyReleased};
+        event.key = keyCode(XLookupKeysym(&keyEvent, 0));
+        event.modifiers = keyModifiers(nativeEvent.xkey.state);
         events_.push_back(event);
         break;
     }
 
     case FocusIn:
         metrics_.focused = true;
+        if (inputContext_ != nullptr && textInputState_.enabled) {
+            XSetICFocus(inputContext_);
+        }
         events_.push_back({PlatformEventType::FocusGained});
         break;
 
     case FocusOut:
         metrics_.focused = false;
+        if (inputContext_ != nullptr) {
+            XUnsetICFocus(inputContext_);
+        }
         events_.push_back({PlatformEventType::FocusLost});
         break;
 

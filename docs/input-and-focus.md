@@ -15,9 +15,24 @@ keysyms.
 5. A window focus loss calls `WidgetTree::cancelKeyboard()` so a control
    cannot remain visually pressed after an interrupted key sequence.
 
-Text entry is intentionally separate from key events. Future TextField and IME
-support will receive committed UTF-8 and composition/pre-edit updates from the
-platform backend instead of attempting to derive characters from `KeyCode`.
+Text entry is intentionally separate from key events. `TextField` receives
+committed UTF-8 and composition/pre-edit updates from the platform backend
+instead of attempting to derive characters from `KeyCode`.
+
+## Text input flow
+
+1. A focused text widget exposes a logical caret rectangle through
+   `WidgetTree::textInputState()`.
+2. The application forwards that state to `PlatformWindow::setTextInputState()`.
+3. The native backend enables its text-input service and emits `TextInput`,
+   `TextComposition`, and `TextCompositionEnd` platform events.
+4. The application converts them to `TextInputEvent` and forwards them to the
+   tree. Selection offsets in these events are UTF-8 byte offsets.
+5. Windows and macOS render the live pre-edit run inside `TextField`; X11 uses
+   the input method's native pre-edit UI and forwards committed UTF-8.
+
+The state should be refreshed after layout and painting so the operating
+system's IME candidate window follows the current caret.
 
 ## Focus order
 

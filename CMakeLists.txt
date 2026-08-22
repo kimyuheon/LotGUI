@@ -180,6 +180,7 @@ add_library(lotui_widgets STATIC
     widgets/linear_layout.cpp
     widgets/numeric_input.cpp
     widgets/single_child_widget.cpp
+    widgets/text_field.cpp
 )
 add_library(LotUI::Widgets ALIAS lotui_widgets)
 target_link_libraries(lotui_widgets PUBLIC lotui_core lotui_text)
@@ -290,7 +291,7 @@ if(WIN32)
         NOMINMAX
         _WIN32_WINNT=0x0A00
     )
-    target_link_libraries(lotui_platform PRIVATE user32)
+    target_link_libraries(lotui_platform PRIVATE user32 imm32)
 elseif(APPLE)
     enable_language(OBJCXX)
     target_sources(lotui_platform PRIVATE
@@ -510,6 +511,12 @@ if(BUILD_TESTING)
     target_link_libraries(form_widget_tests PRIVATE lotui_widgets)
     add_test(NAME form_widget_tests COMMAND form_widget_tests)
 
+    add_executable(text_field_tests
+        tests/text_field_tests.cpp
+    )
+    target_link_libraries(text_field_tests PRIVATE lotui_widgets)
+    add_test(NAME text_field_tests COMMAND text_field_tests)
+
     add_executable(texture_tests
         tests/texture_tests.cpp
     )
@@ -549,6 +556,7 @@ if(BUILD_TESTING)
         target_compile_options(widget_tree_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(text_widget_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(form_widget_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_options(text_field_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(texture_tests PRIVATE /W4 /permissive- /utf-8)
         if(TARGET lotml_tests)
             target_compile_options(lotml_tests PRIVATE
@@ -567,6 +575,7 @@ if(BUILD_TESTING)
         target_compile_options(widget_tree_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(text_widget_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(form_widget_tests PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(text_field_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(texture_tests PRIVATE -Wall -Wextra -Wpedantic)
         if(TARGET lotml_tests)
             target_compile_options(lotml_tests PRIVATE

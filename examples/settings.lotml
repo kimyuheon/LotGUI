@@ -13,6 +13,11 @@
   <Label text="LotML과 C++ 코드는 같은 WidgetTree를 만듭니다."
          color="#B9C2D0FF" />
 
+  <TextField id="projectName"
+             text="새 프로젝트"
+             onChanged="settingsChanged"
+             onSubmitted="save" />
+
   <Checkbox id="snapToGrid"
             text="격자에 맞춤"
             checked="true"

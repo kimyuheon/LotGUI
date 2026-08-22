@@ -10,6 +10,7 @@ can omit that target and do not need TinyXML-2.
 ```xml
 <Column id="dialog" spacing="12" padding="20">
   <Label text="프로젝트 설정" fontSize="22" />
+  <TextField text="새 프로젝트" onChanged="changed" onSubmitted="save" />
   <Checkbox text="격자에 맞춤" checked="true" onChanged="changed" />
   <NumericInput value="10" minimum="0.5" maximum="100"
                 step="0.5" decimalPlaces="1" onChanged="changed" />
@@ -37,10 +38,10 @@ auto* save = dynamic_cast<lotui::Button*>(ui.find("saveButton"));
 ## Initial schema
 
 - Containers: `Row`, `Column`
-- Content: `Label`, `Box`, `Button`, `Checkbox`, `NumericInput`
+- Content: `Label`, `Box`, `Button`, `Checkbox`, `NumericInput`, `TextField`
 - Child layout: `flex`, `minWidth`, `minHeight`, `maxWidth`, `maxHeight`
 - Shared lookup: optional unique `id`
-- Events: named `onClick` handlers supplied by the application
+- Events: named `onClick` and `onSubmitted` handlers supplied by the application
 - Value changes: named `onChanged` handlers; the current value is available
   through the typed widget returned by `LoadedUi::find()`
 - Insets: one value, horizontal/vertical pair, or left/top/right/bottom
@@ -63,6 +64,6 @@ be added after the base widgets and layout behavior stabilize without changing
 the `WidgetTree` or renderer contracts.
 
 `NumericInput` currently supports pointer step controls and
-Up/Down/PageUp/PageDown/Home/End. Direct digit entry will use the same committed
-text and IME event path as the future `TextField`; it is intentionally not
-implemented as platform-specific virtual-key parsing.
+Up/Down/PageUp/PageDown/Home/End. Direct digit entry will reuse `TextField`'s
+committed text and IME event path; it is intentionally not implemented as
+platform-specific virtual-key parsing.

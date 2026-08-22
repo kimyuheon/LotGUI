@@ -12,6 +12,7 @@
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/numeric_input.h"
+#include "widgets/text_field.h"
 
 #include <algorithm>
 #include <chrono>
@@ -221,6 +222,21 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         lotui::TextStyle controlTextStyle;
         controlTextStyle.fontFamilies = {"Noto Sans KR"};
         controlTextStyle.fontSize = 16.0F;
+        form->addChild(
+            std::make_unique<lotui::TextField>(
+                textEngine,
+                "한글 입력",
+                lotui::Size{0.0F, 44.0F},
+                [](const std::string& text) {
+                    std::cout << "text-field-changed: " << text << '\n';
+                },
+                [](const std::string& text) {
+                    std::cout << "text-field-submitted: " << text << '\n';
+                },
+                lotui::TextFieldStyle{},
+                controlTextStyle),
+            fixedHeight(44.0F));
+
         auto checkboxLabel = std::make_unique<lotui::Label>(
             textEngine, "격자에 맞춤", controlTextStyle);
         checkboxLabel->setVerticalAlignment(
@@ -255,8 +271,8 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
             fixedHeight(44.0F));
         rightContent->addChild(
             std::move(form),
-            {1.0F, {0.0F, 76.0F},
-                {lotui::unboundedLayoutSize, 100.0F}});
+            {1.0F, {0.0F, 134.0F},
+                {lotui::unboundedLayoutSize, 160.0F}});
     } else {
         rightContent->addChild(
             std::make_unique<lotui::Box>(
@@ -291,7 +307,7 @@ void updateLayout(
         static_cast<float>(metrics.framebufferHeight) / scale;
     tree.layout(
         {48.0F, 44.0F, std::max(0.0F, width - 96.0F),
-            std::min(286.0F, std::max(0.0F, height - 88.0F))},
+            std::min(400.0F, std::max(0.0F, height - 88.0F))},
         {0.0F, 0.0F, width, height});
 }
 
@@ -335,8 +351,15 @@ void printEvent(const lotui::PlatformEvent& event) {
         std::cout << " scale=" << std::fixed << std::setprecision(2)
                   << event.dpiScale;
         break;
+    case lotui::PlatformEventType::TextInput:
+    case lotui::PlatformEventType::TextComposition:
+        std::cout << " text=" << event.text
+                  << " selection=" << event.selectionStart
+                  << '+' << event.selectionLength;
+        break;
     case lotui::PlatformEventType::CloseRequested:
     case lotui::PlatformEventType::PointerCaptureLost:
+    case lotui::PlatformEventType::TextCompositionEnd:
     case lotui::PlatformEventType::FocusGained:
     case lotui::PlatformEventType::FocusLost:
         break;
@@ -367,6 +390,7 @@ int main() {
 #endif
         auto tree = createDemoUi(demoMask.id(), textEngine);
         updateLayout(*tree, window->metrics());
+        window->setTextInputState(tree->textInputState());
 
         const auto initial = window->metrics();
         std::cout << "window-created: width=" << initial.width
@@ -399,6 +423,25 @@ int main() {
                     event.type == lotui::PlatformEventType::KeyReleased) {
                     tree->keyReleased(event.key, event.modifiers);
                 } else if (
+                    event.type == lotui::PlatformEventType::TextInput) {
+                    tree->textInput({
+                        lotui::TextInputEventType::Commit,
+                        event.text,
+                        event.selectionStart,
+                        event.selectionLength});
+                } else if (
+                    event.type == lotui::PlatformEventType::TextComposition) {
+                    tree->textInput({
+                        lotui::TextInputEventType::Composition,
+                        event.text,
+                        event.selectionStart,
+                        event.selectionLength});
+                } else if (
+                    event.type ==
+                        lotui::PlatformEventType::TextCompositionEnd) {
+                    tree->textInput({
+                        lotui::TextInputEventType::CompositionEnd});
+                } else if (
                     event.type == lotui::PlatformEventType::FocusLost) {
                     tree->cancelKeyboard();
                 }
@@ -421,11 +464,16 @@ int main() {
                     update = tree->cancelPointer();
                 }
                 applyPointerUpdate(update, *tree, *window);
+                window->setTextInputState(
+                    event.type == lotui::PlatformEventType::FocusLost
+                        ? lotui::TextInputState{}
+                        : tree->textInputState());
             }
 
             if (running) {
                 commands.clear();
                 tree->paint(commands);
+                window->setTextInputState(tree->textInputState());
                 renderer.drawFrame(commands);
             }
             if (!receivedEvent) {

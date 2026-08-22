@@ -20,6 +20,12 @@ Applications can initially consume LotUI with `add_subdirectory()` and link
 only the targets they use. `platform_probe` demonstrates the full native-window
 to widget-tree to Vulkan path.
 
+The desktop ImGui layer in the sibling 3dEngine project is the reference
+application for higher-level widget coverage. The audited replacement checklist
+is maintained in
+[`docs/3dengine-imgui-parity.md`](docs/3dengine-imgui-parity.md); LotUI remains
+buildable and usable without the engine.
+
 FreeType 2.14.3 and HarfBuzz 14.2.1 are pinned for reproducible source builds.
 CMake first checks installed packages, then the relative sibling directories
 `../FreeType` and `../HarfBuzz`, and finally downloads the pinned sources when
@@ -64,9 +70,9 @@ keeping normal C++ construction fully supported. Both forms create the same
 ```
 
 The initial schema supports `Row`, `Column`, `Label`, `Box`, `Button`,
-`Checkbox`, and `NumericInput`, plus IDs, child sizing, colors, text properties,
-and named events. Its public widget/property metadata is intended to power
-future Visual Studio and VS Code preview extensions. See
+`Checkbox`, `NumericInput`, and `TextField`, plus IDs, child sizing, colors,
+text properties, and named events. Its public widget/property metadata is
+intended to power future Visual Studio and VS Code preview extensions. See
 [`docs/declarative-ui.md`](docs/declarative-ui.md) and
 [`examples/settings.lotml`](examples/settings.lotml).
 
@@ -95,10 +101,10 @@ Render backends expose the RAII `TextureStore` API. The Vulkan backend supports
 R8 glyph masks, RGBA images, normalized UV coordinates, and partial texture
 updates without exposing Vulkan handles to widgets.
 
-Current text limitations are deliberate and visible: layout is single-line,
-the glyph cache uses one atlas page, and IME/TextField integration is the next
-milestone. The public text contract does not need to change to add those
-features.
+Current text limitations are deliberate and visible: `TextField` is
+single-line, selection and clipboard editing are not implemented yet, and the
+glyph cache uses one atlas page. Native backends already keep IME composition
+separate from committed UTF-8 and position the candidate UI from the caret.
 
 ## License
 

@@ -6,6 +6,7 @@
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/numeric_input.h"
+#include "widgets/text_field.h"
 
 #include <tinyxml2.h>
 
@@ -553,6 +554,64 @@ std::unique_ptr<Widget> buildNumericInput(
     return input;
 }
 
+std::unique_ptr<Widget> buildTextField(
+    const LotmlElement& element,
+    BuildContext& context) {
+    const auto engine = context.textEngine();
+    if (!engine) {
+        fail(element, "TextField requires LoadOptions.textEngine");
+    }
+
+    TextFieldStyle style;
+    style.normal = colorValue(element, "normal", style.normal);
+    style.hovered = colorValue(element, "hovered", style.hovered);
+    style.disabled = colorValue(element, "disabled", style.disabled);
+    style.text = colorValue(element, "textColor", style.text);
+    style.composition = colorValue(
+        element, "compositionColor", style.composition);
+    style.caret = colorValue(element, "caretColor", style.caret);
+    style.focusRing = colorValue(element, "focusRing", style.focusRing);
+    style.contentPadding = insets(
+        element, "contentPadding", style.contentPadding);
+    style.cornerRadius = std::max(
+        0.0F, number(element, "cornerRadius", style.cornerRadius));
+    style.focusRingWidth = std::max(
+        0.0F, number(element, "focusRingWidth", style.focusRingWidth));
+    style.caretWidth = std::max(
+        0.0F, number(element, "caretWidth", style.caretWidth));
+
+    TextStyle textStyle;
+    textStyle.fontFamilies = {
+        stringValue(element, "fontFamily", "sans-serif")};
+    textStyle.fontSize = std::max(
+        1.0F, number(element, "fontSize", 14.0F));
+
+    TextField::ChangedHandler changed;
+    if (const std::string* eventName = attribute(element, "onChanged")) {
+        auto event = context.event(*eventName);
+        changed = [event = std::move(event)](const std::string&) { event(); };
+    }
+    TextField::SubmittedHandler submitted;
+    if (const std::string* eventName = attribute(element, "onSubmitted")) {
+        auto event = context.event(*eventName);
+        submitted = [event = std::move(event)](const std::string&) { event(); };
+    }
+
+    auto field = std::make_unique<TextField>(
+        engine,
+        stringValue(element, "text", element.text),
+        Size{
+            std::max(0.0F, number(element, "width", 220.0F)),
+            std::max(0.0F, number(element, "height", 40.0F)),
+        },
+        std::move(changed),
+        std::move(submitted),
+        style,
+        textStyle);
+    field->setEnabled(boolean(element, "enabled", true));
+    return field;
+}
+
 const std::unordered_set<std::string>& layoutAttributeNames() {
     static const std::unordered_set<std::string> names{
         "id", "flex", "minWidth", "minHeight", "maxWidth", "maxHeight"};
@@ -624,7 +683,8 @@ std::unique_ptr<Widget> BuildContext::buildChild(
         fail(element, "<" + element.type + "> does not accept child widgets");
     }
     if (!element.text.empty() && element.type != "Label" &&
-        element.type != "Button" && element.type != "Checkbox") {
+        element.type != "Button" && element.type != "Checkbox" &&
+        element.type != "TextField") {
         fail(element, "<" + element.type +
             "> does not accept text content");
     }
@@ -860,6 +920,33 @@ WidgetRegistry createDefaultWidgetRegistry() {
             },
         },
         buildNumericInput);
+    registry.registerWidget(
+        {
+            "TextField",
+            false,
+            {
+                {"text", PropertyType::String, ""},
+                {"width", PropertyType::Number, "220"},
+                {"height", PropertyType::Number, "40"},
+                {"fontFamily", PropertyType::String, "sans-serif"},
+                {"fontSize", PropertyType::Number, "14"},
+                {"enabled", PropertyType::Boolean, "true"},
+                {"onChanged", PropertyType::Event, ""},
+                {"onSubmitted", PropertyType::Event, ""},
+                {"normal", PropertyType::Color, "#1F2636FF"},
+                {"hovered", PropertyType::Color, "#293347FF"},
+                {"disabled", PropertyType::Color, "#383D47FF"},
+                {"textColor", PropertyType::Color, "#EDF2FFFF"},
+                {"compositionColor", PropertyType::Color, "#5CADFFFF"},
+                {"caretColor", PropertyType::Color, "#F5F7FFFF"},
+                {"focusRing", PropertyType::Color, "#F5D151FF"},
+                {"contentPadding", PropertyType::Insets, "12,8,12,8"},
+                {"cornerRadius", PropertyType::Number, "7"},
+                {"focusRingWidth", PropertyType::Number, "2"},
+                {"caretWidth", PropertyType::Number, "1.5"},
+            },
+        },
+        buildTextField);
     return registry;
 }
 

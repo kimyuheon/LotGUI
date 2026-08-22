@@ -5,6 +5,7 @@
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/numeric_input.h"
+#include "widgets/text_field.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -137,6 +138,8 @@ void loadsFormControlsThroughTheSharedWidgetTree() {
             onChanged="formChanged" />
   <NumericInput id="gridSize" value="10" minimum="1" maximum="20"
                 step="0.5" decimalPlaces="1" onChanged="formChanged" />
+  <TextField id="name" text="새 프로젝트" onChanged="formChanged"
+             onSubmitted="submit" />
 </Column>)lotml";
 
     int changes = 0;
@@ -144,16 +147,22 @@ void loadsFormControlsThroughTheSharedWidgetTree() {
     options.textEngine = std::make_shared<TestTextEngine>();
     options.events.emplace(
         "formChanged", [&changes]() { ++changes; });
+    int submissions = 0;
+    options.events.emplace(
+        "submit", [&submissions]() { ++submissions; });
 
     lotui::declarative::LotmlLoader loader;
     auto loaded = loader.loadString(source, std::move(options));
     auto* checkbox = dynamic_cast<lotui::Checkbox*>(loaded.find("snap"));
     auto* number = dynamic_cast<lotui::NumericInput*>(
         loaded.find("gridSize"));
+    auto* field = dynamic_cast<lotui::TextField*>(loaded.find("name"));
     require(checkbox != nullptr && checkbox->isChecked(),
         "LotML must construct the configured Checkbox");
     require(number != nullptr && std::abs(number->value() - 10.0) < 0.001,
         "LotML must construct the configured NumericInput");
+    require(field != nullptr && field->text() == "새 프로젝트",
+        "LotML must construct the configured TextField");
 
     loaded.tree().layout({0.0F, 0.0F, 320.0F, 120.0F});
     loaded.tree().keyPressed(lotui::KeyCode::Tab);
@@ -161,8 +170,13 @@ void loadsFormControlsThroughTheSharedWidgetTree() {
     loaded.tree().keyReleased(lotui::KeyCode::Space);
     loaded.tree().keyPressed(lotui::KeyCode::Tab);
     loaded.tree().keyPressed(lotui::KeyCode::Up);
+    loaded.tree().keyPressed(lotui::KeyCode::Tab);
+    loaded.tree().textInput({
+        lotui::TextInputEventType::Commit, " 이름"});
+    loaded.tree().keyPressed(lotui::KeyCode::Enter);
     require(!checkbox->isChecked() &&
-            std::abs(number->value() - 10.5) < 0.001 && changes == 2,
+            std::abs(number->value() - 10.5) < 0.001 && changes == 3 &&
+            submissions == 1,
         "declarative form controls must share focus and event dispatch");
 }
 

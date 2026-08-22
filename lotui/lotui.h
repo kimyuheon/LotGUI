@@ -7,6 +7,7 @@
 #include "core/layout.h"
 #include "core/paint_command.h"
 #include "core/pointer_event.h"
+#include "core/text_input_event.h"
 #include "core/widget.h"
 #include "core/widget_tree.h"
 #include "declarative/lotml.h"
@@ -21,3 +22,4 @@
 #include "widgets/linear_layout.h"
 #include "widgets/numeric_input.h"
 #include "widgets/single_child_widget.h"
+#include "widgets/text_field.h"

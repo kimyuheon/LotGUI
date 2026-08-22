@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/text_input_event.h"
 #include "platform/platform_event.h"
 
 #include <cstdint>
@@ -48,6 +49,7 @@ public:
     virtual void show() = 0;
     virtual bool pollEvent(PlatformEvent& event) = 0;
     virtual bool setPointerCapture(bool enabled) = 0;
+    virtual void setTextInputState(const TextInputState& state) = 0;
     virtual WindowMetrics metrics() const = 0;
     virtual NativeWindowHandle nativeHandle() const = 0;
 

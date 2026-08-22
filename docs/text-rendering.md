@@ -70,4 +70,5 @@ commits it.
 5. ~~Connect the production engine to `Label` and button content.~~
 6. ~~Add Korean/Latin mixed-script shaping and atlas integration tests.~~
 7. Add line breaking, wrapping, multiple atlas pages, clipping, and DPI tests.
-8. Connect native IME composition events to `TextField`.
+8. ~~Connect native IME composition events to `TextField`.~~
+9. Add text selection, clipboard editing, horizontal scrolling, and undo/redo.

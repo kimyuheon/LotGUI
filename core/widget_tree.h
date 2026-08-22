@@ -21,6 +21,11 @@ struct WidgetKeyUpdate {
     bool needsRepaint{false};
 };
 
+struct WidgetTextInputUpdate {
+    bool handled{false};
+    bool needsRepaint{false};
+};
+
 class WidgetTree {
 public:
     explicit WidgetTree(std::unique_ptr<Widget> root);
@@ -55,6 +60,8 @@ public:
         KeyCode key,
         KeyModifiers modifiers = {});
     WidgetKeyUpdate cancelKeyboard();
+    WidgetTextInputUpdate textInput(const TextInputEvent& event);
+    TextInputState textInputState() const noexcept;
     WidgetKeyUpdate moveFocus(bool reverse = false);
     WidgetKeyUpdate clearFocus();
     Widget* focusedWidget() noexcept;
