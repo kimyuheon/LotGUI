@@ -599,6 +599,8 @@ endif()
 
 if(LOTUI_BUILD_EXAMPLES)
     add_executable(platform_probe
+        examples/platform_probe/demo_ui.cpp
+        examples/platform_probe/platform_event_bridge.cpp
         examples/platform_probe/widget_main.cpp
     )
     target_link_libraries(platform_probe PRIVATE lotui_vulkan lotui_widgets)
