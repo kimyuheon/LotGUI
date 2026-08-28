@@ -76,8 +76,8 @@ widgets and application view models:
 1. `TextField`, clipboard, selection, Windows/Cocoa/X11 text and IME events.
 2. `TabView`, closeable document tabs, overflow scrolling, add-tab action.
 3. `Popup`, `Tooltip`, menu model, `MenuBar`, context menus.
-4. ~~`DialogHost`, modal focus trap, restoration, results, and Escape cancel.~~
-   Add title/default actions and modeless windows.
+4. ~~`DialogHost`, modal focus trap, restoration, results, title slots,
+   Escape cancel, and default confirmation.~~ Add modeless windows.
 5. `ScrollView`, `ListView`, `DisclosurePanel`, `TreeView` and inline rename.
 6. `Slider`, radio group, combo box, vector numeric editor, color editor.
 7. toolbar, status bar, property grid and block thumbnail grid composites.

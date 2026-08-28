@@ -22,9 +22,13 @@ actions->addChild(std::make_unique<lotui::Button>(
     lotui::Size{96.0F, 40.0F},
     [dialogHost]() { dialogHost->cancelModal(); }));
 
+auto dialog = std::make_unique<lotui::Dialog>(
+    std::move(actions), lotui::Size{420.0F, 240.0F});
+dialog->setTitle(std::make_unique<lotui::Label>(
+    textEngine, "프로젝트 저장"));
+
 dialogHost->showModal(
-    std::make_unique<lotui::Dialog>(
-        std::move(actions), lotui::Size{420.0F, 240.0F}),
+    std::move(dialog),
     [](lotui::DialogResult result) {
         if (result == lotui::DialogResult::Accepted) {
             saveProject();
@@ -41,6 +45,15 @@ Escape reports `Cancelled` by default; set `DialogHostStyle::cancelOnEscape` to
 available when the caller needs to recover ownership without reporting a
 result.
 
-This foundation intentionally does not yet provide a title bar, result future,
-default-button policy, nested modals, or modeless floating dialogs. Those
-features belong to the higher-level dialog controller built on this host.
+`Dialog::setTitle()` accepts any widget, so applications can use a `Label` or a
+full `Row` containing a title, status, and close button. The title has separate
+padding and a divider and does not impose a text engine on the core dialog.
+
+Set `DialogHostStyle::acceptOnUnhandledEnter` to `true` when Enter should act
+as the default confirmation. Focused controls get the key first: a focused
+button still activates itself and a text field can submit without being
+overridden. Only an otherwise unhandled Enter reports `Accepted`.
+
+This foundation intentionally does not yet provide a result future, nested
+modals, or modeless floating dialogs. Draggable native-style title bars belong
+to the modeless window layer built on this host.

@@ -88,6 +88,10 @@ bool Widget::dispatchKeyEvent(const WidgetKeyEvent& event) {
     return onKeyEvent(event);
 }
 
+bool Widget::dispatchUnhandledKeyEvent(const WidgetKeyEvent& event) {
+    return onUnhandledKeyEvent(event);
+}
+
 bool Widget::dispatchTextInputEvent(const TextInputEvent& event) {
     return onTextInputEvent(event);
 }
@@ -142,6 +146,10 @@ bool Widget::onPreviewKeyEvent(const WidgetKeyEvent&) {
 }
 
 bool Widget::onKeyEvent(const WidgetKeyEvent&) {
+    return false;
+}
+
+bool Widget::onUnhandledKeyEvent(const WidgetKeyEvent&) {
     return false;
 }
 

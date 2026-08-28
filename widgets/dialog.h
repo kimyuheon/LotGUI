@@ -10,6 +10,10 @@ namespace lotui {
 struct DialogStyle {
     Color background{0.12F, 0.15F, 0.21F, 1.0F};
     float cornerRadius{12.0F};
+    EdgeInsets titlePadding{24.0F, 16.0F, 24.0F, 12.0F};
+    Color titleDivider{0.30F, 0.34F, 0.42F, 1.0F};
+    float titleDividerHeight{1.0F};
+    float titleContentSpacing{8.0F};
     EdgeInsets contentPadding{24.0F, 20.0F, 24.0F, 20.0F};
 };
 
@@ -27,6 +31,11 @@ public:
     Widget* content() noexcept;
     const Widget* content() const noexcept;
 
+    void setTitle(std::unique_ptr<Widget> title);
+    std::unique_ptr<Widget> takeTitle() noexcept;
+    Widget* title() noexcept;
+    const Widget* title() const noexcept;
+
     void setPreferredSize(Size preferredSize) noexcept;
     Size preferredSize() const noexcept;
 
@@ -36,8 +45,16 @@ public:
 protected:
     void onArrange() override;
     void onPaint(std::vector<PaintCommand>& commands) const override;
+    void paintChildren(std::vector<PaintCommand>& commands) const override;
+    void collectChildHitTestEntries(
+        std::vector<HitTestEntry>& entries) const override;
+    void collectChildFocusTargets(
+        std::vector<PointerTargetId>& targets) const override;
+    Widget* findChildByPointerTarget(
+        PointerTargetId target) noexcept override;
 
 private:
+    std::unique_ptr<Widget> title_;
     Size preferredSize_{};
     DialogStyle style_{};
 };
@@ -46,6 +63,7 @@ struct DialogHostStyle {
     Color scrim{0.0F, 0.0F, 0.0F, 0.58F};
     EdgeInsets modalMargin{24.0F, 24.0F, 24.0F, 24.0F};
     bool cancelOnEscape{true};
+    bool acceptOnUnhandledEnter{false};
 };
 
 enum class DialogResult {
@@ -95,6 +113,7 @@ protected:
     bool acceptsPointerEvents() const noexcept override;
     bool onPointerEvent(const WidgetPointerEvent& event) override;
     bool onPreviewKeyEvent(const WidgetKeyEvent& event) override;
+    bool onUnhandledKeyEvent(const WidgetKeyEvent& event) override;
     PointerTargetId activeFocusScopeTarget() const noexcept override;
 
 private:

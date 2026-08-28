@@ -135,10 +135,11 @@ WidgetKeyUpdate WidgetTree::keyPressed(
     bool repeat) {
     WidgetKeyUpdate update;
     update.needsRepaint = syncFocusTargets();
+    const WidgetKeyEvent widgetEvent{
+        WidgetKeyEventType::Press, key, modifiers, repeat};
     const PointerTargetId focusBeforePreview =
         focusManager_.focusedTarget();
-    if (root_->dispatchPreviewKeyEvent({
-            WidgetKeyEventType::Press, key, modifiers, repeat})) {
+    if (root_->dispatchPreviewKeyEvent(widgetEvent)) {
         update.handled = true;
         syncFocusTargets();
         update.needsRepaint = true;
@@ -158,9 +159,19 @@ WidgetKeyUpdate WidgetTree::keyPressed(
 
     Widget* focused = focusedWidget();
     if (focused != nullptr) {
-        update.handled = focused->dispatchKeyEvent({
-            WidgetKeyEventType::Press, key, modifiers, repeat});
+        update.handled = focused->dispatchKeyEvent(widgetEvent);
         update.needsRepaint = update.handled || update.needsRepaint;
+    }
+    if (!update.handled) {
+        const PointerTargetId focusBeforeFallback =
+            focusManager_.focusedTarget();
+        if (root_->dispatchUnhandledKeyEvent(widgetEvent)) {
+            update.handled = true;
+            syncFocusTargets();
+            update.focusChanged = focusBeforeFallback !=
+                focusManager_.focusedTarget();
+            update.needsRepaint = true;
+        }
     }
     return update;
 }

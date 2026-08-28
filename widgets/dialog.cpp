@@ -27,6 +27,26 @@ Size contentMaximum(Size maximum, const EdgeInsets& padding) noexcept {
     };
 }
 
+Size limitedMaximum(Size maximum, Size preferred) noexcept {
+    if (preferred.width > 0.0F) {
+        maximum.width = std::min(maximum.width, preferred.width);
+    }
+    if (preferred.height > 0.0F) {
+        maximum.height = std::min(maximum.height, preferred.height);
+    }
+    return maximum;
+}
+
+Size measureWithin(
+    const Widget* widget,
+    Size maximum,
+    const EdgeInsets& padding) {
+    return widget
+        ? widget->measure(LayoutConstraints::loose(
+            contentMaximum(maximum, padding)))
+        : Size{};
+}
+
 } // namespace
 
 Dialog::Dialog(
@@ -41,30 +61,34 @@ Dialog::Dialog(
 }
 
 Size Dialog::measure(const LayoutConstraints& constraints) const {
+    const Size dialogMaximum = limitedMaximum(
+        constraints.maximum, preferredSize_);
+    const Size titleSize = measureWithin(
+        title_.get(), dialogMaximum, style_.titlePadding);
+    const float titleBlockHeight = title_
+        ? style_.titlePadding.vertical() + titleSize.height +
+            style_.titleDividerHeight + style_.titleContentSpacing
+        : 0.0F;
+    Size bodyMaximum = dialogMaximum;
+    bodyMaximum.height = std::max(
+        0.0F, bodyMaximum.height - titleBlockHeight);
+    const Size childSize = measureWithin(
+        child(), bodyMaximum, style_.contentPadding);
+
     Size desired = preferredSize_;
+    if (title_) {
+        desired.width = std::max(
+            desired.width,
+            titleSize.width + style_.titlePadding.horizontal());
+    }
     if (child()) {
-        Size childLimit = contentMaximum(constraints.maximum,
-            style_.contentPadding);
-        if (preferredSize_.width > 0.0F) {
-            childLimit.width = std::min(
-                childLimit.width,
-                std::max(0.0F, preferredSize_.width -
-                    style_.contentPadding.horizontal()));
-        }
-        if (preferredSize_.height > 0.0F) {
-            childLimit.height = std::min(
-                childLimit.height,
-                std::max(0.0F, preferredSize_.height -
-                    style_.contentPadding.vertical()));
-        }
-        const Size childSize = child()->measure(
-            LayoutConstraints::loose(childLimit));
         desired.width = std::max(
             desired.width,
             childSize.width + style_.contentPadding.horizontal());
         desired.height = std::max(
             desired.height,
-            childSize.height + style_.contentPadding.vertical());
+            titleBlockHeight + childSize.height +
+                style_.contentPadding.vertical());
     }
     return constraints.constrain(desired);
 }
@@ -85,6 +109,25 @@ const Widget* Dialog::content() const noexcept {
     return child();
 }
 
+void Dialog::setTitle(std::unique_ptr<Widget> title) {
+    title_ = std::move(title);
+    if (hasArea(bounds())) {
+        onArrange();
+    }
+}
+
+std::unique_ptr<Widget> Dialog::takeTitle() noexcept {
+    return std::move(title_);
+}
+
+Widget* Dialog::title() noexcept {
+    return title_.get();
+}
+
+const Widget* Dialog::title() const noexcept {
+    return title_.get();
+}
+
 void Dialog::setPreferredSize(Size preferredSize) noexcept {
     preferredSize_.width = nonNegative(preferredSize.width);
     preferredSize_.height = nonNegative(preferredSize.height);
@@ -96,6 +139,9 @@ Size Dialog::preferredSize() const noexcept {
 
 void Dialog::setStyle(DialogStyle style) noexcept {
     style.cornerRadius = nonNegative(style.cornerRadius);
+    style.titlePadding = normalized(style.titlePadding);
+    style.titleDividerHeight = nonNegative(style.titleDividerHeight);
+    style.titleContentSpacing = nonNegative(style.titleContentSpacing);
     style.contentPadding = normalized(style.contentPadding);
     style_ = style;
 }
@@ -105,15 +151,32 @@ const DialogStyle& Dialog::style() const noexcept {
 }
 
 void Dialog::onArrange() {
+    float contentTop = bounds().y;
+    if (title_) {
+        const Size titleSize = measureWithin(
+            title_.get(), {bounds().width, bounds().height},
+            style_.titlePadding);
+        title_->arrange({
+            bounds().x + style_.titlePadding.left,
+            bounds().y + style_.titlePadding.top,
+            titleSize.width,
+            titleSize.height,
+        }, clip());
+        contentTop = bounds().y + style_.titlePadding.top +
+            titleSize.height + style_.titlePadding.bottom +
+            style_.titleDividerHeight + style_.titleContentSpacing;
+    }
     if (!child()) {
         return;
     }
     const EdgeInsets& padding = style_.contentPadding;
     child()->arrange({
         bounds().x + padding.left,
-        bounds().y + padding.top,
+        contentTop + padding.top,
         std::max(0.0F, bounds().width - padding.horizontal()),
-        std::max(0.0F, bounds().height - padding.vertical()),
+        std::max(0.0F,
+            bounds().y + bounds().height - contentTop -
+                padding.vertical()),
     }, clip());
 }
 
@@ -121,6 +184,50 @@ void Dialog::onPaint(std::vector<PaintCommand>& commands) const {
     commands.push_back({
         bounds(), clip(), style_.background, invalidTextureId,
         style_.cornerRadius});
+    if (title_ && style_.titleDividerHeight > 0.0F) {
+        commands.push_back({
+            {
+                bounds().x,
+                title_->bounds().y + title_->bounds().height +
+                    style_.titlePadding.bottom,
+                bounds().width,
+                style_.titleDividerHeight,
+            },
+            clip(), style_.titleDivider, invalidTextureId, 0.0F});
+    }
+}
+
+void Dialog::paintChildren(
+    std::vector<PaintCommand>& commands) const {
+    if (title_) {
+        title_->paint(commands);
+    }
+    SingleChildWidget::paintChildren(commands);
+}
+
+void Dialog::collectChildHitTestEntries(
+    std::vector<HitTestEntry>& entries) const {
+    if (title_) {
+        title_->collectHitTestEntries(entries);
+    }
+    SingleChildWidget::collectChildHitTestEntries(entries);
+}
+
+void Dialog::collectChildFocusTargets(
+    std::vector<PointerTargetId>& targets) const {
+    SingleChildWidget::collectChildFocusTargets(targets);
+    if (title_) {
+        title_->collectFocusTargets(targets);
+    }
+}
+
+Widget* Dialog::findChildByPointerTarget(
+    PointerTargetId target) noexcept {
+    if (Widget* result =
+            SingleChildWidget::findChildByPointerTarget(target)) {
+        return result;
+    }
+    return title_ ? title_->findByPointerTarget(target) : nullptr;
 }
 
 DialogHost::DialogHost(
@@ -202,7 +309,6 @@ bool DialogHost::hasModal() const noexcept {
 void DialogHost::setStyle(DialogHostStyle style) noexcept {
     style.modalMargin = normalized(style.modalMargin);
     style_ = style;
-    arrangeModal();
 }
 
 const DialogHostStyle& DialogHost::style() const noexcept {
@@ -277,6 +383,18 @@ bool DialogHost::onPreviewKeyEvent(const WidgetKeyEvent& event) {
         return false;
     }
     cancelModal();
+    return true;
+}
+
+bool DialogHost::onUnhandledKeyEvent(const WidgetKeyEvent& event) {
+    if (!modal_ || !style_.acceptOnUnhandledEnter ||
+        event.type != WidgetKeyEventType::Press ||
+        event.key != KeyCode::Enter || event.repeat ||
+        event.modifiers.control || event.modifiers.alt ||
+        event.modifiers.meta) {
+        return false;
+    }
+    acceptModal();
     return true;
 }
 

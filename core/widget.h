@@ -11,6 +11,7 @@
 namespace lotui {
 
 class DialogHost;
+class Dialog;
 
 enum class WidgetPointerEventType {
     Enter,
@@ -52,6 +53,7 @@ private:
     friend class LinearLayout;
     friend class SingleChildWidget;
     friend class DialogHost;
+    friend class Dialog;
 
     void collectHitTestEntries(std::vector<HitTestEntry>& entries) const;
     void collectFocusTargets(std::vector<PointerTargetId>& targets) const;
@@ -60,6 +62,7 @@ private:
     bool dispatchFocusChanged(bool focused);
     bool dispatchPreviewKeyEvent(const WidgetKeyEvent& event);
     bool dispatchKeyEvent(const WidgetKeyEvent& event);
+    bool dispatchUnhandledKeyEvent(const WidgetKeyEvent& event);
     bool dispatchTextInputEvent(const TextInputEvent& event);
     bool requestsTextInput() const noexcept;
     Rect requestedTextInputRect() const noexcept;
@@ -80,6 +83,7 @@ protected:
     virtual bool onFocusChanged(bool focused);
     virtual bool onPreviewKeyEvent(const WidgetKeyEvent& event);
     virtual bool onKeyEvent(const WidgetKeyEvent& event);
+    virtual bool onUnhandledKeyEvent(const WidgetKeyEvent& event);
     virtual bool acceptsTextInput() const noexcept;
     virtual Rect textInputRect() const noexcept;
     virtual bool onTextInputEvent(const TextInputEvent& event);

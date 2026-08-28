@@ -57,6 +57,39 @@ void centersAndPaintsModalAboveTheScrim() {
         "the scrim and modal must paint after the application content");
 }
 
+void laysOutAndPaintsAnOptionalTitleArea() {
+    auto content = std::make_unique<lotui::Box>(
+        lotui::Size{120.0F, 60.0F},
+        lotui::Color{0.8F, 0.2F, 0.1F, 1.0F});
+    auto title = std::make_unique<lotui::Box>(
+        lotui::Size{100.0F, 24.0F},
+        lotui::Color{0.2F, 0.7F, 0.9F, 1.0F});
+    lotui::Box* observedTitle = title.get();
+    lotui::Dialog dialog(
+        std::move(content), lotui::Size{320.0F, 200.0F});
+    dialog.setTitle(std::move(title));
+    dialog.arrange(
+        {10.0F, 20.0F, 320.0F, 200.0F},
+        {0.0F, 0.0F, 400.0F, 300.0F});
+
+    require(near(observedTitle->bounds().x, 34.0F) &&
+            near(observedTitle->bounds().y, 36.0F) &&
+            near(observedTitle->bounds().width, 100.0F) &&
+            near(observedTitle->bounds().height, 24.0F),
+        "the optional title widget must use the configured title padding");
+    require(dialog.content()->bounds().y >
+            observedTitle->bounds().y + observedTitle->bounds().height,
+        "dialog content must be arranged below the title and divider");
+
+    std::vector<lotui::PaintCommand> commands;
+    dialog.paint(commands);
+    require(commands.size() == 4 &&
+            near(commands[1].bounds.height, 1.0F) &&
+            near(commands[2].color.blue, 0.9F) &&
+            near(commands[3].color.red, 0.8F),
+        "the dialog must paint its background, divider, title, and content");
+}
+
 void blocksBackgroundPointerInput() {
     int backgroundClicks = 0;
     int modalClicks = 0;
@@ -236,15 +269,60 @@ void cancelsWithEscapeAndRestoresFocus() {
         "Escape cancellation must be configurable for required dialogs");
 }
 
+void acceptsOnlyUnhandledEnterAsTheDefaultAction() {
+    lotui::DialogHostStyle style;
+    style.acceptOnUnhandledEnter = true;
+    auto host = std::make_unique<lotui::DialogHost>(
+        std::make_unique<lotui::Box>(), style);
+    lotui::DialogHost* observedHost = host.get();
+    lotui::DialogResult result = lotui::DialogResult::Dismissed;
+    observedHost->showModal(
+        std::make_unique<lotui::Dialog>(
+            std::make_unique<lotui::Box>(),
+            lotui::Size{280.0F, 140.0F}),
+        [&result](lotui::DialogResult closedResult) {
+            result = closedResult;
+        });
+    lotui::WidgetTree tree(std::move(host));
+    tree.layout({0.0F, 0.0F, 600.0F, 300.0F});
+
+    require(tree.keyPressed(lotui::KeyCode::Enter).handled &&
+            result == lotui::DialogResult::Accepted &&
+            !observedHost->hasModal(),
+        "an unhandled Enter must accept when the option is enabled");
+
+    int buttonClicks = 0;
+    result = lotui::DialogResult::Dismissed;
+    auto focusedButton = std::make_unique<lotui::Button>(
+        lotui::Size{160.0F, 60.0F},
+        [&buttonClicks]() { ++buttonClicks; });
+    observedHost->showModal(
+        std::make_unique<lotui::Dialog>(
+            std::move(focusedButton), lotui::Size{280.0F, 140.0F}),
+        [&result](lotui::DialogResult closedResult) {
+            result = closedResult;
+        });
+    tree.layout({0.0F, 0.0F, 600.0F, 300.0F});
+    tree.keyPressed(lotui::KeyCode::Enter);
+    require(observedHost->hasModal() &&
+            result == lotui::DialogResult::Dismissed,
+        "a focused widget that handles Enter must take precedence");
+    tree.keyReleased(lotui::KeyCode::Enter);
+    require(buttonClicks == 1 && observedHost->hasModal(),
+        "the focused button must retain its normal Enter activation");
+}
+
 } // namespace
 
 int main() {
     centersAndPaintsModalAboveTheScrim();
+    laysOutAndPaintsAnOptionalTitleArea();
     blocksBackgroundPointerInput();
     trapsAndRestoresKeyboardFocus();
     dismissesSafelyFromAButtonCallback();
     reportsResultsAndRejectsNestedModals();
     cancelsWithEscapeAndRestoresFocus();
+    acceptsOnlyUnhandledEnterAsTheDefaultAction();
     std::cout << "dialog_tests passed\n";
     return EXIT_SUCCESS;
 }
