@@ -108,6 +108,11 @@ Render backends expose the RAII `TextureStore` API. The Vulkan backend supports
 R8 glyph masks, RGBA images, normalized UV coordinates, and partial texture
 updates without exposing Vulkan handles to widgets.
 
+Modal UI uses the retained `DialogHost` and `Dialog` widgets. The host paints
+the scrim, blocks background input, traps Tab focus inside the modal, and
+restores the previous focus when it closes. See
+[`docs/dialogs.md`](docs/dialogs.md) for the minimal API.
+
 Current text limitations are deliberate and visible: `TextField` is
 single-line, selection and clipboard editing are not implemented yet, and the
 glyph cache uses one atlas page. Native backends already keep IME composition

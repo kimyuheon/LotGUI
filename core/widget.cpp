@@ -80,6 +80,10 @@ bool Widget::dispatchFocusChanged(bool focused) {
     return onFocusChanged(focused);
 }
 
+bool Widget::dispatchPreviewKeyEvent(const WidgetKeyEvent& event) {
+    return onPreviewKeyEvent(event);
+}
+
 bool Widget::dispatchKeyEvent(const WidgetKeyEvent& event) {
     return onKeyEvent(event);
 }
@@ -133,6 +137,10 @@ bool Widget::onFocusChanged(bool) {
     return false;
 }
 
+bool Widget::onPreviewKeyEvent(const WidgetKeyEvent&) {
+    return false;
+}
+
 bool Widget::onKeyEvent(const WidgetKeyEvent&) {
     return false;
 }
@@ -147,6 +155,10 @@ Rect Widget::textInputRect() const noexcept {
 
 bool Widget::onTextInputEvent(const TextInputEvent&) {
     return false;
+}
+
+PointerTargetId Widget::activeFocusScopeTarget() const noexcept {
+    return pointerTargetId_;
 }
 
 } // namespace lotui

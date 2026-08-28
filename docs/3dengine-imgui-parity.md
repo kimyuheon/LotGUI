@@ -22,7 +22,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `lot_joint_panel` | collapsible groups, sliders, inline rename, combo boxes, repeated rows | Planned |
 | `lot_block_panel` | thumbnail grid, selection, double-click, drag source, rename, tooltip | Planned |
 | `lot_dimension_panel` | actions, numeric editor, integer slider, combo box, color editor | Partial |
-| `lot_section_dialog` | modeless dialog, radio group, sliders, checkboxes, conditional content | Planned |
+| `lot_section_dialog` | modeless dialog, radio group, sliders, checkboxes, conditional content | Modal host foundation complete; controls planned |
 | `lot_array_dialog` | modeless dialog, integer/float/vector inputs, validation, disabled actions | Partial |
 | `lot_boolean_dialog` | modeless dialog, radio group, selection summaries, validation | Planned |
 | `lot_text_explode_dialog` | text, bullets, checkbox, action | Partial |
@@ -49,6 +49,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `BeginMenu`, `MenuItem` | menu model, menu bar, nested menu popup | Planned |
 | `SetTooltip` | delayed overlay `Tooltip` | Planned |
 | `BeginDisabled` | common enabled state and inherited input suppression | Per-widget partial |
+| modal dialog windows | `DialogHost`, scrim, focus trap and restoration | Foundation complete |
 | `Begin`/`End` tool windows | floating/dockable `Panel` | Planned |
 | `DockSpace` | `DockHost`, split nodes, drag/drop docking, persisted layout | Planned |
 | draw-list circles/lines | backend-neutral vector/overlay paint commands | Planned |
@@ -75,7 +76,8 @@ widgets and application view models:
 1. `TextField`, clipboard, selection, Windows/Cocoa/X11 text and IME events.
 2. `TabView`, closeable document tabs, overflow scrolling, add-tab action.
 3. `Popup`, `Tooltip`, menu model, `MenuBar`, context menus.
-4. `DialogHost`, modal/modeless dialogs, focus trap and restoration.
+4. ~~`DialogHost`, modal focus trap, restoration, results, and Escape cancel.~~
+   Add title/default actions and modeless windows.
 5. `ScrollView`, `ListView`, `DisclosurePanel`, `TreeView` and inline rename.
 6. `Slider`, radio group, combo box, vector numeric editor, color editor.
 7. toolbar, status bar, property grid and block thumbnail grid composites.

@@ -10,6 +10,8 @@
 
 namespace lotui {
 
+class DialogHost;
+
 enum class WidgetPointerEventType {
     Enter,
     Leave,
@@ -49,12 +51,14 @@ private:
     friend class WidgetTree;
     friend class LinearLayout;
     friend class SingleChildWidget;
+    friend class DialogHost;
 
     void collectHitTestEntries(std::vector<HitTestEntry>& entries) const;
     void collectFocusTargets(std::vector<PointerTargetId>& targets) const;
     Widget* findByPointerTarget(PointerTargetId target) noexcept;
     bool dispatchPointerEvent(const WidgetPointerEvent& event);
     bool dispatchFocusChanged(bool focused);
+    bool dispatchPreviewKeyEvent(const WidgetKeyEvent& event);
     bool dispatchKeyEvent(const WidgetKeyEvent& event);
     bool dispatchTextInputEvent(const TextInputEvent& event);
     bool requestsTextInput() const noexcept;
@@ -74,10 +78,12 @@ protected:
     virtual bool onPointerEvent(const WidgetPointerEvent& event);
     virtual bool acceptsFocus() const noexcept;
     virtual bool onFocusChanged(bool focused);
+    virtual bool onPreviewKeyEvent(const WidgetKeyEvent& event);
     virtual bool onKeyEvent(const WidgetKeyEvent& event);
     virtual bool acceptsTextInput() const noexcept;
     virtual Rect textInputRect() const noexcept;
     virtual bool onTextInputEvent(const TextInputEvent& event);
+    virtual PointerTargetId activeFocusScopeTarget() const noexcept;
 
 private:
     PointerTargetId pointerTargetId_{invalidPointerTarget};

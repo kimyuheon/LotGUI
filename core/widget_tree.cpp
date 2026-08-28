@@ -23,6 +23,8 @@ void WidgetTree::setRoot(std::unique_ptr<Widget> root) {
     }
     pointerRouter_.cancelPointer();
     visualHoverTarget_ = invalidPointerTarget;
+    activeFocusScope_ = invalidPointerTarget;
+    scopeFocusHistory_.clear();
     if (root_) {
         applyFocusChange(focusManager_.clear());
     }
@@ -133,6 +135,17 @@ WidgetKeyUpdate WidgetTree::keyPressed(
     bool repeat) {
     WidgetKeyUpdate update;
     update.needsRepaint = syncFocusTargets();
+    const PointerTargetId focusBeforePreview =
+        focusManager_.focusedTarget();
+    if (root_->dispatchPreviewKeyEvent({
+            WidgetKeyEventType::Press, key, modifiers, repeat})) {
+        update.handled = true;
+        syncFocusTargets();
+        update.needsRepaint = true;
+        update.focusChanged = focusBeforePreview !=
+            focusManager_.focusedTarget();
+        return update;
+    }
     if (key == KeyCode::Tab && !modifiers.control &&
         !modifiers.alt && !modifiers.meta) {
         const FocusChange change = focusManager_.moveFocus(modifiers.shift);
@@ -231,7 +244,37 @@ void WidgetTree::syncHitTests() {
 bool WidgetTree::syncFocusTargets() {
     std::vector<PointerTargetId> targets;
     root_->collectFocusTargets(targets);
-    return applyFocusChange(focusManager_.setTargets(std::move(targets)));
+    const PointerTargetId nextScope = root_->activeFocusScopeTarget();
+    const bool scopeChanged = nextScope != activeFocusScope_;
+    const PointerTargetId previouslyFocused = focusManager_.focusedTarget();
+    if (scopeChanged && activeFocusScope_ != invalidPointerTarget &&
+        previouslyFocused != invalidPointerTarget) {
+        scopeFocusHistory_[activeFocusScope_] = previouslyFocused;
+    }
+
+    bool needsRepaint = applyFocusChange(
+        focusManager_.setTargets(std::move(targets)));
+    if (!scopeChanged) {
+        return needsRepaint;
+    }
+
+    const PointerTargetId previousScope = activeFocusScope_;
+    activeFocusScope_ = nextScope;
+    if (previousScope == invalidPointerTarget ||
+        focusManager_.focusedTarget() != invalidPointerTarget) {
+        return needsRepaint;
+    }
+
+    const auto saved = scopeFocusHistory_.find(activeFocusScope_);
+    FocusChange restored;
+    if (saved != scopeFocusHistory_.end()) {
+        restored = focusManager_.focus(saved->second);
+        scopeFocusHistory_.erase(saved);
+    }
+    if (focusManager_.focusedTarget() == invalidPointerTarget) {
+        restored = focusManager_.moveFocus(false);
+    }
+    return applyFocusChange(restored) || needsRepaint;
 }
 
 bool WidgetTree::applyFocusChange(const FocusChange& change) {

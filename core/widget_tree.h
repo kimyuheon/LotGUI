@@ -4,6 +4,7 @@
 #include "core/widget.h"
 
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 namespace lotui {
@@ -83,6 +84,8 @@ private:
     PointerRouter pointerRouter_;
     FocusManager focusManager_;
     PointerTargetId visualHoverTarget_{invalidPointerTarget};
+    PointerTargetId activeFocusScope_{invalidPointerTarget};
+    std::unordered_map<PointerTargetId, PointerTargetId> scopeFocusHistory_;
 };
 
 } // namespace lotui
