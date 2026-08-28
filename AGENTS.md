@@ -161,11 +161,13 @@ LotUI는 독립 프로젝트로 유지하면서, 실제 VulkanCAD 엔진에 외�
 
 ## 라이브러리 배포 및 연결 순서
 
-1. 정적 라이브러리 또는 `add_subdirectory` 방식으로 임베디드 Vulkan 렌더링 계약을 먼저 검증한다.
-2. Windows에서 단일 사용자용 `LotUI.dll`과 import library를 만들어 `VulkanAppLotGUI.exe`로 연결한다.
-3. macOS에서는 `libLotUI.dylib`, Linux에서는 `libLotUI.so`로 같은 공개 API를 검증한다.
-4. 설치 가능한 CMake package와 `LotUI::` namespace target을 제공해 `find_package(LotUI CONFIG REQUIRED)`로 사용할 수 있게 한다.
-5. CMake 기본 경로는 형제 저장소 기준 상대경로로 유지하고 사용자가 cache 변수로 재정의할 수 있게 한다.
+1. VulkanCAD는 형제 저장소의 LotGUI를 상대경로 `add_subdirectory`로 가져와 정적으로 연결한다.
+2. `VulkanAppLotGUI` 통합 시험도 정적 연결을 사용하며 LotUI DLL을 VulkanCAD 배포 필수 파일로 만들지 않는다.
+3. LotGUI의 `.cpp` 목록을 VulkanCAD CMake에 직접 복사하지 않고 항상 `LotUI::` namespace target을 연결한다.
+4. 외부 개발자용 배포에서는 소스/CMake 방식과 정적 라이브러리를 제공한다.
+5. 외부 개발자용 공유 라이브러리는 Windows의 `LotUI.dll`, macOS의 `libLotUI.dylib`, Linux의 `libLotUI.so`로 별도 consumer smoke test를 수행한다.
+6. 설치 가능한 CMake package를 제공해 `find_package(LotUI CONFIG REQUIRED)`로 사용할 수 있게 한다.
+7. CMake 기본 경로는 형제 저장소 기준 상대경로로 유지하고 사용자가 cache 변수로 재정의할 수 있게 한다.
 
 ## 위젯 개발 완료 기준
 
