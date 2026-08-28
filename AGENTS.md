@@ -135,6 +135,49 @@ Windows/macOS/Linux에서 동일하게 실행되는 다음 기능을 구현한�
 - 한글 입력
 - DPI Scaling
 
+## VulkanCAD 직접 연동 목표
+
+LotUI는 독립 프로젝트로 유지하면서, 실제 VulkanCAD 엔진에 외부 라이브러리로 직접 연결해 검증한다.
+
+- LotUI 저장소는 VulkanCAD 클래스나 소스 코드에 직접 의존하지 않는다.
+- VulkanCAD 전용 접착 코드와 어댑터는 VulkanCAD 저장소 쪽에 둔다.
+- VulkanCAD가 이미 소유한 `VkInstance`, `VkPhysicalDevice`, `VkDevice`, 그래픽 큐, RenderPass 또는 동적 렌더링 정보와 `VkCommandBuffer`를 LotUI 임베디드 렌더러에 전달한다.
+- 임베디드 렌더러는 VulkanCAD의 Surface, Swapchain, Vulkan 객체를 생성하거나 파괴하지 않고 `Present`도 호출하지 않는다.
+- LotUI가 처리한 입력과 CAD 뷰포트로 전달할 입력을 명확히 구분한다.
+- CAD 뷰포트 영역, UI 패널, 팝업 및 대화상자를 같은 프레임 안에서 합성한다.
+- 논리 좌표와 Swapchain 물리 픽셀 사이의 DPI 스케일을 Windows, macOS, Linux에서 검증한다.
+
+## VulkanCAD 통합 시험
+
+직접 연결 가능 여부는 설계 검토만으로 판정하지 않고 실제 엔진 빌드와 실행으로 확인한다.
+
+- LotUI 내부의 외부 Vulkan 컨텍스트 계약 테스트는 `tests/`에 둔다.
+- 실제 엔진 연동 예제는 형제 프로젝트 `../3dEngine/samples/lotui_smoke/`에 둔다.
+- 통합 시험 실행 파일의 CMake target 이름은 `VulkanAppLotGUI`로 하고 Windows 결과물은 `VulkanAppLotGUI.exe`로 만든다.
+- 기존 `VulkanApp`은 비교와 안전한 폴백을 위해 연동 시험 중 변경 없이 실행 가능해야 한다.
+- 첫 연동 화면에는 실제 CAD 뷰포트 위의 LotUI Button과 Modal/Modeless Dialog를 포함한다.
+- 클릭 입력 분배, 창 크기 변경, DPI, 한글 IME, 포커스, 종료 시 Vulkan 객체 수명을 확인한다.
+- 통합 시험이 안정되면 `VulkanAppLotGUI`의 구성을 기본 `VulkanApp`에 단계적으로 적용한다.
+
+## 라이브러리 배포 및 연결 순서
+
+1. 정적 라이브러리 또는 `add_subdirectory` 방식으로 임베디드 Vulkan 렌더링 계약을 먼저 검증한다.
+2. Windows에서 단일 사용자용 `LotUI.dll`과 import library를 만들어 `VulkanAppLotGUI.exe`로 연결한다.
+3. macOS에서는 `libLotUI.dylib`, Linux에서는 `libLotUI.so`로 같은 공개 API를 검증한다.
+4. 설치 가능한 CMake package와 `LotUI::` namespace target을 제공해 `find_package(LotUI CONFIG REQUIRED)`로 사용할 수 있게 한다.
+5. CMake 기본 경로는 형제 저장소 기준 상대경로로 유지하고 사용자가 cache 변수로 재정의할 수 있게 한다.
+
+## 위젯 개발 완료 기준
+
+새 위젯과 UI 기능은 다음 조건을 함께 만족해야 완료로 본다.
+
+- LotUI 단독 예제에서 동작한다.
+- core와 widgets 공개 API에 VulkanCAD 또는 OS 네이티브 타입이 노출되지 않는다.
+- 독립형 Vulkan 렌더러와 외부 CommandBuffer를 사용하는 임베디드 렌더러에서 표현 가능하다.
+- UI가 처리하지 않은 포인터와 키보드 입력을 VulkanCAD가 계속 받을 수 있다.
+- Windows, macOS, Linux의 빌드 구성을 깨뜨리지 않는다.
+- 가능해지는 시점부터 `VulkanAppLotGUI`에서 실제 CAD 사용 흐름으로 검증한다.
+
 ## 초기 비목표
 
 - Qt 전체 기능 대체
