@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <stdexcept>
 #include <utility>
 
@@ -230,6 +231,14 @@ Widget* Dialog::findChildByPointerTarget(
     return title_ ? title_->findByPointerTarget(target) : nullptr;
 }
 
+bool Dialog::acceptsPointerEvents() const noexcept {
+    return true;
+}
+
+bool Dialog::onPointerEvent(const WidgetPointerEvent&) {
+    return true;
+}
+
 DialogHost::DialogHost(
     std::unique_ptr<Widget> content,
     DialogHostStyle style)
@@ -306,6 +315,105 @@ bool DialogHost::hasModal() const noexcept {
     return modal_ != nullptr;
 }
 
+ModelessDialogId DialogHost::showModeless(
+    std::unique_ptr<Widget> dialog,
+    Rect requestedBounds,
+    ModelessClosedHandler onClosed) {
+    if (!dialog) {
+        throw std::invalid_argument("modeless dialog must not be null");
+    }
+    ModelessDialogId id = nextModelessId_++;
+    if (id == invalidModelessDialogId) {
+        id = nextModelessId_++;
+    }
+    requestedBounds.x = std::isfinite(requestedBounds.x)
+        ? requestedBounds.x : 0.0F;
+    requestedBounds.y = std::isfinite(requestedBounds.y)
+        ? requestedBounds.y : 0.0F;
+    requestedBounds.width = nonNegative(requestedBounds.width);
+    requestedBounds.height = nonNegative(requestedBounds.height);
+    modelessDialogs_.push_back({
+        id,
+        requestedBounds,
+        std::move(dialog),
+        std::move(onClosed),
+    });
+    arrangeModeless(modelessDialogs_.back());
+    return id;
+}
+
+bool DialogHost::closeModeless(ModelessDialogId id) {
+    const auto entry = std::find_if(
+        modelessDialogs_.begin(), modelessDialogs_.end(),
+        [id](const ModelessEntry& candidate) {
+            return candidate.id == id;
+        });
+    if (entry == modelessDialogs_.end()) {
+        return false;
+    }
+    ModelessClosedHandler onClosed = std::move(entry->onClosed);
+    dismissedModelessDialogs_.push_back(std::move(entry->dialog));
+    modelessDialogs_.erase(entry);
+    if (onClosed) {
+        onClosed();
+    }
+    return true;
+}
+
+bool DialogHost::bringModelessToFront(ModelessDialogId id) {
+    const auto entry = std::find_if(
+        modelessDialogs_.begin(), modelessDialogs_.end(),
+        [id](const ModelessEntry& candidate) {
+            return candidate.id == id;
+        });
+    if (entry == modelessDialogs_.end()) {
+        return false;
+    }
+    if (std::next(entry) != modelessDialogs_.end()) {
+        std::rotate(entry, std::next(entry), modelessDialogs_.end());
+    }
+    return true;
+}
+
+bool DialogHost::setModelessBounds(
+    ModelessDialogId id,
+    Rect requestedBounds) {
+    const auto entry = std::find_if(
+        modelessDialogs_.begin(), modelessDialogs_.end(),
+        [id](const ModelessEntry& candidate) {
+            return candidate.id == id;
+        });
+    if (entry == modelessDialogs_.end()) {
+        return false;
+    }
+    requestedBounds.x = std::isfinite(requestedBounds.x)
+        ? requestedBounds.x : 0.0F;
+    requestedBounds.y = std::isfinite(requestedBounds.y)
+        ? requestedBounds.y : 0.0F;
+    requestedBounds.width = nonNegative(requestedBounds.width);
+    requestedBounds.height = nonNegative(requestedBounds.height);
+    entry->bounds = requestedBounds;
+    arrangeModeless(*entry);
+    return true;
+}
+
+Widget* DialogHost::modeless(ModelessDialogId id) noexcept {
+    const auto entry = std::find_if(
+        modelessDialogs_.begin(), modelessDialogs_.end(),
+        [id](const ModelessEntry& candidate) {
+            return candidate.id == id;
+        });
+    return entry == modelessDialogs_.end() ? nullptr : entry->dialog.get();
+}
+
+const Widget* DialogHost::modeless(ModelessDialogId id) const noexcept {
+    return const_cast<DialogHost*>(this)->modeless(id);
+}
+
+std::size_t DialogHost::modelessCount() const noexcept {
+    return modelessDialogs_.size();
+}
+
 void DialogHost::setStyle(DialogHostStyle style) noexcept {
     style.modalMargin = normalized(style.modalMargin);
     style_ = style;
@@ -317,6 +425,9 @@ const DialogHostStyle& DialogHost::style() const noexcept {
 
 void DialogHost::onArrange() {
     content_->arrange(bounds(), clip());
+    for (ModelessEntry& entry : modelessDialogs_) {
+        arrangeModeless(entry);
+    }
     arrangeModal();
 }
 
@@ -327,7 +438,11 @@ void DialogHost::onPaint(std::vector<PaintCommand>& commands) const {
 void DialogHost::paintChildren(
     std::vector<PaintCommand>& commands) const {
     dismissedModal_.reset();
+    dismissedModelessDialogs_.clear();
     content_->paint(commands);
+    for (const ModelessEntry& entry : modelessDialogs_) {
+        entry.dialog->paint(commands);
+    }
     if (modal_) {
         commands.push_back({
             bounds(), clip(), style_.scrim, invalidTextureId, 0.0F});
@@ -341,6 +456,9 @@ void DialogHost::collectChildHitTestEntries(
         modal_->collectHitTestEntries(entries);
     } else {
         content_->collectHitTestEntries(entries);
+        for (const ModelessEntry& entry : modelessDialogs_) {
+            entry.dialog->collectHitTestEntries(entries);
+        }
     }
 }
 
@@ -350,6 +468,9 @@ void DialogHost::collectChildFocusTargets(
         modal_->collectFocusTargets(targets);
     } else {
         content_->collectFocusTargets(targets);
+        for (const ModelessEntry& entry : modelessDialogs_) {
+            entry.dialog->collectFocusTargets(targets);
+        }
     }
 }
 
@@ -360,12 +481,46 @@ Widget* DialogHost::findChildByPointerTarget(
             return result;
         }
     }
+    for (auto entry = modelessDialogs_.rbegin();
+         entry != modelessDialogs_.rend(); ++entry) {
+        if (Widget* result = entry->dialog->findByPointerTarget(target)) {
+            return result;
+        }
+    }
     if (Widget* result = content_->findByPointerTarget(target)) {
         return result;
     }
-    return dismissedModal_
-        ? dismissedModal_->findByPointerTarget(target)
-        : nullptr;
+    if (dismissedModal_) {
+        if (Widget* result =
+                dismissedModal_->findByPointerTarget(target)) {
+            return result;
+        }
+    }
+    for (const auto& dismissed : dismissedModelessDialogs_) {
+        if (Widget* result = dismissed->findByPointerTarget(target)) {
+            return result;
+        }
+    }
+    return nullptr;
+}
+
+void DialogHost::onPreviewPointerEvent(
+    PointerTargetId target,
+    const WidgetPointerEvent& event) {
+    if (modal_ || event.type != WidgetPointerEventType::Press) {
+        return;
+    }
+    ModelessDialogId selected = invalidModelessDialogId;
+    for (auto entry = modelessDialogs_.rbegin();
+         entry != modelessDialogs_.rend(); ++entry) {
+        if (entry->dialog->findByPointerTarget(target)) {
+            selected = entry->id;
+            break;
+        }
+    }
+    if (selected != invalidModelessDialogId) {
+        bringModelessToFront(selected);
+    }
 }
 
 bool DialogHost::acceptsPointerEvents() const noexcept {
@@ -420,6 +575,29 @@ void DialogHost::arrangeModal() {
         modalSize.height,
     };
     modal_->arrange(modalBounds, clip());
+}
+
+void DialogHost::arrangeModeless(ModelessEntry& entry) {
+    if (!entry.dialog || !hasArea(bounds())) {
+        return;
+    }
+    Size dialogSize{entry.bounds.width, entry.bounds.height};
+    if (dialogSize.width <= 0.0F || dialogSize.height <= 0.0F) {
+        const Size measured = entry.dialog->measure(
+            LayoutConstraints::loose({bounds().width, bounds().height}));
+        if (dialogSize.width <= 0.0F) {
+            dialogSize.width = measured.width;
+        }
+        if (dialogSize.height <= 0.0F) {
+            dialogSize.height = measured.height;
+        }
+    }
+    entry.dialog->arrange({
+        bounds().x + entry.bounds.x,
+        bounds().y + entry.bounds.y,
+        dialogSize.width,
+        dialogSize.height,
+    }, clip());
 }
 
 void DialogHost::closeModal(DialogResult result) {

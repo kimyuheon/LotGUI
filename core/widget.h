@@ -58,6 +58,9 @@ private:
     void collectHitTestEntries(std::vector<HitTestEntry>& entries) const;
     void collectFocusTargets(std::vector<PointerTargetId>& targets) const;
     Widget* findByPointerTarget(PointerTargetId target) noexcept;
+    void dispatchPreviewPointerEvent(
+        PointerTargetId target,
+        const WidgetPointerEvent& event);
     bool dispatchPointerEvent(const WidgetPointerEvent& event);
     bool dispatchFocusChanged(bool focused);
     bool dispatchPreviewKeyEvent(const WidgetKeyEvent& event);
@@ -77,6 +80,9 @@ protected:
         std::vector<PointerTargetId>& targets) const;
     virtual Widget* findChildByPointerTarget(
         PointerTargetId target) noexcept;
+    virtual void onPreviewPointerEvent(
+        PointerTargetId target,
+        const WidgetPointerEvent& event);
     virtual bool acceptsPointerEvents() const noexcept;
     virtual bool onPointerEvent(const WidgetPointerEvent& event);
     virtual bool acceptsFocus() const noexcept;

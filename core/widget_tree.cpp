@@ -315,9 +315,11 @@ bool WidgetTree::dispatch(
     if (target == invalidPointerTarget) {
         return false;
     }
+    const WidgetPointerEvent event{
+        type, position, button, inside};
+    root_->dispatchPreviewPointerEvent(target, event);
     Widget* widget = root_->findByPointerTarget(target);
-    return widget != nullptr && widget->dispatchPointerEvent(
-        {type, position, button, inside});
+    return widget != nullptr && widget->dispatchPointerEvent(event);
 }
 
 bool WidgetTree::transitionHover(

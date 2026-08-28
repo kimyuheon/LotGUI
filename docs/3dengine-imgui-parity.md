@@ -50,7 +50,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `SetTooltip` | delayed overlay `Tooltip` | Planned |
 | `BeginDisabled` | common enabled state and inherited input suppression | Per-widget partial |
 | modal dialog windows | `DialogHost`, scrim, focus trap and restoration | Foundation complete |
-| `Begin`/`End` tool windows | floating/dockable `Panel` | Planned |
+| `Begin`/`End` tool windows | floating/dockable `Panel` | Modeless host and Z-order foundation complete |
 | `DockSpace` | `DockHost`, split nodes, drag/drop docking, persisted layout | Planned |
 | draw-list circles/lines | backend-neutral vector/overlay paint commands | Planned |
 | image buttons and block thumbnails | image widget, image button, tile/grid view | Planned |
@@ -76,8 +76,8 @@ widgets and application view models:
 1. `TextField`, clipboard, selection, Windows/Cocoa/X11 text and IME events.
 2. `TabView`, closeable document tabs, overflow scrolling, add-tab action.
 3. `Popup`, `Tooltip`, menu model, `MenuBar`, context menus.
-4. ~~`DialogHost`, modal focus trap, restoration, results, title slots,
-   Escape cancel, and default confirmation.~~ Add modeless windows.
+4. ~~`DialogHost`, modal/modeless lifetime, focus, results, title slots,
+   Escape cancel, default confirmation, and Z-order.~~ Add drag/resize.
 5. `ScrollView`, `ListView`, `DisclosurePanel`, `TreeView` and inline rename.
 6. `Slider`, radio group, combo box, vector numeric editor, color editor.
 7. toolbar, status bar, property grid and block thumbnail grid composites.

@@ -2,8 +2,10 @@
 
 #include "widgets/single_child_widget.h"
 
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <vector>
 
 namespace lotui {
 
@@ -52,6 +54,8 @@ protected:
         std::vector<PointerTargetId>& targets) const override;
     Widget* findChildByPointerTarget(
         PointerTargetId target) noexcept override;
+    bool acceptsPointerEvents() const noexcept override;
+    bool onPointerEvent(const WidgetPointerEvent& event) override;
 
 private:
     std::unique_ptr<Widget> title_;
@@ -73,6 +77,9 @@ enum class DialogResult {
 };
 
 using DialogClosedHandler = std::function<void(DialogResult)>;
+using ModelessDialogId = std::uint64_t;
+inline constexpr ModelessDialogId invalidModelessDialogId = 0;
+using ModelessClosedHandler = std::function<void()>;
 
 class DialogHost final : public Widget {
 public:
@@ -97,6 +104,17 @@ public:
     const Widget* modal() const noexcept;
     bool hasModal() const noexcept;
 
+    ModelessDialogId showModeless(
+        std::unique_ptr<Widget> dialog,
+        Rect bounds = {80.0F, 80.0F, 420.0F, 260.0F},
+        ModelessClosedHandler onClosed = {});
+    bool closeModeless(ModelessDialogId id);
+    bool bringModelessToFront(ModelessDialogId id);
+    bool setModelessBounds(ModelessDialogId id, Rect bounds);
+    Widget* modeless(ModelessDialogId id) noexcept;
+    const Widget* modeless(ModelessDialogId id) const noexcept;
+    std::size_t modelessCount() const noexcept;
+
     void setStyle(DialogHostStyle style) noexcept;
     const DialogHostStyle& style() const noexcept;
 
@@ -110,6 +128,9 @@ protected:
         std::vector<PointerTargetId>& targets) const override;
     Widget* findChildByPointerTarget(
         PointerTargetId target) noexcept override;
+    void onPreviewPointerEvent(
+        PointerTargetId target,
+        const WidgetPointerEvent& event) override;
     bool acceptsPointerEvents() const noexcept override;
     bool onPointerEvent(const WidgetPointerEvent& event) override;
     bool onPreviewKeyEvent(const WidgetKeyEvent& event) override;
@@ -117,12 +138,23 @@ protected:
     PointerTargetId activeFocusScopeTarget() const noexcept override;
 
 private:
+    struct ModelessEntry {
+        ModelessDialogId id{invalidModelessDialogId};
+        Rect bounds{};
+        std::unique_ptr<Widget> dialog;
+        ModelessClosedHandler onClosed{};
+    };
+
     void arrangeModal();
+    void arrangeModeless(ModelessEntry& entry);
     void closeModal(DialogResult result);
 
     std::unique_ptr<Widget> content_;
     std::unique_ptr<Widget> modal_;
     mutable std::unique_ptr<Widget> dismissedModal_;
+    std::vector<ModelessEntry> modelessDialogs_;
+    mutable std::vector<std::unique_ptr<Widget>> dismissedModelessDialogs_;
+    ModelessDialogId nextModelessId_{1};
     DialogClosedHandler onModalClosed_{};
     DialogHostStyle style_{};
 };

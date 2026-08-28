@@ -72,6 +72,12 @@ Widget* Widget::findByPointerTarget(PointerTargetId target) noexcept {
     return findChildByPointerTarget(target);
 }
 
+void Widget::dispatchPreviewPointerEvent(
+    PointerTargetId target,
+    const WidgetPointerEvent& event) {
+    onPreviewPointerEvent(target, event);
+}
+
 bool Widget::dispatchPointerEvent(const WidgetPointerEvent& event) {
     return onPointerEvent(event);
 }
@@ -123,6 +129,11 @@ void Widget::collectChildFocusTargets(
 
 Widget* Widget::findChildByPointerTarget(PointerTargetId) noexcept {
     return nullptr;
+}
+
+void Widget::onPreviewPointerEvent(
+    PointerTargetId,
+    const WidgetPointerEvent&) {
 }
 
 bool Widget::acceptsPointerEvents() const noexcept {

@@ -112,6 +112,8 @@ Modal UI uses the retained `DialogHost` and `Dialog` widgets. The host paints
 the scrim, blocks background input, traps Tab focus inside the modal, and
 restores the previous focus when it closes. See
 [`docs/dialogs.md`](docs/dialogs.md) for the minimal API.
+The same host manages multiple modeless dialogs through stable IDs, explicit
+bounds, click-to-front Z-order, and safe close callbacks.
 
 Current text limitations are deliberate and visible: `TextField` is
 single-line, selection and clipboard editing are not implemented yet, and the

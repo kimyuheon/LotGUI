@@ -312,6 +312,123 @@ void acceptsOnlyUnhandledEnterAsTheDefaultAction() {
         "the focused button must retain its normal Enter activation");
 }
 
+void managesModelessZOrderAndBounds() {
+    int backgroundClicks = 0;
+    int firstClicks = 0;
+    int secondClicks = 0;
+    auto background = std::make_unique<lotui::Button>(
+        lotui::Size{600.0F, 400.0F},
+        [&backgroundClicks]() { ++backgroundClicks; });
+    auto host = std::make_unique<lotui::DialogHost>(std::move(background));
+    lotui::DialogHost* observedHost = host.get();
+
+    const auto firstId = observedHost->showModeless(
+        std::make_unique<lotui::Dialog>(
+            std::make_unique<lotui::Button>(
+                lotui::Size{160.0F, 60.0F},
+                [&firstClicks]() { ++firstClicks; }),
+            lotui::Size{240.0F, 160.0F}),
+        {80.0F, 80.0F, 240.0F, 160.0F});
+    const auto secondId = observedHost->showModeless(
+        std::make_unique<lotui::Dialog>(
+            std::make_unique<lotui::Button>(
+                lotui::Size{160.0F, 60.0F},
+                [&secondClicks]() { ++secondClicks; }),
+            lotui::Size{240.0F, 160.0F}),
+        {140.0F, 100.0F, 240.0F, 160.0F});
+
+    lotui::WidgetTree tree(std::move(host));
+    tree.layout({0.0F, 0.0F, 600.0F, 400.0F});
+    require(observedHost->modelessCount() == 2 &&
+            near(observedHost->modeless(firstId)->bounds().x, 80.0F) &&
+            near(observedHost->modeless(secondId)->bounds().x, 140.0F),
+        "modeless dialogs must retain their IDs and requested bounds");
+
+    tree.pointerPressed({200.0F, 150.0F}, lotui::PointerButton::Primary);
+    tree.pointerReleased({200.0F, 150.0F}, lotui::PointerButton::Primary);
+    require(secondClicks == 1 && firstClicks == 0,
+        "the most recently shown overlapping dialog must be on top");
+
+    require(observedHost->bringModelessToFront(firstId),
+        "an existing modeless dialog must move to the front");
+    tree.pointerPressed({200.0F, 150.0F}, lotui::PointerButton::Primary);
+    tree.pointerReleased({200.0F, 150.0F}, lotui::PointerButton::Primary);
+    require(firstClicks == 1 && secondClicks == 1,
+        "hit testing must follow the updated modeless Z-order");
+
+    tree.pointerPressed({90.0F, 90.0F}, lotui::PointerButton::Primary);
+    tree.pointerReleased({90.0F, 90.0F}, lotui::PointerButton::Primary);
+    require(backgroundClicks == 0,
+        "the modeless dialog surface must prevent click-through");
+
+    require(observedHost->setModelessBounds(
+                secondId, {20.0F, 30.0F, 260.0F, 180.0F}) &&
+            near(observedHost->modeless(secondId)->bounds().x, 20.0F) &&
+            near(observedHost->modeless(secondId)->bounds().width, 260.0F),
+        "modeless bounds updates must arrange the dialog immediately");
+}
+
+void closesModelessSafelyFromItsButton() {
+    auto host = std::make_unique<lotui::DialogHost>(
+        std::make_unique<lotui::Box>());
+    lotui::DialogHost* observedHost = host.get();
+    lotui::ModelessDialogId id = lotui::invalidModelessDialogId;
+    int closed = 0;
+    auto closeButton = std::make_unique<lotui::Button>(
+        lotui::Size{160.0F, 60.0F},
+        [&]() { observedHost->closeModeless(id); });
+    id = observedHost->showModeless(
+        std::make_unique<lotui::Dialog>(
+            std::move(closeButton), lotui::Size{240.0F, 140.0F}),
+        {100.0F, 80.0F, 240.0F, 140.0F},
+        [&closed]() { ++closed; });
+
+    lotui::WidgetTree tree(std::move(host));
+    tree.layout({0.0F, 0.0F, 500.0F, 300.0F});
+    tree.pointerPressed({220.0F, 150.0F}, lotui::PointerButton::Primary);
+    tree.pointerReleased({220.0F, 150.0F}, lotui::PointerButton::Primary);
+    require(closed == 1 && observedHost->modelessCount() == 0 &&
+            observedHost->modeless(id) == nullptr,
+        "a modeless child callback must close its own window exactly once");
+    require(!observedHost->closeModeless(id),
+        "closing an unknown modeless ID must report false");
+
+    std::vector<lotui::PaintCommand> commands;
+    tree.paint(commands);
+    require(commands.size() == 1,
+        "a closed modeless dialog must stop painting immediately");
+}
+
+void modalInputTemporarilyBlocksModelessDialogs() {
+    int modelessClicks = 0;
+    auto host = std::make_unique<lotui::DialogHost>(
+        std::make_unique<lotui::Box>());
+    lotui::DialogHost* observedHost = host.get();
+    observedHost->showModeless(
+        std::make_unique<lotui::Dialog>(
+            std::make_unique<lotui::Button>(
+                lotui::Size{120.0F, 50.0F},
+                [&modelessClicks]() { ++modelessClicks; }),
+            lotui::Size{200.0F, 120.0F}),
+        {20.0F, 20.0F, 200.0F, 120.0F});
+    observedHost->showModal(std::make_unique<lotui::Dialog>(
+        std::make_unique<lotui::Box>(), lotui::Size{260.0F, 140.0F}));
+
+    lotui::WidgetTree tree(std::move(host));
+    tree.layout({0.0F, 0.0F, 600.0F, 400.0F});
+    tree.pointerPressed({80.0F, 70.0F}, lotui::PointerButton::Primary);
+    tree.pointerReleased({80.0F, 70.0F}, lotui::PointerButton::Primary);
+    require(modelessClicks == 0,
+        "an active modal must block input to every modeless dialog");
+
+    observedHost->cancelModal();
+    tree.layout({0.0F, 0.0F, 600.0F, 400.0F});
+    tree.pointerPressed({80.0F, 70.0F}, lotui::PointerButton::Primary);
+    tree.pointerReleased({80.0F, 70.0F}, lotui::PointerButton::Primary);
+    require(modelessClicks == 1,
+        "modeless input must resume after the modal closes");
+}
+
 } // namespace
 
 int main() {
@@ -323,6 +440,9 @@ int main() {
     reportsResultsAndRejectsNestedModals();
     cancelsWithEscapeAndRestoresFocus();
     acceptsOnlyUnhandledEnterAsTheDefaultAction();
+    managesModelessZOrderAndBounds();
+    closesModelessSafelyFromItsButton();
+    modalInputTemporarilyBlocksModelessDialogs();
     std::cout << "dialog_tests passed\n";
     return EXIT_SUCCESS;
 }

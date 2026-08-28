@@ -55,5 +55,27 @@ button still activates itself and a text field can submit without being
 overridden. Only an otherwise unhandled Enter reports `Accepted`.
 
 This foundation intentionally does not yet provide a result future, nested
-modals, or modeless floating dialogs. Draggable native-style title bars belong
-to the modeless window layer built on this host.
+modals, or asynchronous waiting.
+
+## Modeless dialogs
+
+`showModeless()` returns a stable ID used to update, raise, or close a floating
+dialog. Multiple modeless dialogs remain interactive with the application and
+paint in Z-order. Pressing any control in a modeless dialog automatically
+brings that dialog to the front.
+
+```cpp
+const auto propertiesId = dialogHost->showModeless(
+    std::move(propertiesDialog),
+    {880.0F, 72.0F, 360.0F, 640.0F},
+    [] { savePanelPlacement(); });
+
+dialogHost->setModelessBounds(
+    propertiesId, {920.0F, 80.0F, 380.0F, 680.0F});
+dialogHost->bringModelessToFront(propertiesId);
+dialogHost->closeModeless(propertiesId);
+```
+
+An active modal is always painted above modeless dialogs and temporarily
+blocks their pointer and keyboard focus. Title-bar dragging and resize handles
+are the next layer on top of the modeless bounds API.
