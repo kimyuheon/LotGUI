@@ -176,10 +176,15 @@ add_library(lotui_widgets STATIC
     widgets/box.cpp
     widgets/button.cpp
     widgets/checkbox.cpp
+    widgets/combo_box.cpp
     widgets/dialog.cpp
+    widgets/inline_text_editor.cpp
     widgets/label.cpp
+    widgets/list_control.cpp
     widgets/linear_layout.cpp
+    widgets/lookup_box.cpp
     widgets/numeric_input.cpp
+    widgets/popup.cpp
     widgets/ribbon.cpp
     widgets/single_child_widget.cpp
     widgets/text_field.cpp
@@ -525,6 +530,30 @@ if(BUILD_TESTING)
     target_link_libraries(ribbon_tests PRIVATE lotui_widgets)
     add_test(NAME ribbon_tests COMMAND ribbon_tests)
 
+    add_executable(list_control_tests
+        tests/list_control_tests.cpp
+    )
+    target_link_libraries(list_control_tests PRIVATE lotui_widgets)
+    add_test(NAME list_control_tests COMMAND list_control_tests)
+
+    add_executable(combo_box_tests
+        tests/combo_box_tests.cpp
+    )
+    target_link_libraries(combo_box_tests PRIVATE lotui_widgets)
+    add_test(NAME combo_box_tests COMMAND combo_box_tests)
+
+    add_executable(lookup_box_tests
+        tests/lookup_box_tests.cpp
+    )
+    target_link_libraries(lookup_box_tests PRIVATE lotui_widgets)
+    add_test(NAME lookup_box_tests COMMAND lookup_box_tests)
+
+    add_executable(inline_text_editor_tests
+        tests/inline_text_editor_tests.cpp
+    )
+    target_link_libraries(inline_text_editor_tests PRIVATE lotui_widgets)
+    add_test(NAME inline_text_editor_tests COMMAND inline_text_editor_tests)
+
     add_executable(dialog_tests
         tests/dialog_tests.cpp
     )
@@ -572,6 +601,14 @@ if(BUILD_TESTING)
         target_compile_options(form_widget_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(text_field_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(ribbon_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_options(list_control_tests PRIVATE
+            /W4 /permissive- /utf-8)
+        target_compile_options(combo_box_tests PRIVATE
+            /W4 /permissive- /utf-8)
+        target_compile_options(lookup_box_tests PRIVATE
+            /W4 /permissive- /utf-8)
+        target_compile_options(inline_text_editor_tests PRIVATE
+            /W4 /permissive- /utf-8)
         target_compile_options(dialog_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(texture_tests PRIVATE /W4 /permissive- /utf-8)
         if(TARGET lotml_tests)
@@ -593,6 +630,14 @@ if(BUILD_TESTING)
         target_compile_options(form_widget_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(text_field_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(ribbon_tests PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(list_control_tests PRIVATE
+            -Wall -Wextra -Wpedantic)
+        target_compile_options(combo_box_tests PRIVATE
+            -Wall -Wextra -Wpedantic)
+        target_compile_options(lookup_box_tests PRIVATE
+            -Wall -Wextra -Wpedantic)
+        target_compile_options(inline_text_editor_tests PRIVATE
+            -Wall -Wextra -Wpedantic)
         target_compile_options(dialog_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(texture_tests PRIVATE -Wall -Wextra -Wpedantic)
         if(TARGET lotml_tests)
@@ -626,11 +671,34 @@ if(LOTUI_BUILD_EXAMPLES)
                 "${LOTUI_EXAMPLE_FONT_FILE}"
                 "$<TARGET_FILE_DIR:platform_probe>/resources/fonts/NotoSansKR-Regular.ttf"
             VERBATIM)
+
+        add_executable(list_control_demo
+            examples/list_control_demo/main.cpp
+            examples/platform_probe/platform_event_bridge.cpp
+        )
+        target_link_libraries(list_control_demo PRIVATE
+            lotui_vulkan lotui_widgets lotui_text_freetype)
+        lotui_copy_legal_notices(list_control_demo)
+        add_custom_command(TARGET list_control_demo POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "$<TARGET_FILE_DIR:list_control_demo>/resources/fonts"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${LOTUI_EXAMPLE_FONT_FILE}"
+                "$<TARGET_FILE_DIR:list_control_demo>/resources/fonts/NotoSansKR-Regular.ttf"
+            VERBATIM)
     endif()
 
     if(MSVC)
         target_compile_options(platform_probe PRIVATE /W4 /permissive- /utf-8)
+        if(TARGET list_control_demo)
+            target_compile_options(list_control_demo PRIVATE
+                /W4 /permissive- /utf-8)
+        endif()
     else()
         target_compile_options(platform_probe PRIVATE -Wall -Wextra -Wpedantic)
+        if(TARGET list_control_demo)
+            target_compile_options(list_control_demo PRIVATE
+                -Wall -Wextra -Wpedantic)
+        endif()
     endif()
 endif()

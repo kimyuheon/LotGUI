@@ -57,7 +57,8 @@ int main() {
             while (window->pollEvent(event)) {
                 receivedEvent = true;
                 running = lotui::example::dispatchPlatformEvent(
-                    event, *tree, *window) && running;
+                    event, *tree, *window,
+                    lotui::example::updateDemoLayout) && running;
             }
 
             if (running) {

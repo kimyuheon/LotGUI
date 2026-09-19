@@ -56,6 +56,7 @@ WidgetPointerUpdate WidgetTree::pointerMoved(Point position) {
         : pointerRouter_.hoverTarget();
 
     WidgetPointerUpdate update;
+    update.handled = static_cast<bool>(route);
     update.needsRepaint = transitionHover(hover, position);
     update.needsRepaint = dispatch(
         route.target,
@@ -73,6 +74,7 @@ WidgetPointerUpdate WidgetTree::pointerPressed(
     const bool focusTargetsChanged = syncFocusTargets();
     const PointerRoute route = pointerRouter_.pointerPressed(position, button);
     WidgetPointerUpdate update;
+    update.handled = static_cast<bool>(route);
     update.captureStarted = route.captureStarted;
     update.needsRepaint = focusTargetsChanged ||
         transitionHover(route.target, position);
@@ -88,6 +90,11 @@ WidgetPointerUpdate WidgetTree::pointerPressed(
         position,
         button,
         route.inside) || update.needsRepaint;
+    const PointerTargetId focusBeforeFinalSync =
+        focusManager_.focusedTarget();
+    update.needsRepaint = syncFocusTargets() || update.needsRepaint;
+    update.focusChanged = update.focusChanged ||
+        focusBeforeFinalSync != focusManager_.focusedTarget();
     return update;
 }
 
@@ -97,6 +104,7 @@ WidgetPointerUpdate WidgetTree::pointerReleased(
     syncHitTests();
     const PointerRoute route = pointerRouter_.pointerReleased(position, button);
     WidgetPointerUpdate update;
+    update.handled = static_cast<bool>(route);
     update.captureEnded = route.captureEnded;
     update.needsRepaint = dispatch(
         route.target,
@@ -104,6 +112,12 @@ WidgetPointerUpdate WidgetTree::pointerReleased(
         position,
         button,
         route.inside);
+
+    const PointerTargetId focusBeforeFinalSync =
+        focusManager_.focusedTarget();
+    update.needsRepaint = syncFocusTargets() || update.needsRepaint;
+    update.focusChanged =
+        focusBeforeFinalSync != focusManager_.focusedTarget();
 
     const PointerTargetId hover =
         pointerRouter_.capturedTarget() != invalidPointerTarget
@@ -117,6 +131,7 @@ WidgetPointerUpdate WidgetTree::pointerReleased(
 WidgetPointerUpdate WidgetTree::cancelPointer() {
     const PointerRoute route = pointerRouter_.cancelPointer();
     WidgetPointerUpdate update;
+    update.handled = static_cast<bool>(route);
     update.captureEnded = route.captureEnded;
     update.needsRepaint = dispatch(
         route.target,
@@ -127,6 +142,24 @@ WidgetPointerUpdate WidgetTree::cancelPointer() {
     update.needsRepaint = transitionHover(
         invalidPointerTarget, {}) || update.needsRepaint;
     return update;
+}
+
+WidgetScrollUpdate WidgetTree::scroll(
+    Point position,
+    Point delta,
+    ScrollDeltaMode mode) {
+    syncHitTests();
+    const PointerTargetId target = pointerRouter_.hitTest(position);
+    if (target == invalidPointerTarget) {
+        return {};
+    }
+    Widget* widget = root_->findByPointerTarget(target);
+    if (widget == nullptr) {
+        return {};
+    }
+    const bool handled = widget->dispatchScrollEvent(
+        {position, delta, mode});
+    return {handled, handled};
 }
 
 WidgetKeyUpdate WidgetTree::keyPressed(
@@ -173,6 +206,11 @@ WidgetKeyUpdate WidgetTree::keyPressed(
             update.needsRepaint = true;
         }
     }
+    const PointerTargetId focusBeforeFinalSync =
+        focusManager_.focusedTarget();
+    update.needsRepaint = syncFocusTargets() || update.needsRepaint;
+    update.focusChanged = update.focusChanged ||
+        focusBeforeFinalSync != focusManager_.focusedTarget();
     return update;
 }
 

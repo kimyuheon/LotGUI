@@ -10,6 +10,7 @@
 namespace lotui {
 
 struct WidgetPointerUpdate {
+    bool handled{false};
     bool captureStarted{false};
     bool captureEnded{false};
     bool focusChanged{false};
@@ -23,6 +24,11 @@ struct WidgetKeyUpdate {
 };
 
 struct WidgetTextInputUpdate {
+    bool handled{false};
+    bool needsRepaint{false};
+};
+
+struct WidgetScrollUpdate {
     bool handled{false};
     bool needsRepaint{false};
 };
@@ -52,6 +58,10 @@ public:
         Point position,
         PointerButton button);
     WidgetPointerUpdate cancelPointer();
+    WidgetScrollUpdate scroll(
+        Point position,
+        Point delta,
+        ScrollDeltaMode mode = ScrollDeltaMode::Pixel);
 
     WidgetKeyUpdate keyPressed(
         KeyCode key,

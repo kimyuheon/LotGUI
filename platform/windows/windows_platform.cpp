@@ -361,6 +361,38 @@ LRESULT WindowsWindow::handleMessage(
         return 0;
     }
 
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL: {
+        POINT point{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+        ScreenToClient(window_, &point);
+        const float scale = metrics_.dpiScale > 0.0F
+            ? metrics_.dpiScale
+            : 1.0F;
+        const float steps = static_cast<float>(
+            GET_WHEEL_DELTA_WPARAM(wParam)) /
+            static_cast<float>(WHEEL_DELTA);
+        UINT configuredUnits = 3;
+        const UINT parameter = message == WM_MOUSEWHEEL
+            ? SPI_GETWHEELSCROLLLINES
+            : SPI_GETWHEELSCROLLCHARS;
+        if (!SystemParametersInfoW(
+                parameter, 0, &configuredUnits, 0) ||
+            configuredUnits == WHEEL_PAGESCROLL) {
+            configuredUnits = 3;
+        }
+        PlatformEvent event{PlatformEventType::MouseWheel};
+        event.x = static_cast<float>(point.x) / scale;
+        event.y = static_cast<float>(point.y) / scale;
+        event.scrollMode = ScrollDeltaMode::Line;
+        if (message == WM_MOUSEWHEEL) {
+            event.scrollY = -steps * static_cast<float>(configuredUnits);
+        } else {
+            event.scrollX = steps * static_cast<float>(configuredUnits);
+        }
+        pushEvent(event);
+        return 0;
+    }
+
     case WM_LBUTTONDOWN:
     case WM_RBUTTONDOWN:
     case WM_MBUTTONDOWN:

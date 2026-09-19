@@ -1,7 +1,5 @@
 #include "examples/platform_probe/platform_event_bridge.h"
 
-#include "examples/platform_probe/demo_ui.h"
-
 #include <iomanip>
 #include <iostream>
 
@@ -34,6 +32,14 @@ void printEvent(const PlatformEvent& event) {
     case PlatformEventType::MouseButtonReleased:
         std::cout << " x=" << event.x << " y=" << event.y
                   << " button=" << pointerButtonName(event.button);
+        break;
+    case PlatformEventType::MouseWheel:
+        std::cout << " x=" << event.x << " y=" << event.y
+                  << " scroll-x=" << event.scrollX
+                  << " scroll-y=" << event.scrollY
+                  << " mode="
+                  << (event.scrollMode == ScrollDeltaMode::Pixel
+                        ? "pixel" : "line");
         break;
     case PlatformEventType::KeyPressed:
     case PlatformEventType::KeyReleased:
@@ -69,11 +75,14 @@ void printEvent(const PlatformEvent& event) {
 bool dispatchPlatformEvent(
     const PlatformEvent& event,
     WidgetTree& tree,
-    PlatformWindow& window) {
+    PlatformWindow& window,
+    const PlatformLayoutHandler& updateLayout) {
     printEvent(event);
     if (event.type == PlatformEventType::Resized ||
         event.type == PlatformEventType::DpiChanged) {
-        updateDemoLayout(tree, window.metrics());
+        if (updateLayout) {
+            updateLayout(tree, window.metrics());
+        }
     }
 
     if (event.type == PlatformEventType::KeyPressed) {
@@ -94,6 +103,11 @@ bool dispatchPlatformEvent(
             event.selectionLength});
     } else if (event.type == PlatformEventType::TextCompositionEnd) {
         tree.textInput({TextInputEventType::CompositionEnd});
+    } else if (event.type == PlatformEventType::MouseWheel) {
+        tree.scroll(
+            {event.x, event.y},
+            {event.scrollX, event.scrollY},
+            event.scrollMode);
     } else if (event.type == PlatformEventType::FocusLost) {
         tree.cancelKeyboard();
     }

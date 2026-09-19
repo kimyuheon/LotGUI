@@ -389,6 +389,29 @@ void X11Window::processEvent(const XEvent& nativeEvent) {
 
     case ButtonPress:
     case ButtonRelease: {
+        const unsigned int nativeButton = nativeEvent.xbutton.button;
+        if (nativeButton >= 4 && nativeButton <= 7) {
+            if (nativeEvent.type == ButtonPress) {
+                const float scale = metrics_.dpiScale > 0.0F
+                    ? metrics_.dpiScale
+                    : 1.0F;
+                PlatformEvent event{PlatformEventType::MouseWheel};
+                event.x = static_cast<float>(nativeEvent.xbutton.x) / scale;
+                event.y = static_cast<float>(nativeEvent.xbutton.y) / scale;
+                event.scrollMode = ScrollDeltaMode::Line;
+                if (nativeButton == 4) {
+                    event.scrollY = -3.0F;
+                } else if (nativeButton == 5) {
+                    event.scrollY = 3.0F;
+                } else if (nativeButton == 6) {
+                    event.scrollX = -3.0F;
+                } else {
+                    event.scrollX = 3.0F;
+                }
+                events_.push_back(event);
+            }
+            break;
+        }
         const PointerButton button = pointerButton(nativeEvent.xbutton.button);
         if (button == PointerButton::Unspecified) {
             break;

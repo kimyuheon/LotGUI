@@ -58,6 +58,7 @@ lotui::KeyCode keyCode(NSEvent* event) {
 - (void)pushMouseButton:(NSEvent*)event
                   button:(lotui::PointerButton)button
                  pressed:(BOOL)pressed;
+- (void)scrollWheel:(NSEvent*)event;
 @end
 
 @interface LotUIWindowDelegate : NSObject <NSWindowDelegate> {
@@ -87,6 +88,12 @@ public:
         float y,
         lotui::PointerButton button,
         bool pressed);
+    void pushScroll(
+        float x,
+        float y,
+        float deltaX,
+        float deltaY,
+        lotui::ScrollDeltaMode mode);
     void pushKey(
         lotui::KeyCode key,
         lotui::KeyModifiers modifiers,
@@ -210,6 +217,21 @@ private:
         ? lotui::PointerButton::Middle
         : lotui::PointerButton::Auxiliary1;
     [self pushMouseButton:event button:button pressed:NO];
+}
+
+- (void)scrollWheel:(NSEvent*)event {
+    if (owner == nullptr) {
+        return;
+    }
+    const NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    owner->pushScroll(
+        static_cast<float>(point.x),
+        static_cast<float>(self.bounds.size.height - point.y),
+        -static_cast<float>(event.scrollingDeltaX),
+        -static_cast<float>(event.scrollingDeltaY),
+        event.hasPreciseScrollingDeltas
+            ? lotui::ScrollDeltaMode::Pixel
+            : lotui::ScrollDeltaMode::Line);
 }
 
 - (void)keyDown:(NSEvent*)event {
@@ -518,6 +540,21 @@ void MacOSWindowImpl::pushMouseButton(
     event.x = x;
     event.y = y;
     event.button = button;
+    events_.push_back(event);
+}
+
+void MacOSWindowImpl::pushScroll(
+    float x,
+    float y,
+    float deltaX,
+    float deltaY,
+    lotui::ScrollDeltaMode mode) {
+    lotui::PlatformEvent event{lotui::PlatformEventType::MouseWheel};
+    event.x = x;
+    event.y = y;
+    event.scrollX = deltaX;
+    event.scrollY = deltaY;
+    event.scrollMode = mode;
     events_.push_back(event);
 }
 

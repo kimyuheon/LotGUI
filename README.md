@@ -83,6 +83,31 @@ checkboxes, text fields, and future controls share the same input and focus
 behavior inside and outside a ribbon. See [`docs/ribbon.md`](docs/ribbon.md)
 and [`examples/ribbon.lotml`](examples/ribbon.lotml).
 
+`ListControl` provides a virtualized, spreadsheet-style table foundation with
+cell selection and keyboard navigation. Cells can expose check boxes, combo
+selectors, lookup buttons, or right-edge action buttons through one generic
+event contract. Overflow uses draggable horizontal and vertical scroll bars,
+with native mouse-wheel and precise touchpad deltas routed through the common
+widget event layer. Header dividers resize columns and sortable header clicks
+publish backend-neutral ascending/descending descriptors. The popup and
+inline-editor completion path is documented in
+[`docs/list-control.md`](docs/list-control.md).
+When text dependencies are available, the compact standalone example builds as
+`list_control_demo` (`list_control_demo.exe` on Windows).
+
+`PopupHost` supplies renderer-neutral anchored overlays, outside-click and
+Escape dismissal, focus isolation, and automatic above/below edge placement.
+The reusable `ComboBox` and ListControl combo cells share this implementation.
+See [`docs/popups-and-combo-box.md`](docs/popups-and-combo-box.md).
+`LookupBox` adds a search field, primary and secondary result text, UTF-8
+filtering, keyboard selection, and a reusable popup entry point for table
+cells. See [`docs/lookup-box.md`](docs/lookup-box.md).
+`InlineTextEditor` overlays an exact cell rectangle with the existing
+IME-aware `TextField`. It provides Enter commit, Escape cancel, focus-loss
+commit, and application validation callbacks for ListControl, PropertyGrid,
+and other retained views. See
+[`docs/inline-text-editing.md`](docs/inline-text-editing.md).
+
 Native keyboard values are normalized into `KeyCode` and `KeyModifiers`.
 `WidgetTree` provides Tab/Shift+Tab traversal, pointer-to-focus behavior, and
 focused key dispatch. Buttons display a focus ring and activate with Enter or

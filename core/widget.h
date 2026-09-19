@@ -4,6 +4,7 @@
 #include "core/key_event.h"
 #include "core/paint_command.h"
 #include "core/pointer_router.h"
+#include "core/scroll_event.h"
 #include "core/text_input_event.h"
 
 #include <vector>
@@ -12,6 +13,7 @@ namespace lotui {
 
 class DialogHost;
 class Dialog;
+class PopupHost;
 
 enum class WidgetPointerEventType {
     Enter,
@@ -54,6 +56,7 @@ private:
     friend class SingleChildWidget;
     friend class DialogHost;
     friend class Dialog;
+    friend class PopupHost;
 
     void collectHitTestEntries(std::vector<HitTestEntry>& entries) const;
     void collectFocusTargets(std::vector<PointerTargetId>& targets) const;
@@ -66,6 +69,7 @@ private:
     bool dispatchPreviewKeyEvent(const WidgetKeyEvent& event);
     bool dispatchKeyEvent(const WidgetKeyEvent& event);
     bool dispatchUnhandledKeyEvent(const WidgetKeyEvent& event);
+    bool dispatchScrollEvent(const WidgetScrollEvent& event);
     bool dispatchTextInputEvent(const TextInputEvent& event);
     bool requestsTextInput() const noexcept;
     Rect requestedTextInputRect() const noexcept;
@@ -90,6 +94,7 @@ protected:
     virtual bool onPreviewKeyEvent(const WidgetKeyEvent& event);
     virtual bool onKeyEvent(const WidgetKeyEvent& event);
     virtual bool onUnhandledKeyEvent(const WidgetKeyEvent& event);
+    virtual bool onScrollEvent(const WidgetScrollEvent& event);
     virtual bool acceptsTextInput() const noexcept;
     virtual Rect textInputRect() const noexcept;
     virtual bool onTextInputEvent(const TextInputEvent& event);

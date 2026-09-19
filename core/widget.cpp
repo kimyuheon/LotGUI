@@ -98,6 +98,10 @@ bool Widget::dispatchUnhandledKeyEvent(const WidgetKeyEvent& event) {
     return onUnhandledKeyEvent(event);
 }
 
+bool Widget::dispatchScrollEvent(const WidgetScrollEvent& event) {
+    return onScrollEvent(event);
+}
+
 bool Widget::dispatchTextInputEvent(const TextInputEvent& event) {
     return onTextInputEvent(event);
 }
@@ -161,6 +165,10 @@ bool Widget::onKeyEvent(const WidgetKeyEvent&) {
 }
 
 bool Widget::onUnhandledKeyEvent(const WidgetKeyEvent&) {
+    return false;
+}
+
+bool Widget::onScrollEvent(const WidgetScrollEvent&) {
     return false;
 }
 

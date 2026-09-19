@@ -72,16 +72,20 @@ void routesCapturedButtonClicks() {
 
     const auto press = tree.pointerPressed(
         {20.0F, 20.0F}, lotui::PointerButton::Primary);
-    require(press.captureStarted && observedButton->isPressed(),
-            "primary press must request pointer capture");
+    require(press.handled && press.captureStarted &&
+            observedButton->isPressed(),
+            "primary press must be handled and request pointer capture");
 
-    tree.pointerMoved({200.0F, 200.0F});
+    const auto capturedMove = tree.pointerMoved({200.0F, 200.0F});
+    require(capturedMove.handled,
+            "captured pointer movement must remain handled outside");
     require(!observedButton->isHovered(),
             "captured button must stop hovering outside its clip");
     const auto outsideRelease = tree.pointerReleased(
         {200.0F, 200.0F}, lotui::PointerButton::Primary);
-    require(outsideRelease.captureEnded && clickCount == 0,
-            "release outside must end capture without a click");
+    require(outsideRelease.handled && outsideRelease.captureEnded &&
+            clickCount == 0,
+            "release outside must be handled and end capture without a click");
 
     tree.pointerPressed(
         {20.0F, 20.0F}, lotui::PointerButton::Primary);
@@ -89,6 +93,12 @@ void routesCapturedButtonClicks() {
         {20.0F, 20.0F}, lotui::PointerButton::Primary);
     require(clickCount == 1 && !observedButton->isPressed(),
             "release inside must invoke the click handler once");
+
+    const auto backgroundMove = tree.pointerMoved({300.0F, 300.0F});
+    const auto backgroundPress = tree.pointerPressed(
+        {300.0F, 300.0F}, lotui::PointerButton::Primary);
+    require(!backgroundMove.handled && !backgroundPress.handled,
+            "pointer input outside the widget tree must remain available to the host");
 }
 
 void propagatesAncestorClipping() {
