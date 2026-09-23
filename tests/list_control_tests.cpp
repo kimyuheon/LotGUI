@@ -451,6 +451,90 @@ void resizesColumnsAndRequestsSortingFromHeaders() {
         "a non-sortable header must not change the sort descriptor");
 }
 
+void reordersAndFreezesColumns() {
+    auto engine = std::make_shared<TestTextEngine>();
+    auto textCell = [](std::string text) {
+        lotui::ListCell cell;
+        cell.text = std::move(text);
+        return cell;
+    };
+    auto list = std::make_unique<lotui::ListControl>(
+        engine,
+        std::vector<lotui::ListColumn>{
+            {"a", "A", 80.0F, 40.0F, true, true, true},
+            {"b", "B", 80.0F, 40.0F, true, true, true},
+            {"c", "C", 80.0F, 40.0F, true, true, true},
+        },
+        std::vector<lotui::ListRow>{{
+            textCell("A0"), textCell("B0"), textCell("C0")}},
+        lotui::Size{170.0F, 110.0F});
+    lotui::ListControl* observed = list.get();
+    std::vector<std::pair<std::size_t, std::size_t>> reordered;
+    observed->setOnColumnReordered(
+        [&reordered](std::size_t from, std::size_t to) {
+            reordered.emplace_back(from, to);
+        });
+    observed->setSelectedCell(lotui::ListCellAddress{0, 0});
+    observed->setSortDescriptor(lotui::ListSortDescriptor{
+        0, lotui::ListSortDirection::Ascending});
+    lotui::WidgetTree tree(std::move(list));
+    tree.layout({0.0F, 0.0F, 170.0F, 110.0F});
+
+    const lotui::Rect firstHeader = observed->headerCellBounds(0);
+    const lotui::Rect lastHeader = observed->headerCellBounds(2);
+    const lotui::Point dragStart{
+        firstHeader.x + firstHeader.width * 0.35F,
+        firstHeader.y + firstHeader.height * 0.5F,
+    };
+    const lotui::Point dragEnd{
+        lastHeader.x + lastHeader.width * 0.75F,
+        lastHeader.y + lastHeader.height * 0.5F,
+    };
+    tree.pointerPressed(dragStart, lotui::PointerButton::Primary);
+    tree.pointerMoved(dragEnd);
+    tree.pointerReleased(dragEnd, lotui::PointerButton::Primary);
+
+    require(reordered.size() == 1 && reordered.front() ==
+            std::pair<std::size_t, std::size_t>{0, 2},
+        "dragging a reorderable header must report its final column index");
+    require(observed->columns()[0].id == "b" &&
+            observed->columns()[1].id == "c" &&
+            observed->columns()[2].id == "a" &&
+            observed->cell({0, 0})->text == "B0" &&
+            observed->cell({0, 1})->text == "C0" &&
+            observed->cell({0, 2})->text == "A0",
+        "column reordering must move column metadata and every row cell together");
+    require(observed->selectedCell() == lotui::ListCellAddress{0, 2} &&
+            observed->sortDescriptor()->column == 2,
+        "column reordering must remap selection and sort state");
+
+    observed->setFrozenColumnCount(1);
+    observed->setScrollOffset({0.0F, 0.0F});
+    const float frozenX = observed->cellBounds({0, 0}).x;
+    const float scrollingX = observed->cellBounds({0, 2}).x;
+    observed->setScrollOffset({60.0F, 0.0F});
+    require(near(observed->cellBounds({0, 0}).x, frozenX) &&
+            near(observed->cellBounds({0, 2}).x, scrollingX - 60.0F),
+        "frozen columns must remain fixed while later columns scroll");
+    require(observed->horizontalScrollBarBounds().x >=
+            observed->cellBounds({0, 0}).x + observed->columnWidth(0),
+        "the horizontal scroll bar must begin after the frozen region");
+
+    observed->ensureCellVisible({0, 0});
+    require(near(observed->scrollOffset().x, 60.0F),
+        "revealing a frozen cell must not change horizontal scroll");
+    const lotui::Rect frozenCell = observed->cellBounds({0, 0});
+    tree.pointerPressed(
+        {
+            frozenCell.x + frozenCell.width * 0.5F,
+            frozenCell.y + frozenCell.height * 0.5F,
+        },
+        lotui::PointerButton::Primary);
+    require(observed->selectedCell() == lotui::ListCellAddress{0, 0},
+        "hit testing in the fixed region must resolve the frozen cell");
+    tree.cancelPointer();
+}
+
 } // namespace
 
 int main() {
@@ -460,6 +544,7 @@ int main() {
     startsTextEditingByDoubleClick();
     scrollsWithWheelTracksAndDraggableThumbs();
     resizesColumnsAndRequestsSortingFromHeaders();
+    reordersAndFreezesColumns();
     std::cout << "list_control_tests passed\n";
     return EXIT_SUCCESS;
 }

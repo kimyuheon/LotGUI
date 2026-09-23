@@ -89,6 +89,22 @@ This keeps the same API usable for local vectors, database-backed tables, and
 large virtual data sources. Set `sortable` or `resizable` to `false` on an
 individual `ListColumn` when that header operation is inappropriate.
 
+## Column reordering and frozen columns
+
+Dragging a header beyond `columnReorderDragThreshold` moves the complete
+column. `ListControl` moves the `ListColumn` metadata and every corresponding
+row cell together, then remaps selection and the active sort descriptor.
+Applications can persist the new order through `setOnColumnReordered`, or
+restore one directly with `moveColumn(from, to)`. Set a column's
+`reorderable` field to `false` when it must remain under application control.
+
+`setFrozenColumnCount(count)` fixes the first `count` columns to the left edge.
+Later columns continue to use the horizontal scroll offset, while painting,
+hit testing, inline-editor anchors, and the horizontal scroll bar all exclude
+the frozen region. The frozen boundary and reorder insertion marker are
+ordinary backend-neutral `PaintCommand` output, so they work with standalone
+and embedded Vulkan renderers alike.
+
 ## Completion path
 
 The public event contract deliberately separates a cell action from the popup
@@ -97,9 +113,8 @@ or editor used to perform it. `ComboBox::showPopupAt` and
 implementation stages are:
 
 1. Asynchronous lookup data providers with loading and empty states.
-2. Column reordering and frozen columns.
-3. Row and rectangular multi-selection, clipboard copy/paste, and range fill.
-4. Large-data provider API, row reuse, and incremental loading.
+2. Row and rectangular multi-selection, clipboard copy/paste, and range fill.
+3. Large-data provider API, row reuse, and incremental loading.
 
 This sequence keeps `ListControl` useful now without embedding application
 types or a specific renderer into its API.

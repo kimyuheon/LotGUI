@@ -28,6 +28,7 @@ struct ListColumn {
     float minimumWidth{40.0F};
     bool resizable{true};
     bool sortable{true};
+    bool reorderable{true};
 };
 
 enum class ListSortDirection {
@@ -116,6 +117,8 @@ struct ListControlStyle {
     Color headerPressed{0.21F, 0.29F, 0.40F, 1.0F};
     Color sortIndicator{0.52F, 0.72F, 1.0F, 1.0F};
     Color columnResizeHandle{0.32F, 0.65F, 1.0F, 1.0F};
+    Color columnReorderIndicator{0.96F, 0.82F, 0.32F, 1.0F};
+    Color frozenColumnDivider{0.32F, 0.65F, 1.0F, 0.85F};
     EdgeInsets cellPadding{8.0F, 4.0F, 8.0F, 4.0F};
     float headerHeight{30.0F};
     float rowHeight{28.0F};
@@ -127,6 +130,9 @@ struct ListControlStyle {
     float minimumScrollThumbLength{22.0F};
     float columnResizeHandleWidth{2.0F};
     float columnResizeHitWidth{8.0F};
+    float columnReorderDragThreshold{6.0F};
+    float columnReorderIndicatorWidth{3.0F};
+    float frozenColumnDividerWidth{2.0F};
 };
 
 class ListControl final : public Widget {
@@ -138,6 +144,8 @@ public:
         std::function<void(std::optional<ListSortDescriptor>)>;
     using ColumnResizedHandler =
         std::function<void(std::size_t column, float width)>;
+    using ColumnReorderedHandler =
+        std::function<void(std::size_t from, std::size_t to)>;
 
     explicit ListControl(
         std::shared_ptr<const TextEngine> textEngine,
@@ -157,6 +165,9 @@ public:
     const std::vector<ListRow>& rows() const noexcept;
     void setColumnWidth(std::size_t column, float width);
     float columnWidth(std::size_t column) const noexcept;
+    void moveColumn(std::size_t from, std::size_t to);
+    void setFrozenColumnCount(std::size_t count) noexcept;
+    std::size_t frozenColumnCount() const noexcept;
     Rect headerCellBounds(std::size_t column) const noexcept;
     Rect columnResizeHandleBounds(std::size_t column) const noexcept;
     void setCell(ListCellAddress address, ListCell cell);
@@ -193,6 +204,7 @@ public:
     std::optional<ListSortDescriptor> sortDescriptor() const noexcept;
     void setOnSortChanged(SortChangedHandler handler);
     void setOnColumnResized(ColumnResizedHandler handler);
+    void setOnColumnReordered(ColumnReorderedHandler handler);
     void setStyle(ListControlStyle style) noexcept;
     const ListControlStyle& style() const noexcept;
 
@@ -231,6 +243,9 @@ private:
         Rect horizontalTrack{};
         Rect horizontalThumb{};
         Rect corner{};
+        float frozenWidth{0.0F};
+        float scrollableViewportWidth{0.0F};
+        float scrollableContentWidth{0.0F};
         bool vertical{false};
         bool horizontal{false};
     };
@@ -255,16 +270,34 @@ private:
     std::optional<ListCellAddress> addressAt(Point position) const noexcept;
     std::optional<std::size_t> headerColumnAt(Point position) const noexcept;
     std::optional<std::size_t> resizeColumnAt(Point position) const noexcept;
+    std::optional<std::size_t> reorderTargetAt(Point position) const noexcept;
     bool updateHeaderHover(Point position) noexcept;
     bool dragColumnResize(Point position);
+    bool dragColumnReorder(Point position) noexcept;
     bool toggleSort(std::size_t column);
     void paintSortIndicator(
         std::size_t column,
         Rect headerCell,
         Rect paintClip,
         std::vector<PaintCommand>& commands) const;
+    void paintColumnGuides(
+        const ScrollGeometry& geometry,
+        Rect paintClip,
+        std::vector<PaintCommand>& commands) const;
     bool isValidAddress(ListCellAddress address) const noexcept;
     float columnStart(std::size_t column) const noexcept;
+    float frozenColumnsWidth() const noexcept;
+    float columnViewportX(
+        std::size_t column,
+        const ScrollGeometry& geometry) const noexcept;
+    Rect columnPaintClip(
+        std::size_t column,
+        const ScrollGeometry& geometry,
+        Rect baseClip) const noexcept;
+    static std::size_t remapColumnIndex(
+        std::size_t index,
+        std::size_t from,
+        std::size_t to) noexcept;
     void clampScrollOffset() noexcept;
     bool select(std::optional<ListCellAddress> address, bool notify);
     bool moveSelection(int rowDelta, int columnDelta);
@@ -303,6 +336,7 @@ private:
     CellActionHandler onCellAction_{};
     SortChangedHandler onSortChanged_{};
     ColumnResizedHandler onColumnResized_{};
+    ColumnReorderedHandler onColumnReordered_{};
     ListControlStyle style_{};
     TextStyle textStyle_{};
     std::optional<ListCellAddress> selectedCell_;
@@ -322,6 +356,10 @@ private:
     std::optional<std::size_t> resizingColumn_;
     float columnResizePointerStart_{0.0F};
     float columnResizeWidthStart_{0.0F};
+    std::optional<std::size_t> reorderingColumn_;
+    std::optional<std::size_t> reorderTargetColumn_;
+    float columnReorderPointerStart_{0.0F};
+    std::size_t frozenColumnCount_{0};
     std::optional<ListSortDescriptor> sortDescriptor_;
     std::optional<ListCellAddress> lastClickedCell_;
     std::uint64_t lastClickMilliseconds_{0};

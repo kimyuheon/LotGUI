@@ -35,6 +35,12 @@ void sanitize(ListControlStyle& style) noexcept {
         dimension(style.columnResizeHitWidth, 8.0F));
     style.columnResizeHitWidth = std::max(
         style.columnResizeHitWidth, style.columnResizeHandleWidth);
+    style.columnReorderDragThreshold = dimension(
+        style.columnReorderDragThreshold, 6.0F);
+    style.columnReorderIndicatorWidth = dimension(
+        style.columnReorderIndicatorWidth, 3.0F);
+    style.frozenColumnDividerWidth = dimension(
+        style.frozenColumnDividerWidth, 2.0F);
 }
 
 void sanitize(ListColumn& column) noexcept {
@@ -124,6 +130,9 @@ void ListControl::setColumns(std::vector<ListColumn> columns) {
     hoveredResizeColumn_.reset();
     pressedHeaderColumn_.reset();
     resizingColumn_.reset();
+    reorderingColumn_.reset();
+    reorderTargetColumn_.reset();
+    frozenColumnCount_ = std::min(frozenColumnCount_, columns_.size());
     if (sortDescriptor_ &&
         (sortDescriptor_->column >= columns_.size() ||
          !columns_[sortDescriptor_->column].sortable)) {
@@ -177,13 +186,64 @@ float ListControl::columnWidth(std::size_t column) const noexcept {
     return column < columns_.size() ? columns_[column].width : 0.0F;
 }
 
+void ListControl::moveColumn(std::size_t from, std::size_t to) {
+    if (from >= columns_.size() || to >= columns_.size()) {
+        throw std::out_of_range("ListControl column is out of range");
+    }
+    if (from == to) {
+        return;
+    }
+    const auto moveValue = [from, to](auto& values) {
+        if (from < to) {
+            std::rotate(
+                values.begin() + static_cast<std::ptrdiff_t>(from),
+                values.begin() + static_cast<std::ptrdiff_t>(from + 1),
+                values.begin() + static_cast<std::ptrdiff_t>(to + 1));
+        } else {
+            std::rotate(
+                values.begin() + static_cast<std::ptrdiff_t>(to),
+                values.begin() + static_cast<std::ptrdiff_t>(from),
+                values.begin() + static_cast<std::ptrdiff_t>(from + 1));
+        }
+    };
+    moveValue(columns_);
+    for (ListRow& row : rows_) {
+        moveValue(row);
+    }
+    const auto remapAddress = [from, to](
+        std::optional<ListCellAddress>& address) {
+        if (address) {
+            address->column = remapColumnIndex(address->column, from, to);
+        }
+    };
+    remapAddress(selectedCell_);
+    remapAddress(hoveredCell_);
+    remapAddress(pressedCell_);
+    remapAddress(lastClickedCell_);
+    if (sortDescriptor_) {
+        sortDescriptor_->column = remapColumnIndex(
+            sortDescriptor_->column, from, to);
+    }
+    invalidateLayouts();
+    clampScrollOffset();
+}
+
+void ListControl::setFrozenColumnCount(std::size_t count) noexcept {
+    frozenColumnCount_ = std::min(count, columns_.size());
+    clampScrollOffset();
+}
+
+std::size_t ListControl::frozenColumnCount() const noexcept {
+    return frozenColumnCount_;
+}
+
 Rect ListControl::headerCellBounds(std::size_t column) const noexcept {
     if (column >= columns_.size()) {
         return {};
     }
     const ScrollGeometry geometry = scrollGeometry();
     return {
-        geometry.header.x + columnStart(column) - scrollOffset_.x,
+        columnViewportX(column, geometry),
         geometry.header.y,
         columnWidth(column),
         geometry.header.height,
@@ -298,15 +358,24 @@ void ListControl::ensureCellVisible(ListCellAddress address) noexcept {
     const float top = static_cast<float>(address.row) * style_.rowHeight;
     const float bottom = top + style_.rowHeight;
 
-    if (left < scrollOffset_.x) {
-        scrollOffset_.x = left;
-    } else if (right > scrollOffset_.x + data.width) {
-        scrollOffset_.x = right - data.width;
+    const float frozenWidth = frozenColumnsWidth();
+    if (address.column >= frozenColumnCount_ &&
+        scrollGeometry().scrollableViewportWidth > 0.0F) {
+        const float scrollableLeft = left - frozenWidth;
+        const float scrollableRight = right - frozenWidth;
+        const float visibleWidth = scrollGeometry().scrollableViewportWidth;
+        if (scrollableLeft < scrollOffset_.x) {
+            scrollOffset_.x = scrollableLeft;
+        } else if (scrollableRight > scrollOffset_.x + visibleWidth) {
+            scrollOffset_.x = scrollableRight - visibleWidth;
+        }
     }
-    if (top < scrollOffset_.y) {
-        scrollOffset_.y = top;
-    } else if (bottom > scrollOffset_.y + data.height) {
-        scrollOffset_.y = bottom - data.height;
+    if (data.height > 0.0F) {
+        if (top < scrollOffset_.y) {
+            scrollOffset_.y = top;
+        } else if (bottom > scrollOffset_.y + data.height) {
+            scrollOffset_.y = bottom - data.height;
+        }
     }
     clampScrollOffset();
 }
@@ -341,7 +410,7 @@ Rect ListControl::cellBounds(ListCellAddress address) const noexcept {
     }
     const ScrollGeometry geometry = scrollGeometry();
     return {
-        geometry.data.x + columnStart(address.column) - scrollOffset_.x,
+        columnViewportX(address.column, geometry),
         geometry.data.y +
             static_cast<float>(address.row) * style_.rowHeight -
             scrollOffset_.y,
@@ -382,6 +451,8 @@ void ListControl::setEnabled(bool enabled) noexcept {
         hoveredResizeColumn_.reset();
         pressedHeaderColumn_.reset();
         resizingColumn_.reset();
+        reorderingColumn_.reset();
+        reorderTargetColumn_.reset();
         lastClickedCell_.reset();
         lastClickMilliseconds_ = 0;
     }
@@ -433,6 +504,10 @@ void ListControl::setOnColumnResized(ColumnResizedHandler handler) {
     onColumnResized_ = std::move(handler);
 }
 
+void ListControl::setOnColumnReordered(ColumnReorderedHandler handler) {
+    onColumnReordered_ = std::move(handler);
+}
+
 void ListControl::setStyle(ListControlStyle style) noexcept {
     sanitize(style);
     style_ = style;
@@ -446,6 +521,9 @@ const ListControlStyle& ListControl::style() const noexcept {
 
 void ListControl::onArrange() {
     clampScrollOffset();
+    if (selectedCell_) {
+        ensureCellVisible(*selectedCell_);
+    }
 }
 
 void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
@@ -476,18 +554,20 @@ void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
 
     for (std::size_t column = 0; column < columns_.size(); ++column) {
         const Rect headerCell = headerCellBounds(column);
-        const Rect visible = intersect(headerCell, headerClip);
+        const Rect cellClip = columnPaintClip(
+            column, geometry, headerClip);
+        const Rect visible = intersect(headerCell, cellClip);
         if (!hasArea(visible)) {
             continue;
         }
         if (pressedHeaderColumn_ == column) {
             commands.push_back({
-                headerCell, headerClip, style_.headerPressed,
+                headerCell, cellClip, style_.headerPressed,
                 invalidTextureId, 0.0F,
             });
         } else if (hoveredHeaderColumn_ == column) {
             commands.push_back({
-                headerCell, headerClip, style_.headerHovered,
+                headerCell, cellClip, style_.headerHovered,
                 invalidTextureId, 0.0F,
             });
         }
@@ -502,7 +582,7 @@ void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
             rows_.size() * columns_.size() + column,
             columns_[column].title,
             textBounds,
-            headerClip,
+            cellClip,
             style_.text,
             commands);
         if (style_.gridLineWidth > 0.0F) {
@@ -513,10 +593,10 @@ void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
                     style_.gridLineWidth,
                     headerCell.height,
                 },
-                headerClip, style_.gridLine, invalidTextureId, 0.0F,
+                cellClip, style_.gridLine, invalidTextureId, 0.0F,
             });
         }
-        paintSortIndicator(column, headerCell, headerClip, commands);
+        paintSortIndicator(column, headerCell, cellClip, commands);
         if ((hoveredResizeColumn_ == column || resizingColumn_ == column) &&
             style_.columnResizeHandleWidth > 0.0F) {
             commands.push_back({
@@ -527,7 +607,7 @@ void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
                     style_.columnResizeHandleWidth,
                     headerCell.height,
                 },
-                headerClip, style_.columnResizeHandle,
+                cellClip, style_.columnResizeHandle,
                 invalidTextureId, 0.0F,
             });
         }
@@ -537,6 +617,7 @@ void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
     const Rect dataClip = intersect(data, contentClip);
     if (!hasArea(dataClip) || rows_.empty() || columns_.empty()) {
         paintScrollBars(geometry, contentClip, commands);
+        paintColumnGuides(geometry, contentClip, commands);
         return;
     }
 
@@ -561,21 +642,23 @@ void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
         for (std::size_t column = 0; column < columns_.size(); ++column) {
             const ListCellAddress address{row, column};
             const Rect cellRectangle = cellBounds(address);
-            const Rect visible = intersect(cellRectangle, dataClip);
+            const Rect cellClip = columnPaintClip(
+                column, geometry, dataClip);
+            const Rect visible = intersect(cellRectangle, cellClip);
             if (!hasArea(visible)) {
                 continue;
             }
             if (selectedCell_ == address) {
                 commands.push_back({
                     cellRectangle,
-                    dataClip,
+                    cellClip,
                     focused_ ? style_.selectedCellFocused : style_.selectedCell,
                     invalidTextureId,
                     0.0F,
                 });
             } else if (hoveredCell_ == address) {
                 commands.push_back({
-                    cellRectangle, dataClip, style_.hoveredCell,
+                    cellRectangle, cellClip, style_.hoveredCell,
                     invalidTextureId, 0.0F,
                 });
             }
@@ -602,10 +685,10 @@ void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
                 cacheIndex(row, column),
                 displayText(value),
                 textBounds,
-                dataClip,
+                cellClip,
                 value.editable ? style_.text : style_.secondaryText,
                 commands);
-            paintCellControl(value, cellRectangle, dataClip, commands);
+            paintCellControl(value, cellRectangle, cellClip, commands);
 
             if (style_.gridLineWidth > 0.0F) {
                 commands.push_back({
@@ -616,7 +699,7 @@ void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
                         style_.gridLineWidth,
                         cellRectangle.height,
                     },
-                    dataClip, style_.gridLine, invalidTextureId, 0.0F,
+                    cellClip, style_.gridLine, invalidTextureId, 0.0F,
                 });
             }
         }
@@ -633,6 +716,7 @@ void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
         }
     }
     paintScrollBars(geometry, contentClip, commands);
+    paintColumnGuides(geometry, contentClip, commands);
 }
 
 bool ListControl::acceptsPointerEvents() const noexcept {
@@ -650,6 +734,7 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
         changed = dragScrollBar(event.position) || changed;
         changed = updateHeaderHover(event.position) || changed;
         changed = dragColumnResize(event.position) || changed;
+        changed = dragColumnReorder(event.position) || changed;
         const auto next = event.inside
             ? addressAt(event.position)
             : std::nullopt;
@@ -677,6 +762,9 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
         if (hoveredScrollBarPart_ != ScrollBarPart::None) {
             pointerPressed_ = false;
             pressedCell_.reset();
+            pressedHeaderColumn_.reset();
+            reorderingColumn_.reset();
+            reorderTargetColumn_.reset();
             lastClickedCell_.reset();
             lastClickMilliseconds_ = 0;
             if (hoveredScrollBarPart_ == ScrollBarPart::VerticalThumb) {
@@ -699,6 +787,8 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
             columnResizePointerStart_ = event.position.x;
             columnResizeWidthStart_ = columnWidth(*resizingColumn_);
             pressedHeaderColumn_.reset();
+            reorderingColumn_.reset();
+            reorderTargetColumn_.reset();
             pointerPressed_ = false;
             pressedCell_.reset();
             return true;
@@ -706,6 +796,9 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
         hoveredHeaderColumn_ = headerColumnAt(event.position);
         if (hoveredHeaderColumn_) {
             pressedHeaderColumn_ = hoveredHeaderColumn_;
+            columnReorderPointerStart_ = event.position.x;
+            reorderingColumn_.reset();
+            reorderTargetColumn_.reset();
             pointerPressed_ = false;
             pressedCell_.reset();
             lastClickedCell_.reset();
@@ -720,6 +813,21 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
         if (event.button == PointerButton::Primary && resizingColumn_) {
             dragColumnResize(event.position);
             resizingColumn_.reset();
+            updateHeaderHover(event.position);
+            return true;
+        }
+        if (event.button == PointerButton::Primary && reorderingColumn_) {
+            const std::size_t from = *reorderingColumn_;
+            const std::size_t to = reorderTargetColumn_.value_or(from);
+            reorderingColumn_.reset();
+            reorderTargetColumn_.reset();
+            pressedHeaderColumn_.reset();
+            if (from != to) {
+                moveColumn(from, to);
+                if (onColumnReordered_) {
+                    onColumnReordered_(from, to);
+                }
+            }
             updateHeaderHover(event.position);
             return true;
         }
@@ -787,7 +895,8 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
             scrollDragAxis_ == ScrollDragAxis::None &&
             hoveredScrollBarPart_ == ScrollBarPart::None &&
             !hoveredHeaderColumn_ && !hoveredResizeColumn_ &&
-            !pressedHeaderColumn_ && !resizingColumn_) {
+            !pressedHeaderColumn_ && !resizingColumn_ &&
+            !reorderingColumn_ && !reorderTargetColumn_) {
             return false;
         }
         pointerPressed_ = false;
@@ -799,6 +908,8 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
         hoveredResizeColumn_.reset();
         pressedHeaderColumn_.reset();
         resizingColumn_.reset();
+        reorderingColumn_.reset();
+        reorderTargetColumn_.reset();
         lastClickedCell_.reset();
         lastClickMilliseconds_ = 0;
         return true;
@@ -910,6 +1021,9 @@ ListControl::ScrollGeometry ListControl::scrollGeometry() const noexcept {
     ScrollGeometry result;
     const Rect content = contentBounds();
     const Size size = contentSize();
+    const float frozenContentWidth = frozenColumnsWidth();
+    const float scrollableContentWidth = std::max(
+        0.0F, size.width - frozenContentWidth);
     const float thickness = std::min(
         style_.scrollBarThickness,
         std::min(content.width, content.height));
@@ -920,7 +1034,12 @@ ListControl::ScrollGeometry ListControl::scrollGeometry() const noexcept {
         const float height = std::max(
             0.0F, content.height - (result.horizontal ? thickness : 0.0F));
         const float headerHeight = std::min(style_.headerHeight, height);
-        result.horizontal = result.horizontal || size.width > width;
+        const float frozenVisibleWidth = std::min(
+            frozenContentWidth, width);
+        const float scrollableViewportWidth = std::max(
+            0.0F, width - frozenVisibleWidth);
+        result.horizontal = result.horizontal ||
+            scrollableContentWidth > scrollableViewportWidth;
         result.vertical = result.vertical ||
             size.height > std::max(0.0F, height - headerHeight);
     }
@@ -949,6 +1068,11 @@ ListControl::ScrollGeometry ListControl::scrollGeometry() const noexcept {
         result.viewport.width,
         std::max(0.0F, result.viewport.height - headerHeight),
     };
+    result.frozenWidth = std::min(
+        frozenContentWidth, result.viewport.width);
+    result.scrollableViewportWidth = std::max(
+        0.0F, result.viewport.width - result.frozenWidth);
+    result.scrollableContentWidth = scrollableContentWidth;
 
     if (result.vertical) {
         result.verticalTrack = {
@@ -985,14 +1109,14 @@ ListControl::ScrollGeometry ListControl::scrollGeometry() const noexcept {
 
     if (result.horizontal) {
         result.horizontalTrack = {
-            result.viewport.x,
+            result.viewport.x + result.frozenWidth,
             result.viewport.y + result.viewport.height,
-            result.viewport.width,
+            result.scrollableViewportWidth,
             thickness,
         };
         const float trackLength = result.horizontalTrack.width;
-        const float viewportLength = result.viewport.width;
-        const float contentLength = size.width;
+        const float viewportLength = result.scrollableViewportWidth;
+        const float contentLength = result.scrollableContentWidth;
         const float minimumLength = std::min(
             style_.minimumScrollThumbLength, trackLength);
         const float thumbLength = contentLength > 0.0F
@@ -1078,7 +1202,9 @@ bool ListControl::dragScrollBar(Point position) noexcept {
             0.0F,
             geometry.horizontalTrack.width - geometry.horizontalThumb.width);
         const float maximumOffset = std::max(
-            0.0F, size.width - geometry.viewport.width);
+            0.0F,
+            geometry.scrollableContentWidth -
+                geometry.scrollableViewportWidth);
         if (travel > 0.0F && maximumOffset > 0.0F) {
             next.x = scrollDragOffsetStart_ +
                 (position.x - scrollDragPointerStart_) /
@@ -1101,8 +1227,8 @@ bool ListControl::pageScrollBar(
             : geometry.data.height;
     } else if (part == ScrollBarPart::HorizontalTrack) {
         delta.x = position.x < geometry.horizontalThumb.x
-            ? -geometry.viewport.width
-            : geometry.viewport.width;
+            ? -geometry.scrollableViewportWidth
+            : geometry.scrollableViewportWidth;
     } else {
         return false;
     }
@@ -1169,8 +1295,10 @@ std::optional<std::size_t> ListControl::headerColumnAt(
     if (!contains(geometry.header, position) || columns_.empty()) {
         return std::nullopt;
     }
-    const float contentX =
-        position.x - geometry.header.x + scrollOffset_.x;
+    const bool frozen = position.x <
+        geometry.header.x + geometry.frozenWidth;
+    const float contentX = position.x - geometry.header.x +
+        (frozen ? 0.0F : scrollOffset_.x);
     float x = 0.0F;
     for (std::size_t column = 0; column < columns_.size(); ++column) {
         x += columns_[column].width;
@@ -1192,12 +1320,38 @@ std::optional<std::size_t> ListControl::resizeColumnAt(
             continue;
         }
         const Rect handle = intersect(
-            columnResizeHandleBounds(column), geometry.header);
+            columnResizeHandleBounds(column),
+            columnPaintClip(column, geometry, geometry.header));
         if (hasArea(handle) && contains(handle, position)) {
             return column;
         }
     }
     return std::nullopt;
+}
+
+std::optional<std::size_t> ListControl::reorderTargetAt(
+    Point position) const noexcept {
+    if (columns_.empty()) {
+        return std::nullopt;
+    }
+    const ScrollGeometry geometry = scrollGeometry();
+    const float clampedX = std::clamp(
+        position.x,
+        geometry.header.x,
+        geometry.header.x + geometry.header.width);
+    const bool frozen = clampedX <
+        geometry.header.x + geometry.frozenWidth;
+    const float contentX = clampedX - geometry.header.x +
+        (frozen ? 0.0F : scrollOffset_.x);
+    float x = 0.0F;
+    for (std::size_t column = 0; column < columns_.size(); ++column) {
+        const float center = x + columns_[column].width * 0.5F;
+        if (contentX < center) {
+            return column;
+        }
+        x += columns_[column].width;
+    }
+    return columns_.size() - 1;
 }
 
 bool ListControl::updateHeaderHover(Point position) noexcept {
@@ -1228,6 +1382,26 @@ bool ListControl::dragColumnResize(Point position) {
         onColumnResized_(column, current);
     }
     return true;
+}
+
+bool ListControl::dragColumnReorder(Point position) noexcept {
+    if (!pressedHeaderColumn_ || resizingColumn_ ||
+        *pressedHeaderColumn_ >= columns_.size() ||
+        !columns_[*pressedHeaderColumn_].reorderable) {
+        return false;
+    }
+    if (!reorderingColumn_ &&
+        std::abs(position.x - columnReorderPointerStart_) <
+            style_.columnReorderDragThreshold) {
+        return false;
+    }
+    const std::size_t source = *pressedHeaderColumn_;
+    const std::optional<std::size_t> target = reorderTargetAt(position);
+    const bool changed = !reorderingColumn_ ||
+        target != reorderTargetColumn_;
+    reorderingColumn_ = source;
+    reorderTargetColumn_ = target.value_or(source);
+    return changed;
 }
 
 bool ListControl::toggleSort(std::size_t column) {
@@ -1281,13 +1455,61 @@ void ListControl::paintSortIndicator(
     }
 }
 
+void ListControl::paintColumnGuides(
+    const ScrollGeometry& geometry,
+    Rect paintClip,
+    std::vector<PaintCommand>& commands) const {
+    if (frozenColumnCount_ > 0 && geometry.frozenWidth > 0.0F &&
+        style_.frozenColumnDividerWidth > 0.0F) {
+        commands.push_back({
+            {
+                geometry.viewport.x + geometry.frozenWidth -
+                    style_.frozenColumnDividerWidth * 0.5F,
+                geometry.viewport.y,
+                style_.frozenColumnDividerWidth,
+                geometry.viewport.height,
+            },
+            intersect(geometry.viewport, paintClip),
+            style_.frozenColumnDivider,
+            invalidTextureId,
+            0.0F,
+        });
+    }
+    if (!reorderingColumn_ || !reorderTargetColumn_ ||
+        *reorderingColumn_ == *reorderTargetColumn_ ||
+        style_.columnReorderIndicatorWidth <= 0.0F) {
+        return;
+    }
+    const std::size_t source = *reorderingColumn_;
+    const std::size_t target = *reorderTargetColumn_;
+    const Rect targetBounds = headerCellBounds(target);
+    const float x = target < source
+        ? targetBounds.x
+        : targetBounds.x + targetBounds.width;
+    commands.push_back({
+        {
+            x - style_.columnReorderIndicatorWidth * 0.5F,
+            geometry.viewport.y,
+            style_.columnReorderIndicatorWidth,
+            geometry.viewport.height,
+        },
+        intersect(geometry.viewport, paintClip),
+        style_.columnReorderIndicator,
+        invalidTextureId,
+        style_.columnReorderIndicatorWidth * 0.5F,
+    });
+}
+
 std::optional<ListCellAddress> ListControl::addressAt(
     Point position) const noexcept {
-    const Rect data = scrollGeometry().data;
+    const ScrollGeometry geometry = scrollGeometry();
+    const Rect data = geometry.data;
     if (!contains(data, position) || rows_.empty() || columns_.empty()) {
         return std::nullopt;
     }
-    const float contentX = position.x - data.x + scrollOffset_.x;
+    const bool frozen = position.x < data.x + geometry.frozenWidth;
+    const float contentX = position.x - data.x +
+        (frozen ? 0.0F : scrollOffset_.x);
     const float contentY = position.y - data.y + scrollOffset_.y;
     const std::size_t row = static_cast<std::size_t>(
         contentY / style_.rowHeight);
@@ -1319,13 +1541,58 @@ float ListControl::columnStart(std::size_t column) const noexcept {
     return result;
 }
 
+float ListControl::frozenColumnsWidth() const noexcept {
+    return columnStart(std::min(frozenColumnCount_, columns_.size()));
+}
+
+float ListControl::columnViewportX(
+    std::size_t column,
+    const ScrollGeometry& geometry) const noexcept {
+    return geometry.viewport.x + columnStart(column) -
+        (column < frozenColumnCount_ ? 0.0F : scrollOffset_.x);
+}
+
+Rect ListControl::columnPaintClip(
+    std::size_t column,
+    const ScrollGeometry& geometry,
+    Rect baseClip) const noexcept {
+    const bool frozen = column < frozenColumnCount_;
+    const Rect region{
+        geometry.viewport.x + (frozen ? 0.0F : geometry.frozenWidth),
+        geometry.viewport.y,
+        frozen ? geometry.frozenWidth : geometry.scrollableViewportWidth,
+        geometry.viewport.height,
+    };
+    return intersect(baseClip, region);
+}
+
+std::size_t ListControl::remapColumnIndex(
+    std::size_t index,
+    std::size_t from,
+    std::size_t to) noexcept {
+    if (index == from) {
+        return to;
+    }
+    if (from < to && index > from && index <= to) {
+        return index - 1;
+    }
+    if (to < from && index >= to && index < from) {
+        return index + 1;
+    }
+    return index;
+}
+
 void ListControl::clampScrollOffset() noexcept {
     const Size size = contentSize();
-    const Rect data = scrollGeometry().data;
+    const ScrollGeometry geometry = scrollGeometry();
+    const Rect data = geometry.data;
     scrollOffset_.x = std::clamp(
         dimension(scrollOffset_.x),
         0.0F,
-        std::max(0.0F, size.width - data.width));
+        std::max(
+            0.0F,
+            geometry.scrollableContentWidth -
+                geometry.scrollableViewportWidth));
     scrollOffset_.y = std::clamp(
         dimension(scrollOffset_.y),
         0.0F,

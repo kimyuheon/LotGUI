@@ -110,7 +110,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         {"category", "Category", 112.0F, 72.0F, true},
         {"supplier", "Supplier", 142.0F, 80.0F, true},
         {"notes", "Notes", 180.0F, 100.0F, true},
-        {"action", "", 68.0F, 52.0F, true, false},
+        {"action", "", 68.0F, 52.0F, true, false, false},
     };
     std::vector<lotui::ListRow> rows;
     rows.push_back(makeRow(
@@ -297,6 +297,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         listStyle,
         listTextStyle);
     *listPointer = list.get();
+    list->setFrozenColumnCount(1);
     list->setOnSortChanged(
         [listPointer](
             std::optional<lotui::ListSortDescriptor> descriptor) {
@@ -330,6 +331,11 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         [](std::size_t column, float width) {
             std::cout << "column-resized: column=" << column
                       << " width=" << width << '\n';
+        });
+    list->setOnColumnReordered(
+        [](std::size_t from, std::size_t to) {
+            std::cout << "column-reordered: from=" << from
+                      << " to=" << to << '\n';
         });
     root->addChild(
         std::move(list),
