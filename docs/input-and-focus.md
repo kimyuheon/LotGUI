@@ -15,6 +15,10 @@ keysyms.
 5. A window focus loss calls `WidgetTree::cancelKeyboard()` so a control
    cannot remain visually pressed after an interrupted key sequence.
 
+Pointer events carry the same Shift, Control, Alt, and Meta state. This lets
+widgets such as `ListControl` implement Shift+click range selection without
+depending on Win32, Cocoa, or X11 event types.
+
 Text entry is intentionally separate from key events. `TextField` receives
 committed UTF-8 and composition/pre-edit updates from the platform backend
 instead of attempting to derive characters from `KeyCode`.

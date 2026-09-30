@@ -74,6 +74,12 @@ KeyCode keyCode(KeySym key) noexcept {
     case XK_KP_Page_Up: return KeyCode::PageUp;
     case XK_Page_Down:
     case XK_KP_Page_Down: return KeyCode::PageDown;
+    case XK_a:
+    case XK_A: return KeyCode::A;
+    case XK_c:
+    case XK_C: return KeyCode::C;
+    case XK_v:
+    case XK_V: return KeyCode::V;
     default: return KeyCode::Unknown;
     }
 }
@@ -383,6 +389,7 @@ void X11Window::processEvent(const XEvent& nativeEvent) {
             : 1.0F;
         event.x = static_cast<float>(nativeEvent.xmotion.x) / scale;
         event.y = static_cast<float>(nativeEvent.xmotion.y) / scale;
+        event.modifiers = keyModifiers(nativeEvent.xmotion.state);
         events_.push_back(event);
         break;
     }
@@ -426,6 +433,7 @@ void X11Window::processEvent(const XEvent& nativeEvent) {
         event.x = static_cast<float>(nativeEvent.xbutton.x) / scale;
         event.y = static_cast<float>(nativeEvent.xbutton.y) / scale;
         event.button = button;
+        event.modifiers = keyModifiers(nativeEvent.xbutton.state);
         events_.push_back(event);
         break;
     }

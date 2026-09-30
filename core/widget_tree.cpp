@@ -47,7 +47,9 @@ void WidgetTree::paint(std::vector<PaintCommand>& commands) const {
     root_->paint(commands);
 }
 
-WidgetPointerUpdate WidgetTree::pointerMoved(Point position) {
+WidgetPointerUpdate WidgetTree::pointerMoved(
+    Point position,
+    KeyModifiers modifiers) {
     syncHitTests();
     const PointerRoute route = pointerRouter_.pointerMoved(position);
     const PointerTargetId hover =
@@ -57,19 +59,21 @@ WidgetPointerUpdate WidgetTree::pointerMoved(Point position) {
 
     WidgetPointerUpdate update;
     update.handled = static_cast<bool>(route);
-    update.needsRepaint = transitionHover(hover, position);
+    update.needsRepaint = transitionHover(hover, position, modifiers);
     update.needsRepaint = dispatch(
         route.target,
         WidgetPointerEventType::Move,
         position,
         PointerButton::Unspecified,
-        route.inside) || update.needsRepaint;
+        route.inside,
+        modifiers) || update.needsRepaint;
     return update;
 }
 
 WidgetPointerUpdate WidgetTree::pointerPressed(
     Point position,
-    PointerButton button) {
+    PointerButton button,
+    KeyModifiers modifiers) {
     syncHitTests();
     const bool focusTargetsChanged = syncFocusTargets();
     const PointerRoute route = pointerRouter_.pointerPressed(position, button);
@@ -77,7 +81,7 @@ WidgetPointerUpdate WidgetTree::pointerPressed(
     update.handled = static_cast<bool>(route);
     update.captureStarted = route.captureStarted;
     update.needsRepaint = focusTargetsChanged ||
-        transitionHover(route.target, position);
+        transitionHover(route.target, position, modifiers);
     if (button == PointerButton::Primary) {
         const FocusChange focus = focusManager_.focus(route.target);
         update.focusChanged = focus.changed();
@@ -89,7 +93,8 @@ WidgetPointerUpdate WidgetTree::pointerPressed(
         WidgetPointerEventType::Press,
         position,
         button,
-        route.inside) || update.needsRepaint;
+        route.inside,
+        modifiers) || update.needsRepaint;
     const PointerTargetId focusBeforeFinalSync =
         focusManager_.focusedTarget();
     update.needsRepaint = syncFocusTargets() || update.needsRepaint;
@@ -100,7 +105,8 @@ WidgetPointerUpdate WidgetTree::pointerPressed(
 
 WidgetPointerUpdate WidgetTree::pointerReleased(
     Point position,
-    PointerButton button) {
+    PointerButton button,
+    KeyModifiers modifiers) {
     syncHitTests();
     const PointerRoute route = pointerRouter_.pointerReleased(position, button);
     WidgetPointerUpdate update;
@@ -111,7 +117,8 @@ WidgetPointerUpdate WidgetTree::pointerReleased(
         WidgetPointerEventType::Release,
         position,
         button,
-        route.inside);
+        route.inside,
+        modifiers);
 
     const PointerTargetId focusBeforeFinalSync =
         focusManager_.focusedTarget();
@@ -123,7 +130,7 @@ WidgetPointerUpdate WidgetTree::pointerReleased(
         pointerRouter_.capturedTarget() != invalidPointerTarget
         ? (route.inside ? route.target : invalidPointerTarget)
         : pointerRouter_.hoverTarget();
-    update.needsRepaint = transitionHover(hover, position) ||
+    update.needsRepaint = transitionHover(hover, position, modifiers) ||
         update.needsRepaint;
     return update;
 }
@@ -349,12 +356,13 @@ bool WidgetTree::dispatch(
     WidgetPointerEventType type,
     Point position,
     PointerButton button,
-    bool inside) {
+    bool inside,
+    KeyModifiers modifiers) {
     if (target == invalidPointerTarget) {
         return false;
     }
     const WidgetPointerEvent event{
-        type, position, button, inside};
+        type, position, button, inside, modifiers};
     root_->dispatchPreviewPointerEvent(target, event);
     Widget* widget = root_->findByPointerTarget(target);
     return widget != nullptr && widget->dispatchPointerEvent(event);
@@ -362,7 +370,8 @@ bool WidgetTree::dispatch(
 
 bool WidgetTree::transitionHover(
     PointerTargetId target,
-    Point position) {
+    Point position,
+    KeyModifiers modifiers) {
     if (target == visualHoverTarget_) {
         return false;
     }
@@ -372,14 +381,16 @@ bool WidgetTree::transitionHover(
         WidgetPointerEventType::Leave,
         position,
         PointerButton::Unspecified,
-        false);
+        false,
+        modifiers);
     visualHoverTarget_ = target;
     needsRepaint = dispatch(
         visualHoverTarget_,
         WidgetPointerEventType::Enter,
         position,
         PointerButton::Unspecified,
-        true) || needsRepaint;
+        true,
+        modifiers) || needsRepaint;
     return needsRepaint;
 }
 

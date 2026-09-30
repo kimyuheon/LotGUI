@@ -44,6 +44,12 @@ lotui::KeyCode keyCode(NSEvent* event) {
     case NSEndFunctionKey: return lotui::KeyCode::End;
     case NSPageUpFunctionKey: return lotui::KeyCode::PageUp;
     case NSPageDownFunctionKey: return lotui::KeyCode::PageDown;
+    case 'a':
+    case 'A': return lotui::KeyCode::A;
+    case 'c':
+    case 'C': return lotui::KeyCode::C;
+    case 'v':
+    case 'V': return lotui::KeyCode::V;
     default: return lotui::KeyCode::Unknown;
     }
 }
@@ -82,12 +88,16 @@ public:
 
     void pushCloseRequested();
     void pushResize();
-    void pushMouse(float x, float y);
+    void pushMouse(
+        float x,
+        float y,
+        lotui::KeyModifiers modifiers);
     void pushMouseButton(
         float x,
         float y,
         lotui::PointerButton button,
-        bool pressed);
+        bool pressed,
+        lotui::KeyModifiers modifiers);
     void pushScroll(
         float x,
         float y,
@@ -148,7 +158,8 @@ private:
     const NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     owner->pushMouse(
         static_cast<float>(point.x),
-        static_cast<float>(self.bounds.size.height - point.y));
+        static_cast<float>(self.bounds.size.height - point.y),
+        keyModifiers(event));
 }
 
 - (void)pushMouseButton:(NSEvent*)event
@@ -162,7 +173,8 @@ private:
         static_cast<float>(point.x),
         static_cast<float>(self.bounds.size.height - point.y),
         button,
-        pressed == YES);
+        pressed == YES,
+        keyModifiers(event));
 }
 
 - (void)mouseMoved:(NSEvent*)event {
@@ -521,10 +533,14 @@ void MacOSWindowImpl::pushResize() {
     events_.push_back(event);
 }
 
-void MacOSWindowImpl::pushMouse(float x, float y) {
+void MacOSWindowImpl::pushMouse(
+    float x,
+    float y,
+    lotui::KeyModifiers modifiers) {
     lotui::PlatformEvent event{lotui::PlatformEventType::MouseMoved};
     event.x = x;
     event.y = y;
+    event.modifiers = modifiers;
     events_.push_back(event);
 }
 
@@ -532,7 +548,8 @@ void MacOSWindowImpl::pushMouseButton(
     float x,
     float y,
     lotui::PointerButton button,
-    bool pressed) {
+    bool pressed,
+    lotui::KeyModifiers modifiers) {
     lotui::PlatformEvent event{
         pressed
             ? lotui::PlatformEventType::MouseButtonPressed
@@ -540,6 +557,7 @@ void MacOSWindowImpl::pushMouseButton(
     event.x = x;
     event.y = y;
     event.button = button;
+    event.modifiers = modifiers;
     events_.push_back(event);
 }
 

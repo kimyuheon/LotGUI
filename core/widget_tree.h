@@ -50,13 +50,17 @@ public:
     void layout(Rect bounds, Rect clip);
     void paint(std::vector<PaintCommand>& commands) const;
 
-    WidgetPointerUpdate pointerMoved(Point position);
+    WidgetPointerUpdate pointerMoved(
+        Point position,
+        KeyModifiers modifiers = {});
     WidgetPointerUpdate pointerPressed(
         Point position,
-        PointerButton button);
+        PointerButton button,
+        KeyModifiers modifiers = {});
     WidgetPointerUpdate pointerReleased(
         Point position,
-        PointerButton button);
+        PointerButton button,
+        KeyModifiers modifiers = {});
     WidgetPointerUpdate cancelPointer();
     WidgetScrollUpdate scroll(
         Point position,
@@ -87,8 +91,12 @@ private:
         WidgetPointerEventType type,
         Point position,
         PointerButton button,
-        bool inside);
-    bool transitionHover(PointerTargetId target, Point position);
+        bool inside,
+        KeyModifiers modifiers = {});
+    bool transitionHover(
+        PointerTargetId target,
+        Point position,
+        KeyModifiers modifiers = {});
 
     std::unique_ptr<Widget> root_;
     PointerRouter pointerRouter_;

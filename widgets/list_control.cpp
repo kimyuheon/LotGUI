@@ -1,6 +1,7 @@
 #include "widgets/list_control.h"
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <stdexcept>
@@ -69,6 +70,57 @@ std::uint64_t monotonicMilliseconds() noexcept {
 
 constexpr std::uint64_t doubleClickIntervalMilliseconds = 500;
 
+std::string tsvField(std::string value) {
+    for (char& character : value) {
+        if (character == '\t' || character == '\r' || character == '\n') {
+            character = ' ';
+        }
+    }
+    return value;
+}
+
+std::vector<std::vector<std::string>> parseTsv(std::string_view text) {
+    std::vector<std::vector<std::string>> rows;
+    std::vector<std::string> row;
+    std::string field;
+    const auto finishField = [&row, &field]() {
+        row.push_back(std::move(field));
+        field.clear();
+    };
+    const auto finishRow = [&rows, &row, &finishField]() {
+        finishField();
+        rows.push_back(std::move(row));
+        row.clear();
+    };
+    for (std::size_t index = 0; index < text.size(); ++index) {
+        const char character = text[index];
+        if (character == '\t') {
+            finishField();
+        } else if (character == '\r' || character == '\n') {
+            finishRow();
+            if (character == '\r' && index + 1 < text.size() &&
+                text[index + 1] == '\n') {
+                ++index;
+            }
+        } else {
+            field.push_back(character);
+        }
+    }
+    if (!field.empty() || !row.empty() || rows.empty()) {
+        finishRow();
+    }
+    return rows;
+}
+
+std::string lowercaseAscii(std::string value) {
+    std::transform(
+        value.begin(), value.end(), value.begin(),
+        [](unsigned char character) {
+            return static_cast<char>(std::tolower(character));
+        });
+    return value;
+}
+
 } // namespace
 
 ListControl::ListControl(
@@ -120,10 +172,13 @@ void ListControl::setColumns(std::vector<ListColumn> columns) {
     }
     if (selectedCell_ && !isValidAddress(*selectedCell_)) {
         select(std::nullopt, true);
+    } else if (selectionAnchor_ && !isValidAddress(*selectionAnchor_)) {
+        applySelection(selectedCell_, selectedCell_, true);
     }
     hoveredCell_.reset();
     pressedCell_.reset();
     pointerPressed_ = false;
+    selectionDragged_ = false;
     hoveredScrollBarPart_ = ScrollBarPart::None;
     scrollDragAxis_ = ScrollDragAxis::None;
     hoveredHeaderColumn_.reset();
@@ -155,10 +210,13 @@ void ListControl::setRows(std::vector<ListRow> rows) {
     rows_ = std::move(rows);
     if (selectedCell_ && !isValidAddress(*selectedCell_)) {
         select(std::nullopt, true);
+    } else if (selectionAnchor_ && !isValidAddress(*selectionAnchor_)) {
+        applySelection(selectedCell_, selectedCell_, true);
     }
     hoveredCell_.reset();
     pressedCell_.reset();
     pointerPressed_ = false;
+    selectionDragged_ = false;
     hoveredScrollBarPart_ = ScrollBarPart::None;
     scrollDragAxis_ = ScrollDragAxis::None;
     lastClickedCell_.reset();
@@ -217,6 +275,7 @@ void ListControl::moveColumn(std::size_t from, std::size_t to) {
         }
     };
     remapAddress(selectedCell_);
+    remapAddress(selectionAnchor_);
     remapAddress(hoveredCell_);
     remapAddress(pressedCell_);
     remapAddress(lastClickedCell_);
@@ -291,6 +350,174 @@ void ListControl::setSelectedCell(
 
 std::optional<ListCellAddress> ListControl::selectedCell() const noexcept {
     return selectedCell_;
+}
+
+void ListControl::setSelectedRange(
+    std::optional<ListCellRange> range) {
+    if (!range) {
+        applySelection(std::nullopt, std::nullopt, true);
+        return;
+    }
+    if (!isValidAddress(range->first) ||
+        !isValidAddress(range->last)) {
+        throw std::out_of_range("ListControl selection range is out of range");
+    }
+    applySelection(range->first, range->last, true);
+    ensureCellVisible(range->last);
+}
+
+std::optional<ListCellRange> ListControl::selectedRange() const noexcept {
+    if (!selectionAnchor_ || !selectedCell_ ||
+        !isValidAddress(*selectionAnchor_) ||
+        !isValidAddress(*selectedCell_)) {
+        return std::nullopt;
+    }
+    ListCellRange range{
+        {
+            std::min(selectionAnchor_->row, selectedCell_->row),
+            std::min(selectionAnchor_->column, selectedCell_->column),
+        },
+        {
+            std::max(selectionAnchor_->row, selectedCell_->row),
+            std::max(selectionAnchor_->column, selectedCell_->column),
+        },
+    };
+    if (selectionMode_ == ListSelectionMode::Row && !columns_.empty()) {
+        range.first.column = 0;
+        range.last.column = columns_.size() - 1;
+    }
+    return range;
+}
+
+bool ListControl::isCellSelected(ListCellAddress address) const noexcept {
+    const std::optional<ListCellRange> range = selectedRange();
+    return range && range->contains(address);
+}
+
+void ListControl::setSelectionMode(ListSelectionMode mode) {
+    if (selectionMode_ == mode) {
+        return;
+    }
+    const std::optional<ListCellRange> previous = selectedRange();
+    selectionMode_ = mode;
+    const std::optional<ListCellRange> current = selectedRange();
+    if (previous != current && onSelectionRangeChanged_) {
+        SelectionRangeChangedHandler callback = onSelectionRangeChanged_;
+        callback(current);
+    }
+}
+
+ListSelectionMode ListControl::selectionMode() const noexcept {
+    return selectionMode_;
+}
+
+std::string ListControl::copySelectionAsTsv() const {
+    const std::optional<ListCellRange> range = selectedRange();
+    if (!range) {
+        return {};
+    }
+    std::string result;
+    for (std::size_t row = range->first.row;
+         row <= range->last.row; ++row) {
+        if (row != range->first.row) {
+            result.push_back('\n');
+        }
+        for (std::size_t column = range->first.column;
+             column <= range->last.column; ++column) {
+            if (column != range->first.column) {
+                result.push_back('\t');
+            }
+            const ListCell& value = rows_[row][column];
+            result += tsvField(
+                value.kind == ListCellKind::CheckBox
+                    ? (value.checked ? "true" : "false")
+                    : displayText(value));
+        }
+    }
+    return result;
+}
+
+std::size_t ListControl::pasteTsv(
+    std::string_view text,
+    std::optional<ListCellAddress> start) {
+    if (!start) {
+        start = selectedCell_;
+    }
+    if (!start || !isValidAddress(*start) || text.empty()) {
+        return 0;
+    }
+    const std::vector<std::vector<std::string>> values = parseTsv(text);
+    std::size_t changed = 0;
+    std::size_t lastRow = start->row;
+    std::size_t lastColumn = start->column;
+    for (std::size_t rowOffset = 0; rowOffset < values.size(); ++rowOffset) {
+        const std::size_t row = start->row + rowOffset;
+        if (row >= rows_.size()) {
+            break;
+        }
+        for (std::size_t columnOffset = 0;
+             columnOffset < values[rowOffset].size(); ++columnOffset) {
+            const std::size_t column = start->column + columnOffset;
+            if (column >= columns_.size()) {
+                break;
+            }
+            ListCell& destination = rows_[row][column];
+            if (!destination.editable ||
+                destination.kind == ListCellKind::ActionButton) {
+                continue;
+            }
+            const std::string& value = values[rowOffset][columnOffset];
+            bool applied = false;
+            switch (destination.kind) {
+            case ListCellKind::Text:
+            case ListCellKind::Lookup:
+                destination.text = value;
+                applied = true;
+                break;
+            case ListCellKind::CheckBox: {
+                const std::string normalized = lowercaseAscii(value);
+                if (normalized == "true" || normalized == "1" ||
+                    normalized == "yes" || normalized == "on") {
+                    destination.checked = true;
+                    applied = true;
+                } else if (normalized == "false" || normalized == "0" ||
+                    normalized == "no" || normalized == "off") {
+                    destination.checked = false;
+                    applied = true;
+                }
+                break;
+            }
+            case ListCellKind::ComboBox: {
+                const auto option = std::find(
+                    destination.options.begin(),
+                    destination.options.end(),
+                    value);
+                if (option != destination.options.end()) {
+                    destination.selectedOption = static_cast<std::size_t>(
+                        std::distance(destination.options.begin(), option));
+                    applied = true;
+                }
+                break;
+            }
+            case ListCellKind::ActionButton:
+                break;
+            }
+            if (applied) {
+                ++changed;
+                lastRow = std::max(lastRow, row);
+                lastColumn = std::max(lastColumn, column);
+            }
+        }
+    }
+    if (changed > 0) {
+        invalidateLayouts();
+        applySelection(
+            *start,
+            ListCellAddress{lastRow, lastColumn},
+            true);
+        ensureCellVisible({lastRow, lastColumn});
+    }
+    return changed;
 }
 
 void ListControl::setComboSelection(
@@ -445,6 +672,7 @@ void ListControl::setEnabled(bool enabled) noexcept {
         hoveredCell_.reset();
         pressedCell_.reset();
         pointerPressed_ = false;
+        selectionDragged_ = false;
         hoveredScrollBarPart_ = ScrollBarPart::None;
         scrollDragAxis_ = ScrollDragAxis::None;
         hoveredHeaderColumn_.reset();
@@ -475,8 +703,20 @@ void ListControl::setOnSelectionChanged(
     onSelectionChanged_ = std::move(handler);
 }
 
+void ListControl::setOnSelectionRangeChanged(
+    SelectionRangeChangedHandler handler) {
+    onSelectionRangeChanged_ = std::move(handler);
+}
+
 void ListControl::setOnCellAction(CellActionHandler handler) {
     onCellAction_ = std::move(handler);
+}
+
+void ListControl::setClipboardHandlers(
+    ClipboardWriteHandler write,
+    ClipboardReadHandler read) {
+    clipboardWrite_ = std::move(write);
+    clipboardRead_ = std::move(read);
 }
 
 void ListControl::setSortDescriptor(
@@ -648,7 +888,7 @@ void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
             if (!hasArea(visible)) {
                 continue;
             }
-            if (selectedCell_ == address) {
+            if (isCellSelected(address)) {
                 commands.push_back({
                     cellRectangle,
                     cellClip,
@@ -738,6 +978,11 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
         const auto next = event.inside
             ? addressAt(event.position)
             : std::nullopt;
+        if (pointerPressed_ && next && next != selectedCell_) {
+            changed = extendSelection(*next, true) || changed;
+            ensureCellVisible(*next);
+            selectionDragged_ = true;
+        }
         changed = next != hoveredCell_ || changed;
         hoveredCell_ = next;
         return changed;
@@ -761,6 +1006,7 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
         hoveredScrollBarPart_ = scrollBarPartAt(event.position);
         if (hoveredScrollBarPart_ != ScrollBarPart::None) {
             pointerPressed_ = false;
+            selectionDragged_ = false;
             pressedCell_.reset();
             pressedHeaderColumn_.reset();
             reorderingColumn_.reset();
@@ -790,6 +1036,7 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
             reorderingColumn_.reset();
             reorderTargetColumn_.reset();
             pointerPressed_ = false;
+            selectionDragged_ = false;
             pressedCell_.reset();
             return true;
         }
@@ -800,6 +1047,7 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
             reorderingColumn_.reset();
             reorderTargetColumn_.reset();
             pointerPressed_ = false;
+            selectionDragged_ = false;
             pressedCell_.reset();
             lastClickedCell_.reset();
             lastClickMilliseconds_ = 0;
@@ -807,7 +1055,16 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
         }
         pointerPressed_ = true;
         pressedCell_ = addressAt(event.position);
-        select(pressedCell_, true);
+        selectionDragged_ = event.modifiers.shift;
+        if (pressedCell_) {
+            if (event.modifiers.shift && selectedCell_) {
+                extendSelection(*pressedCell_, true);
+            } else {
+                select(pressedCell_, true);
+            }
+        } else {
+            select(std::nullopt, true);
+        }
         return true;
     case WidgetPointerEventType::Release: {
         if (event.button == PointerButton::Primary && resizingColumn_) {
@@ -856,9 +1113,11 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
         const auto releasedCell = event.inside
             ? addressAt(event.position)
             : std::nullopt;
-        const bool activate = pressedCell_ && releasedCell == pressedCell_;
+        const bool activate = !selectionDragged_ && pressedCell_ &&
+            releasedCell == pressedCell_;
         const auto address = pressedCell_;
         pressedCell_.reset();
+        selectionDragged_ = false;
         if (activate && address) {
             const ListCell* value = cell(*address);
             if (value != nullptr) {
@@ -900,6 +1159,7 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
             return false;
         }
         pointerPressed_ = false;
+        selectionDragged_ = false;
         pressedCell_.reset();
         hoveredCell_.reset();
         hoveredScrollBarPart_ = ScrollBarPart::None;
@@ -938,7 +1198,15 @@ bool ListControl::onKeyEvent(const WidgetKeyEvent& event) {
         event.key == KeyCode::PageUp || event.key == KeyCode::PageDown;
     const bool activationKey =
         event.key == KeyCode::Enter || event.key == KeyCode::Space;
-    if (!navigationKey && !activationKey) {
+    const bool primaryShortcut =
+        event.modifiers.control || event.modifiers.meta;
+    const bool selectAllKey = primaryShortcut && event.key == KeyCode::A;
+    const bool copyKey = primaryShortcut && event.key == KeyCode::C &&
+        static_cast<bool>(clipboardWrite_);
+    const bool pasteKey = primaryShortcut && event.key == KeyCode::V &&
+        static_cast<bool>(clipboardRead_);
+    if (!navigationKey && !activationKey && !selectAllKey &&
+        !copyKey && !pasteKey) {
         return false;
     }
     if (event.type != WidgetKeyEventType::Press) {
@@ -947,22 +1215,27 @@ bool ListControl::onKeyEvent(const WidgetKeyEvent& event) {
 
     switch (event.key) {
     case KeyCode::Left:
-        moveSelection(0, -1);
+        moveSelection(0, -1, event.modifiers.shift);
         break;
     case KeyCode::Right:
-        moveSelection(0, 1);
+        moveSelection(0, 1, event.modifiers.shift);
         break;
     case KeyCode::Up:
-        moveSelection(-1, 0);
+        moveSelection(-1, 0, event.modifiers.shift);
         break;
     case KeyCode::Down:
-        moveSelection(1, 0);
+        moveSelection(1, 0, event.modifiers.shift);
         break;
     case KeyCode::Home:
         if (!rows_.empty() && !columns_.empty()) {
             const std::size_t row = event.modifiers.control || !selectedCell_
                 ? 0 : selectedCell_->row;
-            select(ListCellAddress{row, 0}, true);
+            const ListCellAddress address{row, 0};
+            if (event.modifiers.shift) {
+                extendSelection(address, true);
+            } else {
+                select(address, true);
+            }
             ensureCellVisible(*selectedCell_);
         }
         break;
@@ -970,7 +1243,12 @@ bool ListControl::onKeyEvent(const WidgetKeyEvent& event) {
         if (!rows_.empty() && !columns_.empty()) {
             const std::size_t row = event.modifiers.control || !selectedCell_
                 ? rows_.size() - 1 : selectedCell_->row;
-            select(ListCellAddress{row, columns_.size() - 1}, true);
+            const ListCellAddress address{row, columns_.size() - 1};
+            if (event.modifiers.shift) {
+                extendSelection(address, true);
+            } else {
+                select(address, true);
+            }
             ensureCellVisible(*selectedCell_);
         }
         break;
@@ -980,7 +1258,9 @@ bool ListControl::onKeyEvent(const WidgetKeyEvent& event) {
         const int pageRows = std::max(
             1, static_cast<int>(data.height / style_.rowHeight));
         moveSelection(
-            event.key == KeyCode::PageUp ? -pageRows : pageRows, 0);
+            event.key == KeyCode::PageUp ? -pageRows : pageRows,
+            0,
+            event.modifiers.shift);
         break;
     }
     case KeyCode::Enter:
@@ -991,6 +1271,33 @@ bool ListControl::onKeyEvent(const WidgetKeyEvent& event) {
     case KeyCode::Space:
         if (selectedCell_) {
             activateCell(*selectedCell_, false);
+        }
+        break;
+    case KeyCode::A:
+        if (selectAllKey && !rows_.empty() && !columns_.empty()) {
+            applySelection(
+                ListCellAddress{0, 0},
+                ListCellAddress{rows_.size() - 1, columns_.size() - 1},
+                true);
+            ensureCellVisible(*selectedCell_);
+        }
+        break;
+    case KeyCode::C:
+        if (copyKey) {
+            std::string text = copySelectionAsTsv();
+            if (!text.empty()) {
+                ClipboardWriteHandler write = clipboardWrite_;
+                write(std::move(text));
+            }
+        }
+        break;
+    case KeyCode::V:
+        if (pasteKey) {
+            ClipboardReadHandler read = clipboardRead_;
+            const std::optional<std::string> text = read();
+            if (text) {
+                pasteTsv(*text);
+            }
         }
         break;
     default:
@@ -1602,18 +1909,51 @@ void ListControl::clampScrollOffset() noexcept {
 bool ListControl::select(
     std::optional<ListCellAddress> address,
     bool notify) {
-    if (selectedCell_ == address) {
+    return applySelection(address, address, notify);
+}
+
+bool ListControl::extendSelection(
+    ListCellAddress address,
+    bool notify) {
+    if (!isValidAddress(address)) {
         return false;
     }
-    selectedCell_ = address;
-    if (notify && onSelectionChanged_) {
+    const std::optional<ListCellAddress> anchor = selectionAnchor_
+        ? selectionAnchor_
+        : selectedCell_;
+    return applySelection(anchor ? anchor : std::optional{address}, address,
+        notify);
+}
+
+bool ListControl::applySelection(
+    std::optional<ListCellAddress> anchor,
+    std::optional<ListCellAddress> active,
+    bool notify) {
+    if (anchor.has_value() != active.has_value()) {
+        anchor = active;
+    }
+    const std::optional<ListCellRange> previousRange = selectedRange();
+    const std::optional<ListCellAddress> previousActive = selectedCell_;
+    selectionAnchor_ = anchor;
+    selectedCell_ = active;
+    const std::optional<ListCellRange> nextRange = selectedRange();
+    const bool activeChanged = previousActive != selectedCell_;
+    const bool rangeChanged = previousRange != nextRange;
+    if (notify && activeChanged && onSelectionChanged_) {
         SelectionChangedHandler callback = onSelectionChanged_;
         callback(selectedCell_);
     }
-    return true;
+    if (notify && rangeChanged && onSelectionRangeChanged_) {
+        SelectionRangeChangedHandler callback = onSelectionRangeChanged_;
+        callback(nextRange);
+    }
+    return activeChanged || rangeChanged;
 }
 
-bool ListControl::moveSelection(int rowDelta, int columnDelta) {
+bool ListControl::moveSelection(
+    int rowDelta,
+    int columnDelta,
+    bool extend) {
     if (rows_.empty() || columns_.empty()) {
         return false;
     }
@@ -1631,7 +1971,9 @@ bool ListControl::moveSelection(int rowDelta, int columnDelta) {
         static_cast<std::size_t>(row),
         static_cast<std::size_t>(column),
     };
-    const bool changed = select(address, true);
+    const bool changed = extend
+        ? extendSelection(address, true)
+        : select(address, true);
     ensureCellVisible(address);
     return changed;
 }

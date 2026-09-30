@@ -91,7 +91,10 @@ with native mouse-wheel and precise touchpad deltas routed through the common
 widget event layer. Header dividers resize columns and sortable header clicks
 publish backend-neutral ascending/descending descriptors. Headers can be
 dragged into a new order, while leading frozen columns remain fixed during
-horizontal scrolling. The popup and inline-editor completion path is documented in
+horizontal scrolling. Pointer drag and Shift navigation create rectangular
+selections, row-selection mode expands them across columns, and typed UTF-8
+TSV copy/paste hooks can be connected to native platform clipboards. The popup
+and inline-editor completion path is documented in
 [`docs/list-control.md`](docs/list-control.md).
 When text dependencies are available, the compact standalone example builds as
 `list_control_demo` (`list_control_demo.exe` on Windows).

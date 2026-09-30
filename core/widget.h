@@ -29,6 +29,7 @@ struct WidgetPointerEvent {
     Point position{};
     PointerButton button{PointerButton::Unspecified};
     bool inside{false};
+    KeyModifiers modifiers{};
 };
 
 class Widget {

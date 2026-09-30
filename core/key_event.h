@@ -20,6 +20,9 @@ enum class KeyCode : std::uint16_t {
     End,
     PageUp,
     PageDown,
+    A,
+    C,
+    V,
 };
 
 struct KeyModifiers {
@@ -59,6 +62,9 @@ constexpr const char* keyCodeName(KeyCode key) noexcept {
     case KeyCode::End: return "end";
     case KeyCode::PageUp: return "page-up";
     case KeyCode::PageDown: return "page-down";
+    case KeyCode::A: return "a";
+    case KeyCode::C: return "c";
+    case KeyCode::V: return "v";
     }
     return "unknown";
 }

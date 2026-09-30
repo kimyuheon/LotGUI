@@ -98,7 +98,9 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     headingStyle.fontSize = 15.0F;
     headingStyle.weight = lotui::FontWeight::Medium;
     auto heading = std::make_unique<lotui::Label>(
-        textEngine, "LotUI ListControl — compact example", headingStyle);
+        textEngine,
+        "LotUI ListControl — drag or Shift+click to select a range",
+        headingStyle);
     heading->setVerticalAlignment(lotui::VerticalTextAlignment::Center);
     root->addChild(
         std::move(heading),
@@ -336,6 +338,16 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         [](std::size_t from, std::size_t to) {
             std::cout << "column-reordered: from=" << from
                       << " to=" << to << '\n';
+        });
+    list->setOnSelectionRangeChanged(
+        [](std::optional<lotui::ListCellRange> range) {
+            if (range) {
+                std::cout << "selected-range: "
+                          << range->first.row << ',' << range->first.column
+                          << " -> "
+                          << range->last.row << ',' << range->last.column
+                          << '\n';
+            }
         });
     root->addChild(
         std::move(list),

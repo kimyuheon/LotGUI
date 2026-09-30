@@ -33,6 +33,9 @@ KeyCode keyCode(WPARAM key) noexcept {
     case VK_END: return KeyCode::End;
     case VK_PRIOR: return KeyCode::PageUp;
     case VK_NEXT: return KeyCode::PageDown;
+    case 'A': return KeyCode::A;
+    case 'C': return KeyCode::C;
+    case 'V': return KeyCode::V;
     default: return KeyCode::Unknown;
     }
 }
@@ -357,6 +360,7 @@ LRESULT WindowsWindow::handleMessage(
             : 1.0F;
         event.x = static_cast<float>(GET_X_LPARAM(lParam)) / scale;
         event.y = static_cast<float>(GET_Y_LPARAM(lParam)) / scale;
+        event.modifiers = keyModifiers();
         pushEvent(event);
         return 0;
     }
@@ -427,6 +431,7 @@ LRESULT WindowsWindow::handleMessage(
         event.x = static_cast<float>(GET_X_LPARAM(lParam)) / scale;
         event.y = static_cast<float>(GET_Y_LPARAM(lParam)) / scale;
         event.button = button;
+        event.modifiers = keyModifiers();
         pushEvent(event);
         if (pressed) {
             SetFocus(window_);

@@ -535,6 +535,162 @@ void reordersAndFreezesColumns() {
     tree.cancelPointer();
 }
 
+void selectsRectanglesWithKeyboardAndPointer() {
+    auto engine = std::make_shared<TestTextEngine>();
+    auto textCell = [](std::string text) {
+        lotui::ListCell cell;
+        cell.text = std::move(text);
+        return cell;
+    };
+    std::vector<lotui::ListRow> rows;
+    for (std::size_t row = 0; row < 3; ++row) {
+        rows.push_back({
+            textCell("A" + std::to_string(row)),
+            textCell("B" + std::to_string(row)),
+            textCell("C" + std::to_string(row)),
+        });
+    }
+    auto list = std::make_unique<lotui::ListControl>(
+        engine,
+        std::vector<lotui::ListColumn>{
+            {"a", "A", 80.0F},
+            {"b", "B", 80.0F},
+            {"c", "C", 80.0F},
+        },
+        std::move(rows),
+        lotui::Size{260.0F, 150.0F});
+    lotui::ListControl* observed = list.get();
+    std::vector<std::optional<lotui::ListCellRange>> changes;
+    observed->setOnSelectionRangeChanged(
+        [&changes](std::optional<lotui::ListCellRange> range) {
+            changes.push_back(range);
+        });
+    lotui::WidgetTree tree(std::move(list));
+    tree.layout({0.0F, 0.0F, 260.0F, 150.0F});
+    tree.keyPressed(lotui::KeyCode::Tab);
+    tree.keyPressed(lotui::KeyCode::Down);
+
+    lotui::KeyModifiers shift;
+    shift.shift = true;
+    tree.keyPressed(lotui::KeyCode::Right, shift);
+    tree.keyPressed(lotui::KeyCode::Down, shift);
+    require(observed->selectedRange() == lotui::ListCellRange{
+                {0, 0}, {1, 1}} &&
+            observed->isCellSelected({0, 0}) &&
+            observed->isCellSelected({1, 1}) &&
+            !observed->isCellSelected({2, 2}) &&
+            !changes.empty(),
+        "Shift+arrow must extend a rectangular cell selection");
+
+    tree.keyPressed(lotui::KeyCode::Right);
+    require(observed->selectedRange() == lotui::ListCellRange{
+                {1, 2}, {1, 2}},
+        "an unmodified arrow must collapse the range at the new active cell");
+
+    const lotui::Rect first = observed->cellBounds({0, 0});
+    const lotui::Rect last = observed->cellBounds({2, 2});
+    const lotui::Point firstCenter{
+        first.x + first.width * 0.5F,
+        first.y + first.height * 0.5F,
+    };
+    const lotui::Point lastCenter{
+        last.x + last.width * 0.5F,
+        last.y + last.height * 0.5F,
+    };
+    tree.pointerPressed(firstCenter, lotui::PointerButton::Primary);
+    tree.pointerReleased(firstCenter, lotui::PointerButton::Primary);
+    tree.pointerPressed(lastCenter, lotui::PointerButton::Primary, shift);
+    tree.pointerReleased(lastCenter, lotui::PointerButton::Primary, shift);
+    require(observed->selectedRange() == lotui::ListCellRange{
+                {0, 0}, {2, 2}},
+        "Shift+click must extend from the existing selection anchor");
+
+    observed->setSelectionMode(lotui::ListSelectionMode::Row);
+    observed->setSelectedRange(lotui::ListCellRange{{0, 1}, {1, 1}});
+    require(observed->selectedRange() == lotui::ListCellRange{
+                {0, 0}, {1, 2}},
+        "row selection mode must expand the selected range across all columns");
+}
+
+void copiesAndPastesTabSeparatedSelections() {
+    auto engine = std::make_shared<TestTextEngine>();
+    auto textCell = [](std::string text) {
+        lotui::ListCell cell;
+        cell.text = std::move(text);
+        return cell;
+    };
+    lotui::ListCell firstCheck;
+    firstCheck.kind = lotui::ListCellKind::CheckBox;
+    firstCheck.checked = true;
+    lotui::ListCell secondCheck = firstCheck;
+    secondCheck.checked = false;
+    lotui::ListCell firstCombo;
+    firstCombo.kind = lotui::ListCellKind::ComboBox;
+    firstCombo.options = {"One", "Two"};
+    firstCombo.selectedOption = 1;
+    lotui::ListCell secondCombo = firstCombo;
+    secondCombo.selectedOption = 0;
+    auto list = std::make_unique<lotui::ListControl>(
+        engine,
+        std::vector<lotui::ListColumn>{
+            {"text", "Text", 80.0F},
+            {"check", "Check", 80.0F},
+            {"combo", "Combo", 80.0F},
+        },
+        std::vector<lotui::ListRow>{
+            {textCell("A"), firstCheck, firstCombo},
+            {textCell("B"), secondCheck, secondCombo},
+            {textCell("C"), secondCheck, secondCombo},
+        },
+        lotui::Size{260.0F, 160.0F});
+    lotui::ListControl* observed = list.get();
+    lotui::WidgetTree tree(std::move(list));
+    tree.layout({0.0F, 0.0F, 260.0F, 160.0F});
+    observed->setSelectedRange(lotui::ListCellRange{{0, 0}, {1, 2}});
+    require(observed->copySelectionAsTsv() ==
+            "A\ttrue\tTwo\nB\tfalse\tOne",
+        "copying a range must produce spreadsheet-compatible TSV values");
+
+    const std::size_t changed = observed->pasteTsv(
+        "Replaced\ttrue\tTwo\nLast\tfalse\tOne\n",
+        lotui::ListCellAddress{1, 0});
+    require(changed == 6 &&
+            observed->cell({1, 0})->text == "Replaced" &&
+            observed->cell({1, 1})->checked &&
+            observed->cell({1, 2})->selectedOption == 1 &&
+            observed->cell({2, 0})->text == "Last" &&
+            !observed->cell({2, 1})->checked &&
+            observed->selectedRange() == lotui::ListCellRange{
+                {1, 0}, {2, 2}},
+        "pasting TSV must update typed cells and select the written rectangle");
+
+    std::string clipboard;
+    observed->setClipboardHandlers(
+        [&clipboard](std::string text) {
+            clipboard = std::move(text);
+        },
+        []() -> std::optional<std::string> {
+            return "Shortcut\tfalse\tOne";
+        });
+    tree.keyPressed(lotui::KeyCode::Tab);
+    lotui::KeyModifiers control;
+    control.control = true;
+    tree.keyPressed(lotui::KeyCode::C, control);
+    require(!clipboard.empty(),
+        "Control+C must publish the current TSV selection through the handler");
+    observed->setSelectedCell(lotui::ListCellAddress{0, 0});
+    tree.keyPressed(lotui::KeyCode::V, control);
+    require(observed->cell({0, 0})->text == "Shortcut" &&
+            !observed->cell({0, 1})->checked &&
+            observed->cell({0, 2})->selectedOption == 0,
+        "Control+V must request TSV text and paste it at the active cell");
+
+    tree.keyPressed(lotui::KeyCode::A, control);
+    require(observed->selectedRange() == lotui::ListCellRange{
+                {0, 0}, {2, 2}},
+        "Control+A must select every populated cell");
+}
+
 } // namespace
 
 int main() {
@@ -545,6 +701,8 @@ int main() {
     scrollsWithWheelTracksAndDraggableThumbs();
     resizesColumnsAndRequestsSortingFromHeaders();
     reordersAndFreezesColumns();
+    selectsRectanglesWithKeyboardAndPointer();
+    copiesAndPastesTabSeparatedSelections();
     std::cout << "list_control_tests passed\n";
     return EXIT_SUCCESS;
 }

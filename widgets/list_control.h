@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace lotui {
@@ -81,6 +82,33 @@ constexpr bool operator!=(
     return !(left == right);
 }
 
+struct ListCellRange {
+    ListCellAddress first{};
+    ListCellAddress last{};
+
+    constexpr bool contains(ListCellAddress address) const noexcept {
+        return address.row >= first.row && address.row <= last.row &&
+            address.column >= first.column && address.column <= last.column;
+    }
+};
+
+constexpr bool operator==(
+    ListCellRange left,
+    ListCellRange right) noexcept {
+    return left.first == right.first && left.last == right.last;
+}
+
+constexpr bool operator!=(
+    ListCellRange left,
+    ListCellRange right) noexcept {
+    return !(left == right);
+}
+
+enum class ListSelectionMode {
+    Cell,
+    Row,
+};
+
 enum class ListCellAction {
     Activate,
     BeginEdit,
@@ -139,6 +167,8 @@ class ListControl final : public Widget {
 public:
     using SelectionChangedHandler =
         std::function<void(std::optional<ListCellAddress>)>;
+    using SelectionRangeChangedHandler =
+        std::function<void(std::optional<ListCellRange>)>;
     using CellActionHandler = std::function<void(const ListCellEvent&)>;
     using SortChangedHandler =
         std::function<void(std::optional<ListSortDescriptor>)>;
@@ -146,6 +176,9 @@ public:
         std::function<void(std::size_t column, float width)>;
     using ColumnReorderedHandler =
         std::function<void(std::size_t from, std::size_t to)>;
+    using ClipboardWriteHandler = std::function<void(std::string)>;
+    using ClipboardReadHandler =
+        std::function<std::optional<std::string>()>;
 
     explicit ListControl(
         std::shared_ptr<const TextEngine> textEngine,
@@ -175,6 +208,15 @@ public:
 
     void setSelectedCell(std::optional<ListCellAddress> address);
     std::optional<ListCellAddress> selectedCell() const noexcept;
+    void setSelectedRange(std::optional<ListCellRange> range);
+    std::optional<ListCellRange> selectedRange() const noexcept;
+    bool isCellSelected(ListCellAddress address) const noexcept;
+    void setSelectionMode(ListSelectionMode mode);
+    ListSelectionMode selectionMode() const noexcept;
+    std::string copySelectionAsTsv() const;
+    std::size_t pasteTsv(
+        std::string_view text,
+        std::optional<ListCellAddress> start = std::nullopt);
     void setComboSelection(ListCellAddress address, std::size_t option);
     void setCellText(ListCellAddress address, std::string text);
     void setChecked(ListCellAddress address, bool checked);
@@ -199,7 +241,11 @@ public:
     bool isFocused() const noexcept;
     void setPreferredSize(Size preferredSize) noexcept;
     void setOnSelectionChanged(SelectionChangedHandler handler);
+    void setOnSelectionRangeChanged(SelectionRangeChangedHandler handler);
     void setOnCellAction(CellActionHandler handler);
+    void setClipboardHandlers(
+        ClipboardWriteHandler write,
+        ClipboardReadHandler read);
     void setSortDescriptor(std::optional<ListSortDescriptor> descriptor);
     std::optional<ListSortDescriptor> sortDescriptor() const noexcept;
     void setOnSortChanged(SortChangedHandler handler);
@@ -300,7 +346,15 @@ private:
         std::size_t to) noexcept;
     void clampScrollOffset() noexcept;
     bool select(std::optional<ListCellAddress> address, bool notify);
-    bool moveSelection(int rowDelta, int columnDelta);
+    bool extendSelection(ListCellAddress address, bool notify);
+    bool applySelection(
+        std::optional<ListCellAddress> anchor,
+        std::optional<ListCellAddress> active,
+        bool notify);
+    bool moveSelection(
+        int rowDelta,
+        int columnDelta,
+        bool extend = false);
     bool activateCell(ListCellAddress address, bool editText);
     ListCellAction defaultAction(
         const ListCell& cell,
@@ -333,19 +387,25 @@ private:
     std::vector<ListRow> rows_;
     Size preferredSize_{480.0F, 280.0F};
     SelectionChangedHandler onSelectionChanged_{};
+    SelectionRangeChangedHandler onSelectionRangeChanged_{};
     CellActionHandler onCellAction_{};
+    ClipboardWriteHandler clipboardWrite_{};
+    ClipboardReadHandler clipboardRead_{};
     SortChangedHandler onSortChanged_{};
     ColumnResizedHandler onColumnResized_{};
     ColumnReorderedHandler onColumnReordered_{};
     ListControlStyle style_{};
     TextStyle textStyle_{};
     std::optional<ListCellAddress> selectedCell_;
+    std::optional<ListCellAddress> selectionAnchor_;
+    ListSelectionMode selectionMode_{ListSelectionMode::Cell};
     std::optional<ListCellAddress> hoveredCell_;
     std::optional<ListCellAddress> pressedCell_;
     Point scrollOffset_{};
     bool enabled_{true};
     bool focused_{false};
     bool pointerPressed_{false};
+    bool selectionDragged_{false};
     ScrollBarPart hoveredScrollBarPart_{ScrollBarPart::None};
     ScrollDragAxis scrollDragAxis_{ScrollDragAxis::None};
     float scrollDragPointerStart_{0.0F};

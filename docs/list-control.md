@@ -105,6 +105,47 @@ the frozen region. The frozen boundary and reorder insertion marker are
 ordinary backend-neutral `PaintCommand` output, so they work with standalone
 and embedded Vulkan renderers alike.
 
+## Range and row selection
+
+The active cell remains available through `selectedCell()` for compatibility.
+`selectedRange()` adds an inclusive rectangular range and `isCellSelected()`
+is the inexpensive paint/application query. Users can extend the range with
+Shift+arrow, Shift+Home/End, Shift+Page Up/Down, Shift+click, or a pointer drag.
+Ctrl+A on Windows/Linux and Command+A on macOS select the populated table.
+
+Cell selection is the default. Row-oriented applications can switch to
+`ListSelectionMode::Row`; the same anchor and active-row behavior then expands
+the range across every column. `setOnSelectionRangeChanged` reports range
+changes while the original `setOnSelectionChanged` callback continues to
+report the active cell.
+
+## Spreadsheet copy and paste
+
+`copySelectionAsTsv()` exports the selected rectangle as tab-separated UTF-8
+text accepted by common spreadsheet applications. `pasteTsv()` starts at the
+active cell (or an explicit address), updates editable cells using their typed
+rules, and selects the written rectangle. Check boxes accept
+`true/false`, `yes/no`, `on/off`, or `1/0`; combo cells require an exact option
+label. Action buttons and read-only cells are not overwritten.
+
+Applications can connect Ctrl/Command+C and Ctrl/Command+V without exposing an
+OS type to `ListControl`:
+
+```cpp
+list->setClipboardHandlers(
+    [](std::string text) {
+        // Write UTF-8 text through the active platform clipboard service.
+    },
+    []() -> std::optional<std::string> {
+        // Read UTF-8 text through the active platform clipboard service.
+        return std::nullopt;
+    });
+```
+
+The range model and TSV codec are platform-neutral. Native Win32, Cocoa, and
+X11/Wayland clipboard ownership remains in the platform layer rather than the
+widget library.
+
 ## Completion path
 
 The public event contract deliberately separates a cell action from the popup
@@ -113,7 +154,7 @@ or editor used to perform it. `ComboBox::showPopupAt` and
 implementation stages are:
 
 1. Asynchronous lookup data providers with loading and empty states.
-2. Row and rectangular multi-selection, clipboard copy/paste, and range fill.
+2. Native platform clipboard services and range fill/drag handles.
 3. Large-data provider API, row reuse, and incremental loading.
 
 This sequence keeps `ListControl` useful now without embedding application

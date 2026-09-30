@@ -115,13 +115,15 @@ bool dispatchPlatformEvent(
     const Point position{event.x, event.y};
     WidgetPointerUpdate pointerUpdate;
     if (event.type == PlatformEventType::MouseMoved) {
-        pointerUpdate = tree.pointerMoved(position);
+        pointerUpdate = tree.pointerMoved(position, event.modifiers);
     } else if (event.type == PlatformEventType::MouseButtonPressed &&
         event.button == PointerButton::Primary) {
-        pointerUpdate = tree.pointerPressed(position, event.button);
+        pointerUpdate = tree.pointerPressed(
+            position, event.button, event.modifiers);
     } else if (event.type == PlatformEventType::MouseButtonReleased &&
         event.button == PointerButton::Primary) {
-        pointerUpdate = tree.pointerReleased(position, event.button);
+        pointerUpdate = tree.pointerReleased(
+            position, event.button, event.modifiers);
     } else if (event.type == PlatformEventType::PointerCaptureLost ||
         event.type == PlatformEventType::FocusLost) {
         pointerUpdate = tree.cancelPointer();
