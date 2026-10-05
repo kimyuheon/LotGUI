@@ -35,6 +35,7 @@ struct Demo {
     lotui::VulkanEmbeddedRenderer renderer;
     std::unique_ptr<lotui::WidgetTree> tree;
     lotui::DialogHost* host{nullptr};
+    lotui::Button* openButton{nullptr};
     lotui::Slider* slider{nullptr};
     bool primaryDown{false};
     std::uint32_t lastInputFlags{0};
@@ -43,7 +44,9 @@ struct Demo {
         auto toolbar = std::make_unique<lotui::Row>();
         lotui::LinearLayoutOptions layout;
         layout.padding = lotui::EdgeInsets::all(16.0F);
+        layout.padding.top = 270.0F;
         layout.spacing = 12.0F;
+        layout.mainAxisAlignment = lotui::MainAxisAlignment::End;
         toolbar->setOptions(layout);
 
         lotui::ButtonStyle openStyle;
@@ -51,9 +54,11 @@ struct Demo {
         openStyle.hovered = {0.13F, 0.69F, 0.58F, 1.0F};
         openStyle.pressed = {0.07F, 0.41F, 0.35F, 1.0F};
         openStyle.cornerRadius = 5.0F;
-        toolbar->addChild(std::make_unique<lotui::Button>(
+        auto open = std::make_unique<lotui::Button>(
             lotui::Size{116.0F, 32.0F}, [this] { showModal(); },
-            openStyle));
+            openStyle);
+        openButton = open.get();
+        toolbar->addChild(std::move(open));
         lotui::SliderOptions sliderOptions;
         sliderOptions.value = 35.0;
         sliderOptions.preferredSize = {160.0F, 24.0F};
@@ -68,11 +73,11 @@ struct Demo {
 
         auto modelessContent = std::make_unique<lotui::Box>(
             lotui::Size{170.0F, 70.0F},
-            lotui::Color{0.17F, 0.63F, 0.78F, 1.0F});
+            lotui::Color{0.24F, 0.74F, 0.86F, 1.0F});
         auto modeless = std::make_unique<lotui::Dialog>(
             std::move(modelessContent), lotui::Size{224.0F, 128.0F});
         host->showModeless(std::move(modeless),
-            {250.0F, 20.0F, 224.0F, 128.0F});
+            {1010.0F, 340.0F, 224.0F, 128.0F});
     }
 
     void showModal() {
@@ -193,8 +198,11 @@ int main(int argc, char** argv) {
                 bool captured = false;
                 for (int tick = 0; tick < 240 && !CAD_ShouldClose(); ++tick) {
                     if (inputTest && tick == 5) {
-                        CAD_OnMouseMove(30.0, 30.0);
-                        CAD_OnMouseDown(0, 30.0, 30.0, 0);
+                        const auto bounds = demo.openButton->bounds();
+                        const double x = bounds.x + bounds.width * 0.5;
+                        const double y = bounds.y + bounds.height * 0.5;
+                        CAD_OnMouseMove(x, y);
+                        CAD_OnMouseDown(0, x, y, 0);
                     }
                     if (inputTest && tick == 6) {
                         if ((demo.lastInputFlags &
@@ -202,7 +210,10 @@ int main(int argc, char** argv) {
                             throw std::runtime_error(
                                 "LotUI did not capture the pointer press");
                         }
-                        CAD_OnMouseUp(0, 30.0, 30.0, 0);
+                        const auto bounds = demo.openButton->bounds();
+                        CAD_OnMouseUp(0,
+                            bounds.x + bounds.width * 0.5,
+                            bounds.y + bounds.height * 0.5, 0);
                     }
                     if (inputTest && tick == 7 &&
                         !demo.host->hasModal()) {
@@ -213,14 +224,22 @@ int main(int argc, char** argv) {
                         demo.host->dismissModal();
                     }
                     if (inputTest && tick == 8) {
-                        CAD_OnMouseMove(170.0, 30.0);
-                        CAD_OnMouseDown(0, 170.0, 30.0, 0);
+                        const auto bounds = demo.slider->bounds();
+                        const double x = bounds.x + bounds.width * 0.2;
+                        const double y = bounds.y + bounds.height * 0.5;
+                        CAD_OnMouseMove(x, y);
+                        CAD_OnMouseDown(0, x, y, 0);
                     }
                     if (inputTest && tick == 9) {
-                        CAD_OnMouseMove(295.0, 30.0);
+                        const auto bounds = demo.slider->bounds();
+                        CAD_OnMouseMove(bounds.x + bounds.width * 0.95,
+                            bounds.y + bounds.height * 0.5);
                     }
                     if (inputTest && tick == 10) {
-                        CAD_OnMouseUp(0, 295.0, 30.0, 0);
+                        const auto bounds = demo.slider->bounds();
+                        CAD_OnMouseUp(0,
+                            bounds.x + bounds.width * 0.95,
+                            bounds.y + bounds.height * 0.5, 0);
                     }
                     if (inputTest && tick == 11 &&
                         demo.slider->value() < 90.0) {
