@@ -34,3 +34,6 @@ existing `VulkanCADCore` shared library.
 
 This smoke renders solid UI geometry only, including a draggable slider.
 Textured glyphs, keyboard events/IME, and release packaging are still pending.
+
+The [engine smoke capture](../../docs/images/engine-lotui-smoke.png) shows
+the controls over the CAD viewport. It does not represent ImGui replacement.
