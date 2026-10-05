@@ -7,8 +7,10 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 
 class MacOSWindowImpl;
@@ -50,6 +52,8 @@ lotui::KeyCode keyCode(NSEvent* event) {
     case 'C': return lotui::KeyCode::C;
     case 'v':
     case 'V': return lotui::KeyCode::V;
+    case 'x':
+    case 'X': return lotui::KeyCode::X;
     default: return lotui::KeyCode::Unknown;
     }
 }
@@ -83,6 +87,8 @@ public:
     bool setPointerCapture(bool enabled) override;
     void setTextInputState(
         const lotui::TextInputState& state) override;
+    bool writeClipboardText(std::string_view text) override;
+    std::optional<std::string> readClipboardText() override;
     lotui::WindowMetrics metrics() const override;
     lotui::NativeWindowHandle nativeHandle() const override;
 
@@ -253,7 +259,8 @@ private:
             keyModifiers(event),
             true,
             event.isARepeat == YES);
-        if (owner->textInputEnabled()) {
+        if (owner->textInputEnabled() &&
+            (event.modifierFlags & NSEventModifierFlagCommand) == 0) {
             [self interpretKeyEvents:@[event]];
         }
     }
@@ -500,6 +507,37 @@ void MacOSWindowImpl::setTextInputState(
     if (state.enabled && window_ != nil && view_ != nil) {
         [window_ makeFirstResponder:view_];
         [[view_ inputContext] invalidateCharacterCoordinates];
+    }
+}
+
+bool MacOSWindowImpl::writeClipboardText(std::string_view text) {
+    @autoreleasepool {
+        NSString* value = [[NSString alloc]
+            initWithBytes:text.data()
+                   length:text.size()
+                 encoding:NSUTF8StringEncoding];
+        if (value == nil) {
+            return false;
+        }
+        NSPasteboard* clipboard = [NSPasteboard generalPasteboard];
+        [clipboard clearContents];
+        return [clipboard setString:value forType:NSPasteboardTypeString] == YES;
+    }
+}
+
+std::optional<std::string> MacOSWindowImpl::readClipboardText() {
+    @autoreleasepool {
+        NSString* value = [[NSPasteboard generalPasteboard]
+            stringForType:NSPasteboardTypeString];
+        if (value == nil) {
+            return std::nullopt;
+        }
+        NSData* bytes = [value dataUsingEncoding:NSUTF8StringEncoding];
+        if (bytes == nil || bytes.length == 0) {
+            return std::string{};
+        }
+        return std::string(
+            static_cast<const char*>(bytes.bytes), bytes.length);
     }
 }
 

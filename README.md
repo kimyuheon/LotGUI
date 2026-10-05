@@ -83,6 +83,10 @@ checkboxes, text fields, and future controls share the same input and focus
 behavior inside and outside a ribbon. See [`docs/ribbon.md`](docs/ribbon.md)
 and [`examples/ribbon.lotml`](examples/ribbon.lotml).
 
+`Slider` is a compact retained value control with pointer dragging, keyboard
+steps, Home/End, range clamping, and user-change callbacks. It is also drawn
+by the `VulkanAppLotGUI` engine smoke sample.
+
 `ListControl` provides a virtualized, spreadsheet-style table foundation with
 cell selection and keyboard navigation. Cells can expose check boxes, combo
 selectors, lookup buttons, or right-edge action buttons through one generic
@@ -103,6 +107,13 @@ When text dependencies are available, the compact standalone example builds as
 Escape dismissal, focus isolation, and automatic above/below edge placement.
 The reusable `ComboBox` and ListControl combo cells share this implementation.
 See [`docs/popups-and-combo-box.md`](docs/popups-and-combo-box.md).
+`MenuBar` uses the same host for compact top-level and nested menus. Its
+retained `Menu`/`MenuEntry` model carries stable command IDs, checked and
+disabled states, separators, and shortcut labels; activation calls back with
+the ID without changing application-owned state. The menu popup supports
+pointer and keyboard navigation and scrolls when the viewport is short.
+`platform_probe` includes a standalone menu example. Shortcut labels are
+display-only for now; global shortcut dispatch belongs to the application.
 `LookupBox` adds a search field, primary and secondary result text, UTF-8
 filtering, keyboard selection, and a reusable popup entry point for table
 cells. See [`docs/lookup-box.md`](docs/lookup-box.md).
@@ -144,9 +155,13 @@ restores the previous focus when it closes. See
 The same host manages multiple modeless dialogs through stable IDs, explicit
 bounds, click-to-front Z-order, and safe close callbacks.
 
-Current text limitations are deliberate and visible: `TextField` is
-single-line, selection and clipboard editing are not implemented yet, and the
-glyph cache uses one atlas page. Native backends already keep IME composition
+`TextField` supports pointer and Shift-key selection, Ctrl/Cmd+A, replacement
+of selected text, clipboard copy/cut/paste callbacks, and horizontal caret
+scrolling. `PlatformWindow` supplies native UTF-8 clipboard access on Windows,
+macOS, and X11; `platform_probe` wires it to the field. X11 currently accepts
+up to 64 KiB of UTF-8 clipboard text and does not support incremental INCR
+transfers. The field remains single-line, undo/redo is not implemented yet,
+and the glyph cache uses one atlas page. Native backends keep IME composition
 separate from committed UTF-8 and position the candidate UI from the caret.
 
 ## License

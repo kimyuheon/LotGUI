@@ -1,0 +1,139 @@
+diff --git a/api/VulkanCAD_API.h b/api/VulkanCAD_API.h
+--- a/api/VulkanCAD_API.h
++++ b/api/VulkanCAD_API.h
+@@ -89,5 +89,22 @@
+ CAD_API void CAD_SetOverlayRenderCallback(
+     CAD_OverlayRenderFn callback,
+     void* user);
++
++typedef struct CAD_OverlayPointerInfo {
++    uint32_t structSize;
++    int windowWidth;
++    int windowHeight;
++    double x;
++    double y;
++    uint32_t buttons;
++    int modifiers;
++} CAD_OverlayPointerInfo;
++typedef uint32_t (*CAD_OverlayInputFn)(
++    const CAD_OverlayPointerInfo* pointer,
++    void* user);
++
++CAD_API void CAD_SetOverlayInputCallback(
++    CAD_OverlayInputFn callback,
++    void* user);
+ 
+ // ── Win32 호스트(MFC 등) 편의용 키 입력 ──
+diff --git a/api/VulkanCAD_API.cpp b/api/VulkanCAD_API.cpp
+--- a/api/VulkanCAD_API.cpp
++++ b/api/VulkanCAD_API.cpp
+@@ -182,7 +182,13 @@
+ CAD_API void CAD_SetOverlayRenderCallback(
+     CAD_OverlayRenderFn callback,
+     void* user) {
+     lot::setExternalOverlayCallback(callback, user);
+ }
++
++CAD_API void CAD_SetOverlayInputCallback(
++    CAD_OverlayInputFn callback,
++    void* user) {
++    lot::setExternalOverlayInputCallback(callback, user);
++}
+ 
+ CAD_API bool CAD_CreateEngine(void) {
+@@ -236,2 +242,3 @@
+ CAD_API void CAD_DestroyEngine(void) {
++    lot::setExternalOverlayInputCallback(nullptr, nullptr);
+     lot::setExternalOverlayCallback(nullptr, nullptr);
+diff --git a/lot_overlay_hook.h b/lot_overlay_hook.h
+--- a/lot_overlay_hook.h
++++ b/lot_overlay_hook.h
+@@ -12,4 +12,10 @@
+     CAD_OverlayRenderFn callback,
+     void* user) noexcept;
+ 
++void setExternalOverlayInputCallback(
++    CAD_OverlayInputFn callback,
++    void* user) noexcept;
++void updateExternalOverlayInput(
++    const CAD_OverlayPointerInfo& pointer) noexcept;
++
+ unsigned int externalOverlayCaptureFlags() noexcept;
+diff --git a/lot_overlay_hook.cpp b/lot_overlay_hook.cpp
+--- a/lot_overlay_hook.cpp
++++ b/lot_overlay_hook.cpp
+@@ -15,3 +15,5 @@
+ CAD_OverlayRenderFn g_callback = nullptr;
+ void* g_user = nullptr;
++CAD_OverlayInputFn g_inputCallback = nullptr;
++void* g_inputUser = nullptr;
+ unsigned int g_captureFlags = 0;
+@@ -36,4 +38,31 @@
+     g_captureFlags = 0;
+ }
+ 
++void setExternalOverlayInputCallback(
++    CAD_OverlayInputFn callback,
++    void* user) noexcept {
++    g_inputCallback = callback;
++    g_inputUser = callback ? user : nullptr;
++    g_captureFlags = 0;
++}
++
++void updateExternalOverlayInput(
++    const CAD_OverlayPointerInfo& pointer) noexcept {
++    if (!g_inputCallback) {
++        return;
++    }
++    try {
++        g_captureFlags = g_inputCallback(&pointer, g_inputUser) &
++            (CAD_OVERLAY_CAPTURE_POINTER | CAD_OVERLAY_CAPTURE_KEYBOARD);
++    } catch (const std::exception& error) {
++        std::cerr << "[overlay] input callback failed: " << error.what()
++                  << std::endl;
++        g_captureFlags = 0;
++    } catch (...) {
++        std::cerr << "[overlay] input callback failed: unknown exception"
++                  << std::endl;
++        g_captureFlags = 0;
++    }
++}
++
+ unsigned int externalOverlayCaptureFlags() noexcept {
+@@ -48,3 +77,5 @@
+     if (!g_callback) {
+-        g_captureFlags = 0;
++        if (!g_inputCallback) {
++            g_captureFlags = 0;
++        }
+         return;
+@@ -95,4 +126,7 @@
+     try {
+-        g_captureFlags = g_callback(&frame, g_user) &
+-            (CAD_OVERLAY_CAPTURE_POINTER | CAD_OVERLAY_CAPTURE_KEYBOARD);
++        const auto renderFlags = g_callback(&frame, g_user);
++        if (!g_inputCallback) {
++            g_captureFlags = renderFlags &
++                (CAD_OVERLAY_CAPTURE_POINTER | CAD_OVERLAY_CAPTURE_KEYBOARD);
++        }
+     } catch (const std::exception& error) {
+diff --git a/first_app/loop.cpp b/first_app/loop.cpp
+--- a/first_app/loop.cpp
++++ b/first_app/loop.cpp
+@@ -206,2 +206,16 @@
+         viewports.computeRects(currentViewport_);
++        CAD_OverlayPointerInfo overlayInput{};
++        overlayInput.structSize = sizeof(overlayInput);
++        window().getWindowSize(
++            overlayInput.windowWidth, overlayInput.windowHeight);
++        window().getCursorPosition(overlayInput.x, overlayInput.y);
++        inputRouter_.getPointerPosition(overlayInput.x, overlayInput.y);
++        for (int button = 0; button < 3; ++button) {
++            if (window().isMouseButtonDown(button) ||
++                inputRouter_.isMouseButtonDown(button)) {
++                overlayInput.buttons |= 1U << static_cast<unsigned int>(button);
++            }
++        }
++        overlayInput.modifiers = window().lastLeftPressModifiers();
++        updateExternalOverlayInput(overlayInput);
+         const unsigned int overlayCapture =

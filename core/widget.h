@@ -73,7 +73,7 @@ private:
     bool dispatchScrollEvent(const WidgetScrollEvent& event);
     bool dispatchTextInputEvent(const TextInputEvent& event);
     bool requestsTextInput() const noexcept;
-    Rect requestedTextInputRect() const noexcept;
+    Rect requestedTextInputRect() const;
 
 protected:
     virtual void onArrange();
@@ -97,7 +97,7 @@ protected:
     virtual bool onUnhandledKeyEvent(const WidgetKeyEvent& event);
     virtual bool onScrollEvent(const WidgetScrollEvent& event);
     virtual bool acceptsTextInput() const noexcept;
-    virtual Rect textInputRect() const noexcept;
+    virtual Rect textInputRect() const;
     virtual bool onTextInputEvent(const TextInputEvent& event);
     virtual PointerTargetId activeFocusScopeTarget() const noexcept;
 

@@ -1,0 +1,18 @@
+diff --git a/api/VulkanCAD_API.h b/api/VulkanCAD_API.h
+--- a/api/VulkanCAD_API.h
++++ b/api/VulkanCAD_API.h
+@@ -73,3 +73,4 @@ typedef struct CAD_OverlayFrameInfo {
+     uint32_t pointerButtons;
+     int modifiers;
++    uint32_t sampleCount;
+ } CAD_OverlayFrameInfo;
+diff --git a/lot_overlay_hook.cpp b/lot_overlay_hook.cpp
+--- a/lot_overlay_hook.cpp
++++ b/lot_overlay_hook.cpp
+@@ -87,5 +87,6 @@ void renderExternalOverlay(
+     frame.pointerY = pointerY;
+     frame.pointerButtons = pointerButtons;
+     frame.modifiers = window.lastLeftPressModifiers();
++    frame.sampleCount = static_cast<std::uint32_t>(device.msaaSamples());
+ 
+     try {

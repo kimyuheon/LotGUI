@@ -37,7 +37,7 @@ int main() {
         std::cout << "font-loaded: " << fontFile.string() << '\n';
 #endif
         auto tree = lotui::example::createDemoUi(
-            demoMask.id(), textEngine);
+            demoMask.id(), textEngine, *window);
         lotui::example::updateDemoLayout(*tree, window->metrics());
         window->setTextInputState(tree->textInputState());
 

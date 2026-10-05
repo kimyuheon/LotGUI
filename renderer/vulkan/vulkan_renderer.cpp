@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -1051,10 +1052,18 @@ PaintBatchPlan VulkanRenderer::Impl::uploadInstances(
         const PaintCommand& command = paintCommands[commandIndex];
 
         RectangleInstance instance{};
-        instance.bounds[0] = command.bounds.x * scale;
-        instance.bounds[1] = command.bounds.y * scale;
-        instance.bounds[2] = command.bounds.width * scale;
-        instance.bounds[3] = command.bounds.height * scale;
+        const float left = command.bounds.x * scale;
+        const float top = command.bounds.y * scale;
+        const float right = (command.bounds.x + command.bounds.width) * scale;
+        const float bottom = (command.bounds.y + command.bounds.height) * scale;
+        const float x = command.snapToPixel ? std::round(left) : left;
+        const float y = command.snapToPixel ? std::round(top) : top;
+        instance.bounds[0] = x;
+        instance.bounds[1] = y;
+        instance.bounds[2] = std::max(0.0F,
+            (command.snapToPixel ? std::round(right) : right) - x);
+        instance.bounds[3] = std::max(0.0F,
+            (command.snapToPixel ? std::round(bottom) : bottom) - y);
         instance.color[0] = command.color.red;
         instance.color[1] = command.color.green;
         instance.color[2] = command.color.blue;

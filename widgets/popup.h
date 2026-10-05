@@ -35,6 +35,8 @@ struct PopupOptions {
     bool exactAnchorHeight{false};
     bool dismissOnOutsidePress{true};
     bool dismissOnEscape{true};
+    bool allowContentPointerEvents{false};
+    Rect contentPointerRegion{};
 };
 
 using PopupClosedHandler = std::function<void(PopupCloseReason)>;

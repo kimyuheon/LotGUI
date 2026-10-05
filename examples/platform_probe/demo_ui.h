@@ -13,7 +13,8 @@ TextureImage createDemoMask();
 
 std::unique_ptr<WidgetTree> createDemoUi(
     TextureId demoMaskTexture,
-    const std::shared_ptr<const TextEngine>& textEngine);
+    const std::shared_ptr<const TextEngine>& textEngine,
+    PlatformWindow& window);
 
 void updateDemoLayout(
     WidgetTree& tree,

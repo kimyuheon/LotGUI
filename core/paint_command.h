@@ -17,6 +17,7 @@ struct PaintCommand {
     TextureId texture{invalidTextureId};
     float cornerRadius{0.0F};
     Rect textureCoordinates{0.0F, 0.0F, 1.0F, 1.0F};
+    bool snapToPixel{false};
 };
 
 } // namespace lotui

@@ -61,6 +61,7 @@ public:
                 atlas_->id(),
                 0.0F,
                 glyph.textureCoordinates,
+                true,
             });
         }
     }

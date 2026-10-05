@@ -256,7 +256,7 @@ WidgetTextInputUpdate WidgetTree::textInput(
     return {handled, handled};
 }
 
-TextInputState WidgetTree::textInputState() const noexcept {
+TextInputState WidgetTree::textInputState() const {
     const Widget* focused = focusedWidget();
     if (focused == nullptr || !focused->requestsTextInput()) {
         return {};

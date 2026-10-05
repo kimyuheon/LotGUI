@@ -67,6 +67,7 @@ TextField::TextField(
     : textEngine_(std::move(textEngine)),
       text_(std::move(text)),
       cursorByteOffset_(text_.size()),
+      selectionAnchorByteOffset_(cursorByteOffset_),
       preferredSize_(preferredSize),
       onChanged_(std::move(onChanged)),
       onSubmitted_(std::move(onSubmitted)),
@@ -105,6 +106,8 @@ void TextField::setText(std::string text) {
     }
     text_ = std::move(text);
     cursorByteOffset_ = text_.size();
+    selectionAnchorByteOffset_ = cursorByteOffset_;
+    horizontalOffset_ = 0.0F;
     clearComposition();
     invalidateLayouts();
 }
@@ -121,11 +124,16 @@ std::size_t TextField::cursorByteOffset() const noexcept {
     return cursorByteOffset_;
 }
 
+std::string TextField::selectedText() const {
+    return text_.substr(selectionStart(), selectionEnd() - selectionStart());
+}
+
 void TextField::setEnabled(bool enabled) noexcept {
     enabled_ = enabled;
     if (!enabled_) {
         focused_ = false;
         hovered_ = false;
+        draggingSelection_ = false;
         clearComposition();
     }
 }
@@ -155,6 +163,13 @@ void TextField::setOnChanged(ChangedHandler onChanged) {
 
 void TextField::setOnSubmitted(SubmittedHandler onSubmitted) {
     onSubmitted_ = std::move(onSubmitted);
+}
+
+void TextField::setClipboardHandlers(
+    ClipboardWriteHandler write,
+    ClipboardReadHandler read) {
+    clipboardWrite_ = std::move(write);
+    clipboardRead_ = std::move(read);
 }
 
 void TextField::setStyle(TextFieldStyle style) noexcept {
@@ -191,46 +206,48 @@ void TextField::onPaint(std::vector<PaintCommand>& commands) const {
         std::max(0.0F, style_.cornerRadius - ringWidth),
     });
 
-    const float maximumWidth = std::max(
-        0.0F, bounds().width - style_.contentPadding.horizontal());
-    const TextLayout& layout = ensureDisplayLayout(maximumWidth);
-    const float x = bounds().x + style_.contentPadding.left;
+    const TextLayout& layout = ensureDisplayLayout(unboundedLayoutSize);
+    updateHorizontalOffset();
+    const Rect content = intersect(clip(), {
+        bounds().x + style_.contentPadding.left,
+        bounds().y + style_.contentPadding.top,
+        std::max(0.0F, bounds().width - style_.contentPadding.horizontal()),
+        std::max(0.0F, bounds().height - style_.contentPadding.vertical()),
+    });
+    const float x = bounds().x + style_.contentPadding.left -
+        horizontalOffset_;
     const float y = contentY(layout.size().height);
-    layout.appendPaintCommands({x, y}, clip(), style_.text, commands);
+    if (focused_ && hasSelection() && composition_.empty()) {
+        const float left = prefixWidth(selectionStart());
+        const float right = prefixWidth(selectionEnd());
+        commands.push_back({
+            {x + left, y, std::max(0.0F, right - left),
+             layout.size().height},
+            content, style_.selection, invalidTextureId, 0.0F,
+        });
+    }
+    layout.appendPaintCommands({x, y}, content, style_.text, commands);
 
-    const float prefix = prefixWidth(cursorByteOffset_);
+    const float prefix = prefixWidth(
+        !composition_.empty() && hasSelection()
+            ? selectionStart() : cursorByteOffset_);
     if (!composition_.empty()) {
         const float width = compositionWidth();
         commands.push_back({
             {x + prefix, y + layout.size().height - 1.5F, width, 1.5F},
-            clip(), style_.composition, invalidTextureId, 0.0F,
+            content, style_.composition, invalidTextureId, 0.0F,
         });
     }
     if (focused_) {
-        const std::size_t selectionStart = std::min(
-            compositionSelectionStart_, composition_.size());
-        std::size_t compositionCaretOffset = selectionStart + std::min(
-            compositionSelectionLength_,
-            composition_.size() - selectionStart);
-        // Some IMEs report an empty selection at byte zero while composing.
-        // With no editable composition cursor support yet, the natural caret
-        // position is after the visible pre-edit run.
-        if (compositionCaretOffset == 0 && !composition_.empty()) {
-            compositionCaretOffset = composition_.size();
-        }
-        const float compositionCaret = composition_.empty()
-            ? 0.0F
-            : measureTextWidth(
-                composition_.substr(0, compositionCaretOffset));
-        caretOffset_ = prefix + compositionCaret;
+        caretOffset_ = caretPosition();
         commands.push_back({
             {
-                x + prefix + compositionCaret,
+                x + caretOffset_,
                 y,
                 style_.caretWidth,
                 layout.size().height,
             },
-            clip(), style_.caret, invalidTextureId, 0.0F,
+            content, style_.caret, invalidTextureId, 0.0F,
         });
     }
 }
@@ -253,19 +270,35 @@ bool TextField::onPointerEvent(const WidgetPointerEvent& event) {
     case WidgetPointerEventType::Move: {
         const bool changed = hovered_ != event.inside;
         hovered_ = event.inside;
+        if (draggingSelection_) {
+            cursorByteOffset_ = byteOffsetAt(event.position.x);
+            invalidateLayouts();
+            return true;
+        }
         return changed;
     }
     case WidgetPointerEventType::Press:
         if (event.button != PointerButton::Primary) {
             return false;
         }
-        cursorByteOffset_ = text_.size();
         clearComposition();
+        cursorByteOffset_ = byteOffsetAt(event.position.x);
+        if (!event.modifiers.shift || !focused_) {
+            selectionAnchorByteOffset_ = cursorByteOffset_;
+        }
+        draggingSelection_ = true;
         invalidateLayouts();
         return true;
     case WidgetPointerEventType::Release:
-        return event.button == PointerButton::Primary;
+        if (event.button == PointerButton::Primary && draggingSelection_) {
+            cursorByteOffset_ = byteOffsetAt(event.position.x);
+            draggingSelection_ = false;
+            invalidateLayouts();
+            return true;
+        }
+        return false;
     case WidgetPointerEventType::Cancel:
+        draggingSelection_ = false;
         return false;
     }
     return false;
@@ -280,6 +313,7 @@ bool TextField::onFocusChanged(bool focused) {
         (!focused && !composition_.empty());
     focused_ = focused;
     if (!focused_) {
+        draggingSelection_ = false;
         clearComposition();
         invalidateLayouts();
     }
@@ -296,7 +330,22 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         invalidateLayouts();
         return changed;
     }
+    const bool selectAll = (event.modifiers.control ||
+        event.modifiers.meta) && !event.modifiers.alt &&
+        event.key == KeyCode::A;
+    const bool primaryShortcut = (event.modifiers.control ||
+        event.modifiers.meta) && !event.modifiers.alt &&
+        composition_.empty();
+    const bool copyKey = primaryShortcut && event.key == KeyCode::C &&
+        static_cast<bool>(clipboardWrite_);
+    const bool cutKey = primaryShortcut && event.key == KeyCode::X &&
+        static_cast<bool>(clipboardWrite_);
+    const bool pasteKey = primaryShortcut && event.key == KeyCode::V &&
+        static_cast<bool>(clipboardRead_);
     if (event.type != WidgetKeyEventType::Press) {
+        if (selectAll || copyKey || cutKey || pasteKey) {
+            return true;
+        }
         switch (event.key) {
         case KeyCode::Backspace:
         case KeyCode::Delete:
@@ -309,6 +358,34 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         default:
             return false;
         }
+    }
+
+    if (selectAll) {
+        if (composition_.empty()) {
+            selectionAnchorByteOffset_ = 0;
+            cursorByteOffset_ = text_.size();
+            invalidateLayouts();
+        }
+        return true;
+    }
+    if (copyKey || cutKey) {
+        std::string selection = selectedText();
+        if (!selection.empty()) {
+            ClipboardWriteHandler write = clipboardWrite_;
+            const bool copied = write(std::move(selection));
+            if (cutKey && copied && eraseSelection()) {
+                notifyChanged();
+            }
+        }
+        return true;
+    }
+    if (pasteKey) {
+        ClipboardReadHandler read = clipboardRead_;
+        const std::optional<std::string> text = read();
+        if (text && (!text->empty() || hasSelection())) {
+            insertCommitted(*text);
+        }
+        return true;
     }
 
     switch (event.key) {
@@ -324,25 +401,45 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         return true;
     case KeyCode::Left:
         if (composition_.empty()) {
-            moveCursorLeft();
+            if (!event.modifiers.shift && hasSelection()) {
+                cursorByteOffset_ = selectionStart();
+            } else {
+                moveCursorLeft();
+            }
+            if (!event.modifiers.shift) {
+                selectionAnchorByteOffset_ = cursorByteOffset_;
+            }
             invalidateLayouts();
         }
         return true;
     case KeyCode::Right:
         if (composition_.empty()) {
-            moveCursorRight();
+            if (!event.modifiers.shift && hasSelection()) {
+                cursorByteOffset_ = selectionEnd();
+            } else {
+                moveCursorRight();
+            }
+            if (!event.modifiers.shift) {
+                selectionAnchorByteOffset_ = cursorByteOffset_;
+            }
             invalidateLayouts();
         }
         return true;
     case KeyCode::Home:
         if (composition_.empty()) {
             cursorByteOffset_ = 0;
+            if (!event.modifiers.shift) {
+                selectionAnchorByteOffset_ = cursorByteOffset_;
+            }
             invalidateLayouts();
         }
         return true;
     case KeyCode::End:
         if (composition_.empty()) {
             cursorByteOffset_ = text_.size();
+            if (!event.modifiers.shift) {
+                selectionAnchorByteOffset_ = cursorByteOffset_;
+            }
             invalidateLayouts();
         }
         return true;
@@ -361,8 +458,10 @@ bool TextField::acceptsTextInput() const noexcept {
     return enabled_ && focused_;
 }
 
-Rect TextField::textInputRect() const noexcept {
-    const float x = bounds().x + style_.contentPadding.left + caretOffset_;
+Rect TextField::textInputRect() const {
+    updateHorizontalOffset();
+    const float x = bounds().x + style_.contentPadding.left +
+        caretOffset_ - horizontalOffset_;
     return {
         x,
         bounds().y + style_.contentPadding.top,
@@ -406,9 +505,13 @@ bool TextField::onTextInputEvent(const TextInputEvent& event) {
 std::string TextField::displayText() const {
     std::string result;
     result.reserve(text_.size() + composition_.size());
-    result.append(text_, 0, cursorByteOffset_);
+    const bool replacesSelection = !composition_.empty() && hasSelection();
+    const std::size_t insertion = replacesSelection
+        ? selectionStart() : cursorByteOffset_;
+    result.append(text_, 0, insertion);
     result += composition_;
-    result.append(text_, cursorByteOffset_, std::string::npos);
+    result.append(text_, replacesSelection ? selectionEnd() : insertion,
+        std::string::npos);
     return result;
 }
 
@@ -429,30 +532,118 @@ float TextField::contentY(float textHeight) const noexcept {
             0.5F;
 }
 
+std::size_t TextField::byteOffsetAt(float x) const {
+    const float position = x - bounds().x - style_.contentPadding.left +
+        horizontalOffset_;
+    if (position <= 0.0F) {
+        return 0;
+    }
+    std::size_t previous = 0;
+    float previousWidth = 0.0F;
+    while (previous < text_.size()) {
+        const std::size_t next = nextCodePoint(text_, previous);
+        const float nextWidth = prefixWidth(next);
+        if (position < (previousWidth + nextWidth) * 0.5F) {
+            return previous;
+        }
+        previous = next;
+        previousWidth = nextWidth;
+    }
+    return text_.size();
+}
+
+std::size_t TextField::selectionStart() const noexcept {
+    return std::min(selectionAnchorByteOffset_, cursorByteOffset_);
+}
+
+std::size_t TextField::selectionEnd() const noexcept {
+    return std::max(selectionAnchorByteOffset_, cursorByteOffset_);
+}
+
+bool TextField::hasSelection() const noexcept {
+    return selectionAnchorByteOffset_ != cursorByteOffset_;
+}
+
+float TextField::caretPosition() const {
+    const std::size_t start = std::min(
+        compositionSelectionStart_, composition_.size());
+    std::size_t compositionCaretOffset = start + std::min(
+        compositionSelectionLength_, composition_.size() - start);
+    if (compositionCaretOffset == 0 && !composition_.empty()) {
+        compositionCaretOffset = composition_.size();
+    }
+    return prefixWidth(!composition_.empty() && hasSelection()
+            ? selectionStart() : cursorByteOffset_) +
+        (composition_.empty() ? 0.0F : measureTextWidth(
+            std::string_view(composition_).substr(0, compositionCaretOffset)));
+}
+
+void TextField::updateHorizontalOffset() const {
+    if (!focused_) {
+        horizontalOffset_ = 0.0F;
+        return;
+    }
+    caretOffset_ = caretPosition();
+    const float available = std::max(
+        0.0F, bounds().width - style_.contentPadding.horizontal());
+    if (available <= 0.0F) {
+        horizontalOffset_ = 0.0F;
+    } else if (caretOffset_ < horizontalOffset_) {
+        horizontalOffset_ = caretOffset_;
+    } else if (caretOffset_ + style_.caretWidth >
+               horizontalOffset_ + available) {
+        horizontalOffset_ = caretOffset_ + style_.caretWidth - available;
+    }
+}
+
 void TextField::insertCommitted(std::string text) {
+    eraseSelection();
     text_.insert(cursorByteOffset_, text);
     cursorByteOffset_ += text.size();
+    selectionAnchorByteOffset_ = cursorByteOffset_;
     invalidateLayouts();
     notifyChanged();
 }
 
+bool TextField::eraseSelection() {
+    if (!hasSelection()) {
+        return false;
+    }
+    const std::size_t start = selectionStart();
+    text_.erase(start, selectionEnd() - start);
+    cursorByteOffset_ = start;
+    selectionAnchorByteOffset_ = start;
+    invalidateLayouts();
+    return true;
+}
+
 void TextField::erasePrevious() {
+    if (eraseSelection()) {
+        notifyChanged();
+        return;
+    }
     if (cursorByteOffset_ == 0) {
         return;
     }
     const std::size_t previous = previousCodePoint(text_, cursorByteOffset_);
     text_.erase(previous, cursorByteOffset_ - previous);
     cursorByteOffset_ = previous;
+    selectionAnchorByteOffset_ = cursorByteOffset_;
     invalidateLayouts();
     notifyChanged();
 }
 
 void TextField::eraseNext() {
+    if (eraseSelection()) {
+        notifyChanged();
+        return;
+    }
     if (cursorByteOffset_ >= text_.size()) {
         return;
     }
     const std::size_t next = nextCodePoint(text_, cursorByteOffset_);
     text_.erase(cursorByteOffset_, next - cursorByteOffset_);
+    selectionAnchorByteOffset_ = cursorByteOffset_;
     invalidateLayouts();
     notifyChanged();
 }

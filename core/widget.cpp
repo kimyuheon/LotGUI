@@ -110,7 +110,7 @@ bool Widget::requestsTextInput() const noexcept {
     return acceptsTextInput();
 }
 
-Rect Widget::requestedTextInputRect() const noexcept {
+Rect Widget::requestedTextInputRect() const {
     return textInputRect();
 }
 
@@ -176,7 +176,7 @@ bool Widget::acceptsTextInput() const noexcept {
     return false;
 }
 
-Rect Widget::textInputRect() const noexcept {
+Rect Widget::textInputRect() const {
     return bounds_;
 }
 

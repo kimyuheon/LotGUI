@@ -13,7 +13,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | 3dEngine surface | Required LotUI capabilities | Status |
 |---|---|---|
 | `lot_ui_manager` | application overlay, dock host, document tabs, viewport reservation | Planned |
-| `lot_main_menu` | menu bar, nested menus, checked/disabled items, shortcuts, separators | Planned |
+| `lot_main_menu` | menu bar, nested menus, checked/disabled items, shortcuts, separators | LotUI menu foundation complete; engine adapter planned |
 | `lot_toolbar` | tool window, internal tabs, toggle/action buttons, tooltips | Ribbon tabs/groups foundation complete |
 | `lot_status_bar` | fixed bar, command `TextField`, history, transcript popup, state toggles | Text input foundation complete |
 | `lot_properties_panel` | property grid, numeric/vector editors, combo boxes, checkboxes, color editor | Partial |
@@ -35,18 +35,18 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `Text`, `TextWrapped`, `TextColored`, `TextDisabled`, `BulletText` | `Label`, wrapping and semantic text styles | Basic label complete; wrapping planned |
 | `Button`, `SmallButton` | `Button` and size/style variants | Complete foundation |
 | `Checkbox` | `Checkbox` | Complete foundation |
-| `InputText` | `TextField` with committed text and IME composition | Single-line foundation complete; selection/clipboard planned |
+| `InputText` | `TextField` with committed text and IME composition | Single-line selection and clipboard foundation complete; undo/redo planned |
 | `InputInt`, `InputFloat`, `InputFloat3`, `DragFloat`, `DragFloat3` | numeric scalar/vector editor with typing and pointer drag | Scalar stepping partial |
-| `SliderFloat`, `SliderInt` | `Slider<T>` | Planned |
+| `SliderFloat`, `SliderInt` | `Slider` with pointer drag and keyboard steps | Foundation complete; engine smoke in progress |
 | `RadioButton` | `RadioButton` and `RadioGroup` | Planned |
 | `Combo`, `BeginCombo`, `Selectable` | `ComboBox`, `ListView`, selection model | Planned |
 | `ColorEdit3` | RGB/RGBA field and `ColorPicker` popup | Planned |
-| `BeginTabBar`, `BeginTabItem`, `TabItemButton` | `TabView` and closeable `DocumentTabView` | Next after text input |
+| `BeginTabBar`, `BeginTabItem`, `TabItemButton` | `TabView` and closeable `DocumentTabView` | Controlled document tab strip foundation complete; content tabs planned |
 | Office-style application commands | `Ribbon`, `RibbonTab`, reusable `RibbonGroup` content | Foundation complete |
 | `CollapsingHeader`, `Indent` | `DisclosurePanel` and `TreeView` | Planned |
 | `BeginChild` | clipped `ScrollView` | Planned |
-| `BeginPopup`, `OpenPopup` | anchored `Popup` managed by an overlay host | Planned |
-| `BeginMenu`, `MenuItem` | menu model, menu bar, nested menu popup | Planned |
+| `BeginPopup`, `OpenPopup` | anchored `Popup` managed by an overlay host | `PopupHost` foundation complete |
+| `BeginMenu`, `MenuItem` | menu model, menu bar, nested menu popup | `MenuBar` foundation complete; shortcut dispatch and context menus planned |
 | `SetTooltip` | delayed overlay `Tooltip` | Planned |
 | `BeginDisabled` | common enabled state and inherited input suppression | Per-widget partial |
 | modal dialog windows | `DialogHost`, scrim, focus trap and restoration | Foundation complete |

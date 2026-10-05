@@ -4,9 +4,13 @@
 #include <windowsx.h>
 #include <imm.h>
 
+#include <algorithm>
+#include <cstring>
 #include <deque>
 #include <cmath>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -16,6 +20,24 @@ namespace lotui {
 namespace {
 
 constexpr wchar_t kWindowClassName[] = L"LotUI.PlatformWindow";
+
+class ClipboardSession {
+public:
+    explicit ClipboardSession(HWND owner)
+        : opened_(OpenClipboard(owner) != FALSE) {
+    }
+
+    ~ClipboardSession() {
+        if (opened_) {
+            CloseClipboard();
+        }
+    }
+
+    explicit operator bool() const noexcept { return opened_; }
+
+private:
+    bool opened_{false};
+};
 
 KeyCode keyCode(WPARAM key) noexcept {
     switch (key) {
@@ -36,6 +58,7 @@ KeyCode keyCode(WPARAM key) noexcept {
     case 'A': return KeyCode::A;
     case 'C': return KeyCode::C;
     case 'V': return KeyCode::V;
+    case 'X': return KeyCode::X;
     default: return KeyCode::Unknown;
     }
 }
@@ -59,7 +82,7 @@ std::wstring utf8ToWide(const std::string& value) {
         CP_UTF8, MB_ERR_INVALID_CHARS, value.data(),
         static_cast<int>(value.size()), nullptr, 0);
     if (length <= 0) {
-        throw std::runtime_error("window title is not valid UTF-8");
+        throw std::runtime_error("text is not valid UTF-8");
     }
 
     std::wstring result(static_cast<std::size_t>(length), L'\0');
@@ -127,6 +150,8 @@ public:
     bool pollEvent(PlatformEvent& event) override;
     bool setPointerCapture(bool enabled) override;
     void setTextInputState(const TextInputState& state) override;
+    bool writeClipboardText(std::string_view text) override;
+    std::optional<std::string> readClipboardText() override;
     WindowMetrics metrics() const override;
     NativeWindowHandle nativeHandle() const override;
 
@@ -292,6 +317,59 @@ void WindowsWindow::setTextInputState(const TextInputState& state) {
     candidate.ptCurrentPos = position;
     ImmSetCandidateWindow(context, &candidate);
     ImmReleaseContext(window_, context);
+}
+
+bool WindowsWindow::writeClipboardText(std::string_view text) {
+    if (text.size() > static_cast<std::size_t>(
+            std::numeric_limits<int>::max())) {
+        return false;
+    }
+    const std::wstring wide = utf8ToWide(std::string(text));
+    const SIZE_T byteCount = (wide.size() + 1) * sizeof(wchar_t);
+    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, byteCount);
+    if (memory == nullptr) {
+        return false;
+    }
+    void* data = GlobalLock(memory);
+    if (data == nullptr) {
+        GlobalFree(memory);
+        return false;
+    }
+    std::memcpy(data, wide.c_str(), byteCount);
+    GlobalUnlock(memory);
+
+    ClipboardSession clipboard(window_);
+    if (!clipboard || EmptyClipboard() == FALSE) {
+        GlobalFree(memory);
+        return false;
+    }
+    if (SetClipboardData(CF_UNICODETEXT, memory) == nullptr) {
+        GlobalFree(memory);
+        return false;
+    }
+    return true;
+}
+
+std::optional<std::string> WindowsWindow::readClipboardText() {
+    ClipboardSession clipboard(window_);
+    if (!clipboard) {
+        return std::nullopt;
+    }
+    std::optional<std::string> result;
+    HGLOBAL memory = GetClipboardData(CF_UNICODETEXT);
+    if (memory != nullptr) {
+        const auto* data = static_cast<const wchar_t*>(GlobalLock(memory));
+        if (data != nullptr) {
+            const std::size_t capacity = GlobalSize(memory) / sizeof(wchar_t);
+            const auto* end = std::find(data, data + capacity, L'\0');
+            if (end != data + capacity) {
+                result = wideToUtf8(std::wstring_view(
+                    data, static_cast<std::size_t>(end - data)));
+            }
+            GlobalUnlock(memory);
+        }
+    }
+    return result;
 }
 
 WindowMetrics WindowsWindow::metrics() const {

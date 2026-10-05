@@ -5,7 +5,9 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 
 namespace lotui {
 
@@ -50,6 +52,8 @@ public:
     virtual bool pollEvent(PlatformEvent& event) = 0;
     virtual bool setPointerCapture(bool enabled) = 0;
     virtual void setTextInputState(const TextInputState& state) = 0;
+    virtual bool writeClipboardText(std::string_view text) = 0;
+    virtual std::optional<std::string> readClipboardText() = 0;
     virtual WindowMetrics metrics() const = 0;
     virtual NativeWindowHandle nativeHandle() const = 0;
 

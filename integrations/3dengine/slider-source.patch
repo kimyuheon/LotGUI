@@ -1,0 +1,10 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -537,5 +537,6 @@ if(NOT IOS)
+             "${LOTGUI_DIR}/widgets/dialog.cpp"
+             "${LOTGUI_DIR}/widgets/linear_layout.cpp"
+             "${LOTGUI_DIR}/widgets/single_child_widget.cpp"
++            "${LOTGUI_DIR}/widgets/slider.cpp"
+             "${_lotgui_vertex_header}"
+             "${_lotgui_fragment_header}")

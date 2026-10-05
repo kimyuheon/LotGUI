@@ -5,6 +5,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace lotui {
@@ -21,12 +22,16 @@ struct TextFieldStyle {
     float cornerRadius{7.0F};
     float focusRingWidth{2.0F};
     float caretWidth{1.5F};
+    Color selection{0.23F, 0.43F, 0.68F, 0.85F};
 };
 
 class TextField final : public Widget {
 public:
     using ChangedHandler = std::function<void(const std::string&)>;
     using SubmittedHandler = std::function<void(const std::string&)>;
+    using ClipboardWriteHandler = std::function<bool(std::string)>;
+    using ClipboardReadHandler =
+        std::function<std::optional<std::string>()>;
 
     TextField(
         std::shared_ptr<const TextEngine> textEngine,
@@ -43,6 +48,7 @@ public:
     const std::string& text() const noexcept;
     const std::string& composition() const noexcept;
     std::size_t cursorByteOffset() const noexcept;
+    std::string selectedText() const;
 
     void setEnabled(bool enabled) noexcept;
     bool isEnabled() const noexcept;
@@ -51,6 +57,9 @@ public:
     Size preferredSize() const noexcept;
     void setOnChanged(ChangedHandler onChanged);
     void setOnSubmitted(SubmittedHandler onSubmitted);
+    void setClipboardHandlers(
+        ClipboardWriteHandler write,
+        ClipboardReadHandler read);
     void setStyle(TextFieldStyle style) noexcept;
     const TextFieldStyle& style() const noexcept;
 
@@ -62,7 +71,7 @@ protected:
     bool onFocusChanged(bool focused) override;
     bool onKeyEvent(const WidgetKeyEvent& event) override;
     bool acceptsTextInput() const noexcept override;
-    Rect textInputRect() const noexcept override;
+    Rect textInputRect() const override;
     bool onTextInputEvent(const TextInputEvent& event) override;
 
 private:
@@ -70,7 +79,14 @@ private:
     float prefixWidth(std::size_t committedByteOffset) const;
     float compositionWidth() const;
     float contentY(float textHeight) const noexcept;
+    std::size_t byteOffsetAt(float x) const;
+    std::size_t selectionStart() const noexcept;
+    std::size_t selectionEnd() const noexcept;
+    bool hasSelection() const noexcept;
+    void updateHorizontalOffset() const;
+    float caretPosition() const;
     void insertCommitted(std::string text);
+    bool eraseSelection();
     void erasePrevious();
     void eraseNext();
     void moveCursorLeft() noexcept;
@@ -85,19 +101,24 @@ private:
     std::string text_;
     std::string composition_;
     std::size_t cursorByteOffset_{0};
+    std::size_t selectionAnchorByteOffset_{0};
     std::size_t compositionSelectionStart_{0};
     std::size_t compositionSelectionLength_{0};
     Size preferredSize_{220.0F, 40.0F};
     ChangedHandler onChanged_{};
     SubmittedHandler onSubmitted_{};
+    ClipboardWriteHandler clipboardWrite_{};
+    ClipboardReadHandler clipboardRead_{};
     TextFieldStyle style_{};
     TextStyle textStyle_{};
     bool enabled_{true};
     bool focused_{false};
     bool hovered_{false};
+    bool draggingSelection_{false};
     mutable std::unique_ptr<TextLayout> displayLayout_;
     mutable float displayLayoutWidth_{-1.0F};
     mutable float caretOffset_{0.0F};
+    mutable float horizontalOffset_{0.0F};
 };
 
 } // namespace lotui

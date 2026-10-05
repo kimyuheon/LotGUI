@@ -15,6 +15,10 @@ native operating-system headers.
 4. The renderer batches those commands by clip and texture. Vulkan resolves
    the texture ID to a descriptor and samples the glyph atlas.
 
+Glyph quads request framebuffer-pixel alignment in their paint commands. The
+atlas already contains FreeType coverage, so unrounded textured quads do not
+receive a second rectangle-edge antialiasing pass.
+
 This contract lets tests use a deterministic fake engine and lets a future
 Metal or Direct3D renderer consume the same widget-generated commands.
 
@@ -71,4 +75,5 @@ commits it.
 6. ~~Add Korean/Latin mixed-script shaping and atlas integration tests.~~
 7. Add line breaking, wrapping, multiple atlas pages, clipping, and DPI tests.
 8. ~~Connect native IME composition events to `TextField`.~~
-9. Add text selection, clipboard editing, horizontal scrolling, and undo/redo.
+9. ~~Add text selection, horizontal caret scrolling, and native clipboard
+   editing.~~ Add undo/redo and incremental X11 clipboard transfers.

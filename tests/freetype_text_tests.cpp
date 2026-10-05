@@ -109,6 +109,8 @@ void testKoreanTextLayout(const std::filesystem::path& fontFile) {
     for (const auto& command : commands) {
         require(command.texture != lotui::invalidTextureId,
             "glyph command has no texture");
+        require(command.snapToPixel,
+            "glyph quads must align to framebuffer pixels");
         require(command.textureCoordinates.x >= 0.0F &&
                 command.textureCoordinates.y >= 0.0F &&
                 command.textureCoordinates.x +

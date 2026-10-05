@@ -1,0 +1,7 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Vulkan)
+
+include("${CMAKE_CURRENT_LIST_DIR}/LotUITargets.cmake")
+check_required_components(LotUI)

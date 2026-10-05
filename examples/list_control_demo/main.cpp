@@ -83,7 +83,8 @@ std::string listCellSortKey(const lotui::ListCell& cell) {
 }
 
 std::unique_ptr<lotui::WidgetTree> createUi(
-    const std::shared_ptr<const lotui::TextEngine>& textEngine) {
+    const std::shared_ptr<const lotui::TextEngine>& textEngine,
+    lotui::PlatformWindow& window) {
     auto root = std::make_unique<lotui::Column>();
     root->setDecoration(lotui::BoxDecoration{
         {0.08F, 0.10F, 0.14F, 1.0F}, 8.0F});
@@ -299,6 +300,11 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         listStyle,
         listTextStyle);
     *listPointer = list.get();
+    list->setClipboardHandlers(
+        [&window](std::string text) {
+            window.writeClipboardText(text);
+        },
+        [&window]() { return window.readClipboardText(); });
     list->setFrozenColumnCount(1);
     list->setOnSortChanged(
         [listPointer](
@@ -388,7 +394,7 @@ int main() {
             renderer,
             std::vector<lotui::FontSource>{
                 {"Noto Sans KR", fontFile}});
-        auto tree = createUi(textEngine);
+        auto tree = createUi(textEngine, *window);
         updateLayout(*tree, window->metrics());
 
         std::vector<lotui::PaintCommand> commands;

@@ -1,22 +1,29 @@
 #include "platform/platform_backend.h"
 
 #include <X11/Xlib.h>
+#include <X11/Xatom.h>
 #include <X11/keysym.h>
 #include <X11/Xutil.h>
 
 #include <algorithm>
+#include <chrono>
 #include <clocale>
 #include <cmath>
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
 namespace lotui {
 namespace {
+
+constexpr std::size_t kMaximumClipboardBytes = 64 * 1024;
 
 float displayDpiScale(Display* display, int screen) {
     const int widthPixels = DisplayWidth(display, screen);
@@ -80,6 +87,8 @@ KeyCode keyCode(KeySym key) noexcept {
     case XK_C: return KeyCode::C;
     case XK_v:
     case XK_V: return KeyCode::V;
+    case XK_x:
+    case XK_X: return KeyCode::X;
     default: return KeyCode::Unknown;
     }
 }
@@ -122,6 +131,8 @@ public:
     bool pollEvent(PlatformEvent& event) override;
     bool setPointerCapture(bool enabled) override;
     void setTextInputState(const TextInputState& state) override;
+    bool writeClipboardText(std::string_view text) override;
+    std::optional<std::string> readClipboardText() override;
     WindowMetrics metrics() const override;
     NativeWindowHandle nativeHandle() const override;
 
@@ -132,6 +143,11 @@ private:
     int screen_{0};
     ::Window window_{0};
     Atom deleteMessage_{0};
+    Atom clipboardAtom_{None};
+    Atom utf8Atom_{None};
+    Atom targetsAtom_{None};
+    Atom clipboardPropertyAtom_{None};
+    std::string clipboardText_;
     WindowMetrics metrics_{};
     std::deque<PlatformEvent> events_;
     bool pointerCaptured_{false};
@@ -181,6 +197,11 @@ X11Window::X11Window(const WindowOptions& options) {
 
     deleteMessage_ = XInternAtom(display_, "WM_DELETE_WINDOW", False);
     XSetWMProtocols(display_, window_, &deleteMessage_, 1);
+    clipboardAtom_ = XInternAtom(display_, "CLIPBOARD", False);
+    utf8Atom_ = XInternAtom(display_, "UTF8_STRING", False);
+    targetsAtom_ = XInternAtom(display_, "TARGETS", False);
+    clipboardPropertyAtom_ = XInternAtom(
+        display_, "LOTUI_CLIPBOARD_REPLY", False);
 
     inputMethod_ = XOpenIM(display_, nullptr, nullptr, nullptr);
     if (inputMethod_ != nullptr) {
@@ -276,7 +297,9 @@ bool X11Window::pollEvent(PlatformEvent& event) {
     while (events_.empty() && XPending(display_) > 0) {
         XEvent nativeEvent{};
         XNextEvent(display_, &nativeEvent);
-        if (XFilterEvent(&nativeEvent, window_) != False) {
+        if (nativeEvent.type != SelectionRequest &&
+            nativeEvent.type != SelectionClear &&
+            XFilterEvent(&nativeEvent, window_) != False) {
             continue;
         }
         processEvent(nativeEvent);
@@ -350,6 +373,84 @@ void X11Window::setTextInputState(const TextInputState& state) {
     }
 }
 
+bool X11Window::writeClipboardText(std::string_view text) {
+    if (text.size() > kMaximumClipboardBytes) {
+        return false;
+    }
+    XSetSelectionOwner(display_, clipboardAtom_, window_, CurrentTime);
+    XFlush(display_);
+    if (XGetSelectionOwner(display_, clipboardAtom_) != window_) {
+        return false;
+    }
+    clipboardText_.assign(text);
+    return true;
+}
+
+std::optional<std::string> X11Window::readClipboardText() {
+    const ::Window owner = XGetSelectionOwner(display_, clipboardAtom_);
+    if (owner == None) {
+        return std::nullopt;
+    }
+    if (owner == window_) {
+        return clipboardText_;
+    }
+
+    XDeleteProperty(display_, window_, clipboardPropertyAtom_);
+    XConvertSelection(
+        display_, clipboardAtom_, utf8Atom_, clipboardPropertyAtom_,
+        window_, CurrentTime);
+    XFlush(display_);
+
+    const auto deadline = std::chrono::steady_clock::now() +
+        std::chrono::milliseconds(500);
+    while (std::chrono::steady_clock::now() < deadline) {
+        while (XPending(display_) > 0) {
+            XEvent nativeEvent{};
+            XNextEvent(display_, &nativeEvent);
+            if (nativeEvent.type == SelectionNotify &&
+                nativeEvent.xselection.requestor == window_ &&
+                nativeEvent.xselection.selection == clipboardAtom_) {
+                if (nativeEvent.xselection.property == None) {
+                    return std::nullopt;
+                }
+                Atom actualType = None;
+                int actualFormat = 0;
+                unsigned long itemCount = 0;
+                unsigned long bytesAfter = 0;
+                unsigned char* data = nullptr;
+                const int status = XGetWindowProperty(
+                    display_, window_, clipboardPropertyAtom_, 0,
+                    static_cast<long>(kMaximumClipboardBytes / 4), False,
+                    utf8Atom_, &actualType, &actualFormat, &itemCount,
+                    &bytesAfter, &data);
+                std::optional<std::string> result;
+                if (status == Success && actualType == utf8Atom_ &&
+                    actualFormat == 8 && bytesAfter == 0) {
+                    result = std::string{};
+                    if (itemCount > 0 && data != nullptr) {
+                        result->assign(
+                            reinterpret_cast<const char*>(data), itemCount);
+                    }
+                }
+                if (data != nullptr) {
+                    XFree(data);
+                }
+                XDeleteProperty(display_, window_, clipboardPropertyAtom_);
+                return result;
+            }
+            if (nativeEvent.type != SelectionRequest &&
+                nativeEvent.type != SelectionClear &&
+                XFilterEvent(&nativeEvent, window_) != False) {
+                continue;
+            }
+            processEvent(nativeEvent);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    XDeleteProperty(display_, window_, clipboardPropertyAtom_);
+    return std::nullopt;
+}
+
 WindowMetrics X11Window::metrics() const {
     return metrics_;
 }
@@ -364,6 +465,48 @@ NativeWindowHandle X11Window::nativeHandle() const {
 
 void X11Window::processEvent(const XEvent& nativeEvent) {
     switch (nativeEvent.type) {
+    case SelectionRequest: {
+        const XSelectionRequestEvent& request = nativeEvent.xselectionrequest;
+        XEvent reply{};
+        reply.xselection.type = SelectionNotify;
+        reply.xselection.display = display_;
+        reply.xselection.requestor = request.requestor;
+        reply.xselection.selection = request.selection;
+        reply.xselection.target = request.target;
+        reply.xselection.time = request.time;
+        reply.xselection.property = None;
+        const Atom property = request.property != None
+            ? request.property : request.target;
+        if (request.selection == clipboardAtom_ &&
+            XGetSelectionOwner(display_, clipboardAtom_) == window_) {
+            if (request.target == targetsAtom_) {
+                const Atom targets[]{targetsAtom_, utf8Atom_};
+                XChangeProperty(
+                    display_, request.requestor, property, XA_ATOM, 32,
+                    PropModeReplace,
+                    reinterpret_cast<const unsigned char*>(targets), 2);
+                reply.xselection.property = property;
+            } else if (request.target == utf8Atom_) {
+                XChangeProperty(
+                    display_, request.requestor, property, utf8Atom_, 8,
+                    PropModeReplace,
+                    reinterpret_cast<const unsigned char*>(
+                        clipboardText_.data()),
+                    static_cast<int>(clipboardText_.size()));
+                reply.xselection.property = property;
+            }
+        }
+        XSendEvent(display_, request.requestor, False, NoEventMask, &reply);
+        XFlush(display_);
+        break;
+    }
+
+    case SelectionClear:
+        if (nativeEvent.xselectionclear.selection == clipboardAtom_) {
+            clipboardText_.clear();
+        }
+        break;
+
     case ClientMessage:
         if (static_cast<Atom>(nativeEvent.xclient.data.l[0]) == deleteMessage_) {
             events_.push_back({PlatformEventType::CloseRequested});
@@ -466,6 +609,7 @@ void X11Window::processEvent(const XEvent& nativeEvent) {
         event.repeat = false;
         events_.push_back(event);
         if (textInputState_.enabled && !text.empty() &&
+            !event.modifiers.control && !event.modifiers.meta &&
             (status == XLookupChars || status == XLookupBoth)) {
             PlatformEvent textEvent{PlatformEventType::TextInput};
             textEvent.text = std::move(text);

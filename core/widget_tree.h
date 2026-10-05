@@ -76,7 +76,7 @@ public:
         KeyModifiers modifiers = {});
     WidgetKeyUpdate cancelKeyboard();
     WidgetTextInputUpdate textInput(const TextInputEvent& event);
-    TextInputState textInputState() const noexcept;
+    TextInputState textInputState() const;
     WidgetKeyUpdate moveFocus(bool reverse = false);
     WidgetKeyUpdate clearFocus();
     Widget* focusedWidget() noexcept;

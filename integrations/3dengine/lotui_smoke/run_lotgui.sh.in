@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+set -eu
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+sdk="@VULKAN_SDK_PATH@"
+
+if [ -d "$sdk/lib" ]; then
+    export LD_LIBRARY_PATH="$script_dir:$sdk/lib:${LD_LIBRARY_PATH:-}"
+    export DYLD_LIBRARY_PATH="$script_dir:$sdk/lib:${DYLD_LIBRARY_PATH:-}"
+fi
+if [ -f "$sdk/share/vulkan/icd.d/MoltenVK_icd.json" ]; then
+    export VK_ICD_FILENAMES="$sdk/share/vulkan/icd.d/MoltenVK_icd.json"
+fi
+cd "$script_dir"
+exec "$script_dir/VulkanAppLotGUI" "$@"

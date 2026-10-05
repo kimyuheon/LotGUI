@@ -8,6 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(LOTUI_BUILD_EXAMPLES "Build LotUI examples" ON)
 option(LOTUI_BUILD_VULKAN_RENDERER "Build the Vulkan renderer" ON)
+option(LOTUI_STAGE_3DENGINE_SDK
+    "Install the embedded LotUI SDK into the sibling 3dEngine checkout on build" OFF)
 option(LOTUI_BUILD_FREETYPE_TEXT "Build the FreeType/HarfBuzz text engine" ON)
 option(LOTUI_BUILD_DECLARATIVE_UI "Build the LotML declarative UI module" ON)
 option(LOTUI_FETCH_TEXT_DEPENDENCIES
@@ -177,16 +179,19 @@ add_library(lotui_widgets STATIC
     widgets/button.cpp
     widgets/checkbox.cpp
     widgets/combo_box.cpp
+    widgets/document_tab_view.cpp
     widgets/dialog.cpp
     widgets/inline_text_editor.cpp
     widgets/label.cpp
     widgets/list_control.cpp
     widgets/linear_layout.cpp
     widgets/lookup_box.cpp
+    widgets/menu_bar.cpp
     widgets/numeric_input.cpp
     widgets/popup.cpp
     widgets/ribbon.cpp
     widgets/single_child_widget.cpp
+    widgets/slider.cpp
     widgets/text_field.cpp
 )
 add_library(LotUI::Widgets ALIAS lotui_widgets)
@@ -371,6 +376,10 @@ if(LOTUI_BUILD_VULKAN_RENDERER)
             "Vulkan SDK not found. Set LOTUI_VULKAN_SDK_ROOT to a valid SDK root.")
     endif()
 
+    set(Vulkan_INCLUDE_DIR "${LOTUI_VULKAN_INCLUDE_DIR}")
+    set(Vulkan_LIBRARY "${LOTUI_VULKAN_LIBRARY}")
+    find_package(Vulkan REQUIRED)
+
     find_program(LOTUI_GLSLANG_VALIDATOR
         NAMES glslangValidator glslangValidator.exe
         HINTS
@@ -442,6 +451,58 @@ if(LOTUI_BUILD_VULKAN_RENDERER)
     target_link_libraries(lotui_vulkan
         PUBLIC lotui_platform
         PRIVATE lotui_renderer "${LOTUI_VULKAN_LIBRARY}")
+
+    set(_lotui_solid_vertex_spv
+        "${_lotui_generated_directory}/rectangle_solid.vert.spv")
+    set(_lotui_solid_fragment_spv
+        "${_lotui_generated_directory}/rectangle_solid.frag.spv")
+    set(_lotui_solid_vertex_header
+        "${_lotui_generated_directory}/rectangle_solid_vertex_spirv.h")
+    set(_lotui_solid_fragment_header
+        "${_lotui_generated_directory}/rectangle_solid_fragment_spirv.h")
+    add_custom_command(
+        OUTPUT "${_lotui_solid_vertex_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_lotui_generated_directory}"
+        COMMAND "${LOTUI_GLSLANG_VALIDATOR}" -V
+            "${CMAKE_CURRENT_SOURCE_DIR}/renderer/vulkan/shaders/rectangle_solid.vert"
+            -o "${_lotui_solid_vertex_spv}"
+        COMMAND "${CMAKE_COMMAND}"
+            -DINPUT=${_lotui_solid_vertex_spv}
+            -DOUTPUT=${_lotui_solid_vertex_header}
+            -DVARIABLE=rectangleSolidVertexSpirv
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedSpirv.cmake"
+        DEPENDS renderer/vulkan/shaders/rectangle_solid.vert cmake/EmbedSpirv.cmake
+        VERBATIM)
+    add_custom_command(
+        OUTPUT "${_lotui_solid_fragment_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_lotui_generated_directory}"
+        COMMAND "${LOTUI_GLSLANG_VALIDATOR}" -V
+            "${CMAKE_CURRENT_SOURCE_DIR}/renderer/vulkan/shaders/rectangle_solid.frag"
+            -o "${_lotui_solid_fragment_spv}"
+        COMMAND "${CMAKE_COMMAND}"
+            -DINPUT=${_lotui_solid_fragment_spv}
+            -DOUTPUT=${_lotui_solid_fragment_header}
+            -DVARIABLE=rectangleSolidFragmentSpirv
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedSpirv.cmake"
+        DEPENDS renderer/vulkan/shaders/rectangle_solid.frag cmake/EmbedSpirv.cmake
+        VERBATIM)
+    add_library(lotui_vulkan_embedded STATIC
+        renderer/vulkan/vulkan_embedded_renderer.cpp
+        "${_lotui_solid_vertex_header}"
+        "${_lotui_solid_fragment_header}")
+    add_library(LotUI::VulkanEmbedded ALIAS lotui_vulkan_embedded)
+    target_include_directories(lotui_vulkan_embedded
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+            $<INSTALL_INTERFACE:include>
+        PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+    target_link_libraries(lotui_vulkan_embedded
+        PUBLIC lotui_renderer Vulkan::Vulkan)
+    if(MSVC)
+        target_compile_options(lotui_vulkan_embedded PRIVATE /W4 /permissive- /utf-8)
+    else()
+        target_compile_options(lotui_vulkan_embedded PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
 
     if(WIN32)
         target_sources(lotui_vulkan PRIVATE
@@ -518,6 +579,10 @@ if(BUILD_TESTING)
     target_link_libraries(form_widget_tests PRIVATE lotui_widgets)
     add_test(NAME form_widget_tests COMMAND form_widget_tests)
 
+    add_executable(slider_tests tests/slider_tests.cpp)
+    target_link_libraries(slider_tests PRIVATE lotui_widgets)
+    add_test(NAME slider_tests COMMAND slider_tests)
+
     add_executable(text_field_tests
         tests/text_field_tests.cpp
     )
@@ -529,6 +594,18 @@ if(BUILD_TESTING)
     )
     target_link_libraries(ribbon_tests PRIVATE lotui_widgets)
     add_test(NAME ribbon_tests COMMAND ribbon_tests)
+
+    add_executable(document_tab_view_tests
+        tests/document_tab_view_tests.cpp
+    )
+    target_link_libraries(document_tab_view_tests PRIVATE lotui_widgets)
+    add_test(NAME document_tab_view_tests COMMAND document_tab_view_tests)
+
+    add_executable(menu_bar_tests
+        tests/menu_bar_tests.cpp
+    )
+    target_link_libraries(menu_bar_tests PRIVATE lotui_widgets)
+    add_test(NAME menu_bar_tests COMMAND menu_bar_tests)
 
     add_executable(list_control_tests
         tests/list_control_tests.cpp
@@ -599,8 +676,11 @@ if(BUILD_TESTING)
         target_compile_options(widget_tree_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(text_widget_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(form_widget_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_options(slider_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(text_field_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(ribbon_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_options(document_tab_view_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_options(menu_bar_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(list_control_tests PRIVATE
             /W4 /permissive- /utf-8)
         target_compile_options(combo_box_tests PRIVATE
@@ -628,8 +708,11 @@ if(BUILD_TESTING)
         target_compile_options(widget_tree_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(text_widget_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(form_widget_tests PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(slider_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(text_field_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(ribbon_tests PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(document_tab_view_tests PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(menu_bar_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(list_control_tests PRIVATE
             -Wall -Wextra -Wpedantic)
         target_compile_options(combo_box_tests PRIVATE
@@ -700,5 +783,84 @@ if(LOTUI_BUILD_EXAMPLES)
             target_compile_options(list_control_demo PRIVATE
                 -Wall -Wextra -Wpedantic)
         endif()
+    endif()
+endif()
+
+if(LOTUI_BUILD_VULKAN_RENDERER)
+    include(CMakePackageConfigHelpers)
+
+    set_target_properties(lotui_core PROPERTIES EXPORT_NAME Core)
+    set_target_properties(lotui_text PROPERTIES EXPORT_NAME Text)
+    set_target_properties(lotui_widgets PROPERTIES EXPORT_NAME Widgets)
+    set_target_properties(lotui_renderer PROPERTIES EXPORT_NAME Renderer)
+    set_target_properties(lotui_vulkan_embedded PROPERTIES
+        EXPORT_NAME VulkanEmbedded)
+
+    install(TARGETS
+        lotui_core lotui_text lotui_widgets lotui_renderer
+        lotui_vulkan_embedded
+        EXPORT LotUITargets
+        ARCHIVE DESTINATION "lib/$<CONFIG>"
+        COMPONENT SDK
+        INCLUDES DESTINATION include)
+    foreach(_lotui_header_dir core widgets)
+        install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${_lotui_header_dir}/"
+            DESTINATION "include/${_lotui_header_dir}"
+            COMPONENT SDK
+            FILES_MATCHING PATTERN "*.h")
+    endforeach()
+    install(FILES
+        text/text_layout.h
+        DESTINATION include/text COMPONENT SDK)
+    install(FILES
+        renderer/paint_batch.h
+        renderer/texture.h
+        DESTINATION include/renderer COMPONENT SDK)
+    install(FILES
+        renderer/vulkan/vulkan_embedded_renderer.h
+        DESTINATION include/renderer/vulkan COMPONENT SDK)
+    install(FILES LICENSE THIRD_PARTY_NOTICES.md
+        DESTINATION share/LotUI COMPONENT SDK)
+    install(DIRECTORY licenses/
+        DESTINATION share/LotUI/licenses COMPONENT SDK)
+
+    set(_lotui_package_dir "lib/cmake/LotUI")
+    configure_package_config_file(
+        cmake/LotUIConfig.cmake.in
+        "${CMAKE_CURRENT_BINARY_DIR}/LotUIConfig.cmake"
+        INSTALL_DESTINATION "${_lotui_package_dir}")
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/LotUIConfigVersion.cmake"
+        VERSION "${PROJECT_VERSION}"
+        COMPATIBILITY SameMajorVersion)
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/LotUIConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/LotUIConfigVersion.cmake"
+        DESTINATION "${_lotui_package_dir}" COMPONENT SDK)
+    install(EXPORT LotUITargets
+        FILE LotUITargets.cmake
+        NAMESPACE LotUI::
+        DESTINATION "${_lotui_package_dir}" COMPONENT SDK)
+
+    set(LOTUI_SDK_VARIANT
+        "${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}"
+        CACHE STRING "OS and architecture directory for the engine SDK")
+    set(LOTUI_3DENGINE_SDK_DIR
+        "${CMAKE_CURRENT_SOURCE_DIR}/../3dengine/external/LotUI/${LOTUI_SDK_VARIANT}"
+        CACHE PATH "Destination for the optional 3dEngine SDK staging target")
+    if(LOTUI_STAGE_3DENGINE_SDK)
+        if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../3dengine/CMakeLists.txt")
+            message(FATAL_ERROR
+                "3dEngine checkout not found; set LOTUI_STAGE_3DENGINE_SDK=OFF")
+        endif()
+        add_custom_target(lotui_stage_3dengine ALL
+            COMMAND "${CMAKE_COMMAND}" --install "${CMAKE_CURRENT_BINARY_DIR}"
+                --config $<CONFIG> --component SDK
+                --prefix "${LOTUI_3DENGINE_SDK_DIR}"
+            DEPENDS
+                lotui_core lotui_text lotui_widgets lotui_renderer
+                lotui_vulkan_embedded
+            COMMENT "Staging LotUI SDK in the 3dEngine checkout"
+            VERBATIM)
     endif()
 endif()

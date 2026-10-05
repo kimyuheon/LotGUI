@@ -74,6 +74,7 @@ PopupId PopupHost::showPopup(
     popup_ = std::move(popupWidget);
     popupId_ = id;
     anchor_ = normalized(popupAnchor);
+    options.contentPointerRegion = normalized(options.contentPointerRegion);
     options_ = options;
     onClosed_ = std::move(onClosed);
     arrangePopup();
@@ -135,6 +136,15 @@ void PopupHost::paintChildren(
 void PopupHost::collectChildHitTestEntries(
     std::vector<HitTestEntry>& entries) const {
     if (popup_) {
+        if (options_.allowContentPointerEvents) {
+            std::vector<HitTestEntry> contentEntries;
+            content_->collectHitTestEntries(contentEntries);
+            for (HitTestEntry& entry : contentEntries) {
+                entry.clip = intersect(entry.clip,
+                    options_.contentPointerRegion);
+                if (hasArea(entry.clip)) entries.push_back(entry);
+            }
+        }
         popup_->collectHitTestEntries(entries);
     } else {
         content_->collectHitTestEntries(entries);
