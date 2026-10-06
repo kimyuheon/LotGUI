@@ -125,7 +125,7 @@ struct Demo {
     static lotui::TextStyle labelStyle() {
         lotui::TextStyle style;
         style.fontFamilies = {"Noto Sans KR"};
-        style.fontSize = 12.0F;
+        style.fontSize = 14.0F;
         return style;
     }
 
@@ -186,9 +186,12 @@ struct Demo {
             style.cornerRadius = 0.0F;
             style.titleHeight = 14.0F;
             style.contentPadding = lotui::EdgeInsets::all(2.0F);
+            style.titleColor = {0.87F, 0.91F, 0.96F, 1.0F};
+            auto titleStyle = labelStyle();
+            titleStyle.fontSize = 12.0F;
             row.addChild(std::make_unique<lotui::RibbonGroup>(text,
                 std::move(title), std::move(controls), style,
-                labelStyle()));
+                std::move(titleStyle)));
         };
         auto addTab = [&](std::string id, std::string title,
             std::string group, std::unique_ptr<lotui::Widget> controls) {
