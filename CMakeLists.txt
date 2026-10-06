@@ -154,6 +154,11 @@ if(LOTUI_BUILD_FREETYPE_TEXT)
         set(_lotui_harfbuzz_target harfbuzz)
     endif()
 
+    add_library(lotui_text_dependencies INTERFACE)
+    add_library(LotUI::TextDependencies ALIAS lotui_text_dependencies)
+    target_link_libraries(lotui_text_dependencies INTERFACE
+        ${_lotui_freetype_target} ${_lotui_harfbuzz_target})
+
     add_library(lotui_text_freetype STATIC
         text/freetype/freetype_text_engine.cpp
     )
@@ -488,8 +493,8 @@ if(LOTUI_BUILD_VULKAN_RENDERER)
         VERBATIM)
     add_library(lotui_vulkan_embedded STATIC
         renderer/vulkan/vulkan_embedded_renderer.cpp
-        "${_lotui_solid_vertex_header}"
-        "${_lotui_solid_fragment_header}")
+        "${_lotui_rectangle_vertex_header}"
+        "${_lotui_rectangle_fragment_header}")
     add_library(LotUI::VulkanEmbedded ALIAS lotui_vulkan_embedded)
     target_include_directories(lotui_vulkan_embedded
         PUBLIC
@@ -642,6 +647,12 @@ if(BUILD_TESTING)
     )
     target_link_libraries(texture_tests PRIVATE lotui_renderer lotui_widgets)
     add_test(NAME texture_tests COMMAND texture_tests)
+
+    if(LOTUI_BUILD_VULKAN_RENDERER)
+        add_executable(embedded_texture_tests tests/embedded_texture_tests.cpp)
+        target_link_libraries(embedded_texture_tests PRIVATE lotui_vulkan_embedded)
+        add_test(NAME embedded_texture_tests COMMAND embedded_texture_tests)
+    endif()
 
     if(LOTUI_BUILD_DECLARATIVE_UI)
         add_executable(lotml_tests
