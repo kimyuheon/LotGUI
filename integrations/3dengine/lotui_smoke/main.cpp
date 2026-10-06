@@ -32,6 +32,8 @@
 
 namespace {
 
+constexpr float kRibbonHeight = 72.0F;
+
 template<typename Handle>
 Handle fromBits(std::uint64_t bits) noexcept {
     if constexpr (std::is_pointer_v<Handle>) {
@@ -135,13 +137,13 @@ struct Demo {
         style.hovered = {0.26F, 0.39F, 0.45F, 1.0F};
         style.pressed = {0.11F, 0.55F, 0.47F, 1.0F};
         style.cornerRadius = 3.0F;
-        style.contentPadding = lotui::EdgeInsets::all(3.0F);
+        style.contentPadding = lotui::EdgeInsets::all(2.0F);
         auto label = std::make_unique<lotui::Label>(
             text, std::move(title), labelStyle());
         label->setHorizontalAlignment(lotui::HorizontalTextAlignment::Center);
         label->setVerticalAlignment(lotui::VerticalTextAlignment::Center);
         return std::make_unique<lotui::Button>(
-            std::move(label), lotui::Size{width, 29.0F},
+            std::move(label), lotui::Size{width, 23.0F},
             std::move(action), style);
     }
 
@@ -169,10 +171,10 @@ struct Demo {
         root->setOptions(rootLayout);
 
         lotui::RibbonStyle ribbonStyle;
-        ribbonStyle.preferredHeight = 101.0F;
-        ribbonStyle.tabBarHeight = 29.0F;
-        ribbonStyle.contentPadding = lotui::EdgeInsets::all(4.0F);
-        ribbonStyle.tabHorizontalPadding = 10.0F;
+        ribbonStyle.preferredHeight = kRibbonHeight;
+        ribbonStyle.tabBarHeight = 25.0F;
+        ribbonStyle.contentPadding = lotui::EdgeInsets::all(2.0F);
+        ribbonStyle.tabHorizontalPadding = 8.0F;
         ribbonStyle.minimumTabWidth = 62.0F;
         ribbonStyle.tabCornerRadius = 3.0F;
         auto ribbonWidget = std::make_unique<lotui::Ribbon>(
@@ -182,8 +184,8 @@ struct Demo {
             std::unique_ptr<lotui::Widget> controls) {
             lotui::RibbonGroupStyle style;
             style.cornerRadius = 0.0F;
-            style.titleHeight = 19.0F;
-            style.contentPadding = lotui::EdgeInsets::all(4.0F);
+            style.titleHeight = 14.0F;
+            style.contentPadding = lotui::EdgeInsets::all(2.0F);
             row.addChild(std::make_unique<lotui::RibbonGroup>(text,
                 std::move(title), std::move(controls), style,
                 labelStyle()));
@@ -204,7 +206,7 @@ struct Demo {
 
         auto controls = std::make_unique<lotui::Row>();
         lotui::LinearLayoutOptions controlLayout;
-        controlLayout.spacing = 7.0F;
+        controlLayout.spacing = 5.0F;
         controlLayout.mainAxisSize = lotui::MainAxisSize::Min;
         controls->setOptions(controlLayout);
         auto open = textButton("대화상자", [this] { showModal(); }, 94.0F);
@@ -212,7 +214,7 @@ struct Demo {
         controls->addChild(std::move(open));
         lotui::SliderOptions sliderOptions;
         sliderOptions.value = 35.0;
-        sliderOptions.preferredSize = {124.0F, 22.0F};
+        sliderOptions.preferredSize = {124.0F, 18.0F};
         auto sliderWidget = std::make_unique<lotui::Slider>(sliderOptions);
         slider = sliderWidget.get();
         controls->addChild(std::move(sliderWidget));
@@ -296,8 +298,8 @@ struct Demo {
                 for (const auto& item : group.items) {
                     if (item.kind == 5) {
                         lotui::CheckboxStyle style;
-                        style.boxSize = 15.0F;
-                        style.spacing = 4.0F;
+                        style.boxSize = 14.0F;
+                        style.spacing = 3.0F;
                         auto checkbox = std::make_unique<lotui::Checkbox>(
                             std::make_unique<lotui::Label>(
                                 text, item.title, labelStyle()),
@@ -321,7 +323,7 @@ struct Demo {
                         sliderOptions.minimum = item.minimum;
                         sliderOptions.maximum = item.maximum;
                         sliderOptions.value = item.value;
-                        sliderOptions.preferredSize = {100.0F, 22.0F};
+                        sliderOptions.preferredSize = {100.0F, 18.0F};
                         auto sliderWidget = std::make_unique<lotui::Slider>(
                             sliderOptions,
                             [id = item.id, command = item.command](double value) {
@@ -469,7 +471,7 @@ int main(int argc, char** argv) {
             if (!CAD_CreateEngine()) {
                 throw std::runtime_error("CAD_CreateEngine failed");
             }
-            CAD_SetOverlayRibbonHeight(101.0F);
+            CAD_SetOverlayRibbonHeight(kRibbonHeight);
             int pluginClicks = 0;
             struct ControlProbe {
                 unsigned int id{0};
