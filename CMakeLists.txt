@@ -780,6 +780,33 @@ if(LOTUI_BUILD_EXAMPLES)
                 "${LOTUI_EXAMPLE_FONT_FILE}"
                 "$<TARGET_FILE_DIR:list_control_demo>/resources/fonts/NotoSansKR-Regular.ttf"
             VERBATIM)
+
+        add_executable(ribbon_demo
+            examples/ribbon_demo/main.cpp
+            examples/ribbon_demo/plugin_tab.cpp
+            examples/platform_probe/platform_event_bridge.cpp
+        )
+        target_link_libraries(ribbon_demo PRIVATE
+            lotui_vulkan lotui_widgets lotui_text_freetype)
+        lotui_copy_legal_notices(ribbon_demo)
+        add_custom_command(TARGET ribbon_demo POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "$<TARGET_FILE_DIR:ribbon_demo>/resources/fonts"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${LOTUI_EXAMPLE_FONT_FILE}"
+                "$<TARGET_FILE_DIR:ribbon_demo>/resources/fonts/NotoSansKR-Regular.ttf"
+            VERBATIM)
+        install(TARGETS ribbon_demo RUNTIME DESTINATION bin
+            COMPONENT Examples)
+        install(FILES "${LOTUI_EXAMPLE_FONT_FILE}"
+            DESTINATION bin/resources/fonts
+            RENAME NotoSansKR-Regular.ttf COMPONENT Examples)
+        install(FILES LICENSE THIRD_PARTY_NOTICES.md
+            DESTINATION bin/legal COMPONENT Examples)
+        install(FILES examples/ribbon_demo/README.md
+            DESTINATION . RENAME README.md COMPONENT Examples)
+        install(DIRECTORY licenses/
+            DESTINATION bin/legal/licenses COMPONENT Examples)
     endif()
 
     if(MSVC)
@@ -788,10 +815,18 @@ if(LOTUI_BUILD_EXAMPLES)
             target_compile_options(list_control_demo PRIVATE
                 /W4 /permissive- /utf-8)
         endif()
+        if(TARGET ribbon_demo)
+            target_compile_options(ribbon_demo PRIVATE
+                /W4 /permissive- /utf-8)
+        endif()
     else()
         target_compile_options(platform_probe PRIVATE -Wall -Wextra -Wpedantic)
         if(TARGET list_control_demo)
             target_compile_options(list_control_demo PRIVATE
+                -Wall -Wextra -Wpedantic)
+        endif()
+        if(TARGET ribbon_demo)
+            target_compile_options(ribbon_demo PRIVATE
                 -Wall -Wextra -Wpedantic)
         endif()
     endif()

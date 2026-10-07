@@ -87,6 +87,12 @@ and [`examples/ribbon.lotml`](examples/ribbon.lotml).
 steps, Home/End, range clamping, and user-change callbacks. It is also drawn
 by the `VulkanAppLotGUI` engine smoke sample.
 
+`ribbon_demo` is a separate, engine-free executable with the 72-pixel ribbon,
+dialog, and a plugin-style tab containing a button, checkbox, and slider. Its
+extension tab lives in a separate source file and uses only public LotUI APIs.
+See [`examples/ribbon_demo/README.md`](examples/ribbon_demo/README.md) for
+build and separate example-package instructions.
+
 `ListControl` provides a virtualized, spreadsheet-style table foundation with
 cell selection and keyboard navigation. Cells can expose check boxes, combo
 selectors, lookup buttons, or right-edge action buttons through one generic
