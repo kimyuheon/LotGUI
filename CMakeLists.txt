@@ -824,6 +824,8 @@ if(LOTUI_BUILD_EXAMPLES)
             DESTINATION bin/legal COMPONENT Examples)
         install(FILES examples/ribbon_demo/README.md
             DESTINATION . RENAME README.md COMPONENT Examples)
+        install(FILES docs/images/ribbon-demo-plugin.png
+            DESTINATION docs/images COMPONENT Examples)
         install(DIRECTORY licenses/
             DESTINATION bin/legal/licenses COMPONENT Examples)
     endif()

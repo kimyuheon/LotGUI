@@ -11,6 +11,8 @@ ordinary LotUI widgets in `plugin_tab.cpp`; the plugin does not link LotUI or
 own Vulkan objects. The plugin stays loaded until its widget tree is gone.
 This example ABI is intentionally local to the demo, not a stable public SDK.
 
+![Ribbon demo with its loaded plugin](../../docs/images/ribbon-demo-plugin.png)
+
 Build and run:
 
 ```sh
