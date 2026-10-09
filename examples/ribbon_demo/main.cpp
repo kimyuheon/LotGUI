@@ -1,4 +1,5 @@
 #include "examples/platform_probe/platform_event_bridge.h"
+#include "examples/ribbon_demo/plugin_loader.h"
 #include "examples/ribbon_demo/plugin_tab.h"
 
 #include "core/widget_tree.h"
@@ -18,7 +19,9 @@
 #include <exception>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -63,6 +66,7 @@ struct DemoState {
     lotui::DialogHost* dialogs{nullptr};
     lotui::Label* status{nullptr};
     lotui::Box* preview{nullptr};
+    std::vector<lotui::Widget*> pluginControls;
     bool snap{false};
     double size{35.0};
 
@@ -86,7 +90,9 @@ struct DemoState {
     }
 };
 
-std::unique_ptr<lotui::WidgetTree> createUi(DemoState& state) {
+std::unique_ptr<lotui::WidgetTree> createUi(
+    DemoState& state,
+    const LotuiDemoPluginV1& pluginDescriptor) {
     auto root = std::make_unique<lotui::Column>();
     root->setDecoration(lotui::BoxDecoration{
         {0.12F, 0.15F, 0.19F, 1.0F}, 0.0F});
@@ -129,21 +135,24 @@ std::unique_ptr<lotui::WidgetTree> createUi(DemoState& state) {
     ribbon->addTab(std::make_unique<lotui::RibbonTab>(
         "home", "홈", std::move(groups)));
 
-    lotui::example::addPluginTab(*ribbon, state.textEngine, {
-        [&state] { state.status->setText("플러그인 실행"); },
-        [&state](bool enabled) {
-            state.snap = enabled;
-            state.status->setText(enabled ? "스냅 켜짐" : "스냅 꺼짐");
-            state.refreshPreview();
-        },
-        [&state](double value) {
-            state.size = value;
-            state.status->setText("크기 " + std::to_string(
-                static_cast<int>(value)));
-            state.refreshPreview();
-        },
-    });
-    ribbon->selectTab("plugin");
+    state.pluginControls = lotui::example::addPluginTab(
+        *ribbon, state.textEngine,
+        pluginDescriptor, {[&state](std::string_view id, double value) {
+            if (id == "run") {
+                state.status->setText("플러그인 실행");
+            } else if (id == "snap") {
+                state.snap = value != 0.0;
+                state.status->setText(
+                    state.snap ? "스냅 켜짐" : "스냅 꺼짐");
+                state.refreshPreview();
+            } else if (id == "size") {
+                state.size = value;
+                state.status->setText("크기 " + std::to_string(
+                    static_cast<int>(value)));
+                state.refreshPreview();
+            }
+        }});
+    ribbon->selectTab(pluginDescriptor.tabId);
     root->addChild(std::move(ribbon), fixedHeight(ribbonHeight));
 
     auto workspace = std::make_unique<lotui::Column>();
@@ -181,15 +190,51 @@ void updateLayout(
     tree.layout({0.0F, 0.0F, width, height});
 }
 
+void exercisePlugin(lotui::WidgetTree& tree, DemoState& state) {
+    if (state.pluginControls.size() != 3) {
+        throw std::runtime_error("expected three plugin controls");
+    }
+    const auto click = [&tree](lotui::Point point) {
+        tree.pointerMoved(point);
+        tree.pointerPressed(point, lotui::PointerButton::Primary);
+        tree.pointerReleased(point, lotui::PointerButton::Primary);
+    };
+    const auto button = state.pluginControls[0]->bounds();
+    click({button.x + button.width * 0.5F,
+        button.y + button.height * 0.5F});
+    if (state.status->text() != "플러그인 실행") {
+        throw std::runtime_error("plugin button callback was not routed");
+    }
+    const auto checkbox = state.pluginControls[1]->bounds();
+    click({checkbox.x + 8.0F,
+        checkbox.y + checkbox.height * 0.5F});
+    if (!state.snap) {
+        throw std::runtime_error("plugin checkbox callback was not routed");
+    }
+    const auto slider = state.pluginControls[2]->bounds();
+    const float y = slider.y + slider.height * 0.5F;
+    tree.pointerMoved({slider.x + slider.width * 0.2F, y});
+    tree.pointerPressed({slider.x + slider.width * 0.2F, y},
+        lotui::PointerButton::Primary);
+    tree.pointerMoved({slider.x + slider.width * 0.95F, y});
+    tree.pointerReleased({slider.x + slider.width * 0.95F, y},
+        lotui::PointerButton::Primary);
+    if (state.size < 80.0) {
+        throw std::runtime_error("plugin slider callback was not routed");
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     try {
-        if (argc > 2 || (argc == 2 && std::string(argv[1]) != "--smoke")) {
-            std::cerr << "usage: ribbon_demo [--smoke]\n";
+        const std::string mode = argc == 2 ? argv[1] : "";
+        if (argc > 2 || (argc == 2 && mode != "--smoke" &&
+                mode != "--input-test")) {
+            std::cerr << "usage: ribbon_demo [--smoke|--input-test]\n";
             return 2;
         }
-        const bool smoke = argc == 2;
+        const bool smoke = !mode.empty();
         auto platform = lotui::createPlatformBackend();
         auto window = platform->createWindow(
             {"LotUI Ribbon Demo", 960, 540, true});
@@ -197,12 +242,17 @@ int main(int argc, char** argv) {
         lotui::VulkanRenderer renderer(*window);
         const auto fontFile = lotui::executableDirectory() /
             "resources" / "fonts" / "NotoSansKR-Regular.ttf";
+        lotui::example::PluginLibrary plugin(
+            lotui::executableDirectory() / LOTUI_DEMO_PLUGIN_NAME);
         DemoState state;
         state.textEngine = std::make_shared<lotui::FreetypeTextEngine>(
             renderer, std::vector<lotui::FontSource>{
                 {"Noto Sans KR", fontFile}});
-        auto tree = createUi(state);
+        auto tree = createUi(state, plugin.descriptor());
         updateLayout(*tree, window->metrics());
+        if (mode == "--input-test") {
+            exercisePlugin(*tree, state);
+        }
 
         std::vector<lotui::PaintCommand> commands;
         bool running = true;

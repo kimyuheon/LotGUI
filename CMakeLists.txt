@@ -781,13 +781,30 @@ if(LOTUI_BUILD_EXAMPLES)
                 "$<TARGET_FILE_DIR:list_control_demo>/resources/fonts/NotoSansKR-Regular.ttf"
             VERBATIM)
 
+        if(WIN32)
+            set(_lotui_demo_plugin_loader
+                examples/ribbon_demo/plugin_loader_win32.cpp)
+        else()
+            set(_lotui_demo_plugin_loader
+                examples/ribbon_demo/plugin_loader_posix.cpp)
+        endif()
+        add_library(ribbon_demo_plugin MODULE
+            examples/ribbon_demo/plugin_module.cpp)
+        target_include_directories(ribbon_demo_plugin PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}")
+
         add_executable(ribbon_demo
             examples/ribbon_demo/main.cpp
             examples/ribbon_demo/plugin_tab.cpp
+            ${_lotui_demo_plugin_loader}
             examples/platform_probe/platform_event_bridge.cpp
         )
         target_link_libraries(ribbon_demo PRIVATE
-            lotui_vulkan lotui_widgets lotui_text_freetype)
+            lotui_vulkan lotui_widgets lotui_text_freetype
+            ${CMAKE_DL_LIBS})
+        target_compile_definitions(ribbon_demo PRIVATE
+            LOTUI_DEMO_PLUGIN_NAME="$<TARGET_FILE_NAME:ribbon_demo_plugin>")
+        add_dependencies(ribbon_demo ribbon_demo_plugin)
         lotui_copy_legal_notices(ribbon_demo)
         add_custom_command(TARGET ribbon_demo POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E make_directory
@@ -796,8 +813,10 @@ if(LOTUI_BUILD_EXAMPLES)
                 "${LOTUI_EXAMPLE_FONT_FILE}"
                 "$<TARGET_FILE_DIR:ribbon_demo>/resources/fonts/NotoSansKR-Regular.ttf"
             VERBATIM)
-        install(TARGETS ribbon_demo RUNTIME DESTINATION bin
-            COMPONENT Examples)
+        install(TARGETS ribbon_demo
+            RUNTIME DESTINATION bin COMPONENT Examples)
+        install(TARGETS ribbon_demo_plugin
+            LIBRARY DESTINATION bin COMPONENT Examples)
         install(FILES "${LOTUI_EXAMPLE_FONT_FILE}"
             DESTINATION bin/resources/fonts
             RENAME NotoSansKR-Regular.ttf COMPONENT Examples)
@@ -818,6 +837,8 @@ if(LOTUI_BUILD_EXAMPLES)
         if(TARGET ribbon_demo)
             target_compile_options(ribbon_demo PRIVATE
                 /W4 /permissive- /utf-8)
+            target_compile_options(ribbon_demo_plugin PRIVATE
+                /W4 /permissive- /utf-8)
         endif()
     else()
         target_compile_options(platform_probe PRIVATE -Wall -Wextra -Wpedantic)
@@ -827,6 +848,8 @@ if(LOTUI_BUILD_EXAMPLES)
         endif()
         if(TARGET ribbon_demo)
             target_compile_options(ribbon_demo PRIVATE
+                -Wall -Wextra -Wpedantic)
+            target_compile_options(ribbon_demo_plugin PRIVATE
                 -Wall -Wextra -Wpedantic)
         endif()
     endif()
