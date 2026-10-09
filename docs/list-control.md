@@ -5,6 +5,8 @@ desktop applications. It is not tied to VulkanCAD or to any application model.
 Applications provide columns and rows containing backend-neutral values, and
 receive selection and cell-action callbacks.
 
+![Standalone ListControl demo](images/list-control-demo.png)
+
 The initial cell kinds are:
 
 - `Text`: display text and request inline editing with Enter or double-click.
