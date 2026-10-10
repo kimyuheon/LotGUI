@@ -11,8 +11,14 @@ The standalone demo places a compact toolbar above the grid. Undo and Redo
 cover row additions, deletions, sorting, and cell edits (including paste).
 `+ Row` adds an editable row; `- Row` removes the selected row. Choose a
 column, enter a query, and use Find to move to the next matching cell. Each
-column header has a filter button with distinct values and an `(All)` reset;
-active filters limit visible rows while preserving the underlying model.
+column header has a filter button. Its example popup searches distinct values,
+supports multiple checked values, and applies them only when Apply is pressed.
+All and None change the pending selection; active filters limit visible rows
+while preserving the underlying model.
+
+![Searchable multi-select header filter](images/list-control-filter-popup.png)
+
+Run `list_control_demo --preview-filter` to open this example popup at startup.
 The toolbar and its history belong to the sample application; plugins and
 other consumers can compose the same public widgets around `ListControl`.
 `setOnHeaderFilterRequested` reports the clicked column and button bounds so

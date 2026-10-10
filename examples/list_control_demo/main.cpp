@@ -107,7 +107,7 @@ struct TableState {
     lotui::Button* redoButton{nullptr};
     lotui::Button* deleteButton{nullptr};
     lotui::ComboBox* columnPicker{nullptr};
-    std::vector<std::optional<std::string>> columnFilters;
+    std::vector<std::optional<std::set<std::string>>> columnFilters;
     std::size_t searchColumn{1};
     std::string query;
     std::size_t nextRowNumber{1};
@@ -135,7 +135,8 @@ struct TableState {
         for (std::size_t column = 0; column < columnFilters.size(); ++column) {
             if (columnFilters[column] &&
                 (column >= row.size() ||
-                 listCellSortKey(row[column]) != *columnFilters[column])) {
+                 columnFilters[column]->count(
+                     listCellSortKey(row[column])) == 0)) {
                 return false;
             }
         }
@@ -246,6 +247,36 @@ struct TableState {
                 return;
             }
         }
+    }
+};
+
+struct FilterPopupState {
+    lotui::ListControl* list{nullptr};
+    std::vector<std::string> values;
+    std::vector<std::string> shown;
+    std::set<std::string> checked;
+    std::string query;
+
+    void refresh() {
+        shown.clear();
+        std::vector<lotui::ListRow> rows;
+        for (const std::string& value : values) {
+            if (!containsText(value, query)) continue;
+            shown.push_back(value);
+            lotui::ListCell check;
+            check.kind = lotui::ListCellKind::CheckBox;
+            check.checked = checked.count(value) != 0;
+            lotui::ListCell label;
+            label.text = value.empty() ? "(Empty)" : value;
+            rows.push_back({std::move(check), std::move(label)});
+        }
+        if (list) list->setRows(std::move(rows));
+    }
+
+    void setAll(bool selected) {
+        checked.clear();
+        if (selected) checked.insert(values.begin(), values.end());
+        refresh();
     }
 };
 
@@ -560,7 +591,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
                       << " to=" << to << '\n';
         });
     list->setOnHeaderFilterRequested(
-        [state, textEngine, hostPointer, listTextStyle](
+        [state, textEngine, hostPointer, listTextStyle, &window](
             std::size_t column, lotui::Rect anchor) {
             if (*hostPointer == nullptr || column >= state->columnFilters.size()) {
                 return;
@@ -569,33 +600,129 @@ std::unique_ptr<lotui::WidgetTree> createUi(
             for (const auto& row : state->rows) {
                 if (column < row.size()) values.insert(listCellSortKey(row[column]));
             }
-            std::vector<std::string> options{"(All)"};
-            options.insert(options.end(), values.begin(), values.end());
-            std::size_t selected = 0;
-            if (state->columnFilters[column]) {
-                const auto found = std::find(options.begin() + 1, options.end(),
-                    *state->columnFilters[column]);
-                if (found != options.end()) {
-                    selected = static_cast<std::size_t>(found - options.begin());
-                }
-            }
-            lotui::ComboBoxStyle filterStyle;
-            filterStyle.itemHeight = 25.0F;
-            filterStyle.maximumVisibleItems = 9;
-            filterStyle.popupCornerRadius = 4.0F;
-            filterStyle.arrowAreaWidth = 0.0F;
+            auto popupState = std::make_shared<FilterPopupState>();
+            popupState->values.assign(values.begin(), values.end());
+            popupState->checked = state->columnFilters[column]
+                ? *state->columnFilters[column] : values;
+
+            auto panel = std::make_unique<lotui::Column>();
+            panel->setDecoration(lotui::BoxDecoration{
+                {0.12F, 0.15F, 0.20F, 1.0F}, 4.0F});
+            lotui::LinearLayoutOptions panelOptions;
+            panelOptions.spacing = 5.0F;
+            panelOptions.padding = {6.0F, 6.0F, 6.0F, 6.0F};
+            panelOptions.mainAxisSize = lotui::MainAxisSize::Min;
+            panelOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
+            panel->setOptions(panelOptions);
+
+            auto searchRow = std::make_unique<lotui::Row>();
+            lotui::LinearLayoutOptions searchOptions;
+            searchOptions.spacing = 5.0F;
+            searchOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
+            searchRow->setOptions(searchOptions);
+            auto searchLabel = std::make_unique<lotui::Label>(
+                textEngine, "Search", listTextStyle);
+            searchLabel->setVerticalAlignment(
+                lotui::VerticalTextAlignment::Center);
+            searchRow->addChild(std::move(searchLabel),
+                {0.0F, {50.0F, 28.0F}, {50.0F, 28.0F}});
+            lotui::TextFieldStyle searchStyle;
+            searchStyle.normal = {0.07F, 0.09F, 0.13F, 1.0F};
+            searchStyle.hovered = {0.10F, 0.13F, 0.18F, 1.0F};
+            searchStyle.contentPadding = {6.0F, 2.0F, 6.0F, 2.0F};
+            searchStyle.cornerRadius = 4.0F;
+            auto search = std::make_unique<lotui::TextField>(
+                textEngine, "", lotui::Size{170.0F, 28.0F},
+                [popupState](const std::string& query) {
+                    popupState->query = query;
+                    popupState->refresh();
+                }, lotui::TextField::SubmittedHandler{},
+                searchStyle, listTextStyle);
+            search->setClipboardHandlers(
+                [&window](std::string text) {
+                    return window.writeClipboardText(text);
+                },
+                [&window]() { return window.readClipboardText(); });
+            searchRow->addChild(std::move(search),
+                {1.0F, {170.0F, 28.0F},
+                    {lotui::unboundedLayoutSize, 28.0F}});
+            panel->addChild(std::move(searchRow),
+                {0.0F, {230.0F, 28.0F}, {230.0F, 28.0F}});
+
+            lotui::ListControlStyle valueStyle;
+            valueStyle.headerHeight = 1.0F;
+            valueStyle.rowHeight = 24.0F;
+            valueStyle.controlSize = 15.0F;
+            valueStyle.cellPadding = {5.0F, 2.0F, 5.0F, 2.0F};
+            valueStyle.cornerRadius = 3.0F;
+            valueStyle.focusRingWidth = 0.0F;
+            const float listHeight = std::max(28.0F,
+                5.0F + 24.0F * static_cast<float>(
+                    std::min<std::size_t>(8, popupState->values.size())));
+            auto valuesList = std::make_unique<lotui::ListControl>(
+                textEngine,
+                std::vector<lotui::ListColumn>{
+                    {"checked", "", 26.0F, 26.0F, false, false, false},
+                    {"value", "", 204.0F, 100.0F, false, false, false},
+                },
+                std::vector<lotui::ListRow>{},
+                lotui::Size{230.0F, listHeight},
+                lotui::ListControl::SelectionChangedHandler{},
+                [popupState](const lotui::ListCellEvent& event) {
+                    if (event.address.row >= popupState->shown.size()) return;
+                    if (event.action != lotui::ListCellAction::ToggleCheck &&
+                        event.action != lotui::ListCellAction::Activate) return;
+                    const std::string& value =
+                        popupState->shown[event.address.row];
+                    const bool checked =
+                        event.action == lotui::ListCellAction::ToggleCheck
+                        ? popupState->list->cell({event.address.row, 0})->checked
+                        : popupState->checked.count(value) == 0;
+                    if (checked) popupState->checked.insert(value);
+                    else popupState->checked.erase(value);
+                    popupState->list->setChecked({event.address.row, 0}, checked);
+                }, valueStyle, listTextStyle);
+            popupState->list = valuesList.get();
+            popupState->refresh();
+            panel->addChild(std::move(valuesList),
+                {0.0F, {230.0F, listHeight}, {230.0F, listHeight}});
+
+            auto actions = std::make_unique<lotui::Row>();
+            lotui::LinearLayoutOptions actionOptions;
+            actionOptions.spacing = 5.0F;
+            actionOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
+            actions->setOptions(actionOptions);
+            actions->addChild(toolbarButton(textEngine, listTextStyle,
+                "All", 45.0F,
+                [popupState]() { popupState->setAll(true); }));
+            actions->addChild(toolbarButton(textEngine, listTextStyle,
+                "None", 50.0F,
+                [popupState]() { popupState->setAll(false); }));
+            actions->addChild(toolbarButton(textEngine, listTextStyle,
+                "Apply", 60.0F,
+                [state, popupState, hostPointer, column]() {
+                    state->columnFilters[column] =
+                        popupState->checked.size() == popupState->values.size()
+                        ? std::nullopt
+                        : std::optional<std::set<std::string>>{
+                            popupState->checked};
+                    state->list->setHeaderFilterActive(column,
+                        state->columnFilters[column].has_value());
+                    state->refresh();
+                    (*hostPointer)->acceptPopup();
+                }));
+            actions->addChild(toolbarButton(textEngine, listTextStyle,
+                "Cancel", 60.0F,
+                [hostPointer]() { (*hostPointer)->dismissPopup(); }));
+            panel->addChild(std::move(actions),
+                {0.0F, {230.0F, 28.0F}, {230.0F, 28.0F}});
             const lotui::Rect header = state->list->headerCellBounds(column);
             anchor.x = header.x;
-            anchor.width = std::max(150.0F, header.width);
-            lotui::ComboBox::showPopupAt(
-                **hostPointer, textEngine, anchor, options, selected,
-                [state, column, options](std::size_t index) {
-                    state->columnFilters[column] = index == 0
-                        ? std::nullopt
-                        : std::optional<std::string>{options[index]};
-                    state->list->setHeaderFilterActive(column, index != 0);
-                    state->refresh();
-                }, filterStyle, listTextStyle);
+            anchor.width = header.width;
+            lotui::PopupOptions options;
+            options.matchAnchorWidth = false;
+            (*hostPointer)->showPopup(
+                std::move(panel), anchor, options);
         });
     list->setOnSelectionRangeChanged(
         [](std::optional<lotui::ListCellRange> range) {
@@ -698,10 +825,27 @@ void testTableState() {
         throw std::runtime_error("column filter failed");
     }
     state.columnFilters.resize(6);
-    state.columnFilters[2] = "Furniture";
+    state.columnFilters[2] = std::set<std::string>{"Furniture"};
     if (state.matchesFilters(state.rows[0]) ||
         !state.matchesFilters(state.rows[1])) {
         throw std::runtime_error("header filter failed");
+    }
+    state.columnFilters[2] = std::set<std::string>{"Furniture", "Lighting"};
+    if (!state.matchesFilters(state.rows[0]) ||
+        !state.matchesFilters(state.rows[1])) {
+        throw std::runtime_error("multi-value filter failed");
+    }
+    FilterPopupState popup;
+    popup.values = {"Office", "Furniture", "Lighting"};
+    popup.setAll(true);
+    popup.query = "furn";
+    popup.refresh();
+    if (popup.shown != std::vector<std::string>{"Furniture"}) {
+        throw std::runtime_error("filter value search failed");
+    }
+    popup.setAll(false);
+    if (!popup.checked.empty()) {
+        throw std::runtime_error("clear filter checkboxes failed");
     }
     state.addRow();
     if (state.rows.size() != 3) throw std::runtime_error("add row failed");
@@ -744,6 +888,15 @@ int main(int argc, char** argv) {
         std::shared_ptr<TableState> state;
         auto tree = createUi(textEngine, *window, state);
         updateLayout(*tree, window->metrics());
+        if (argc > 1 && std::string_view(argv[1]) == "--preview-filter") {
+            const lotui::Rect filter = state->list->headerFilterBounds(2);
+            const lotui::Point point{
+                filter.x + filter.width * 0.5F,
+                filter.y + filter.height * 0.5F,
+            };
+            tree->pointerPressed(point, lotui::PointerButton::Primary);
+            tree->pointerReleased(point, lotui::PointerButton::Primary);
+        }
 
         std::vector<lotui::PaintCommand> commands;
         bool running = true;
