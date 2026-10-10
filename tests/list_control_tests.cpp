@@ -535,6 +535,48 @@ void reordersAndFreezesColumns() {
     tree.cancelPointer();
 }
 
+void requestsHeaderFiltersWithoutSorting() {
+    auto engine = std::make_shared<TestTextEngine>();
+    auto list = std::make_unique<lotui::ListControl>(
+        engine,
+        std::vector<lotui::ListColumn>{
+            {"name", "Name", 120.0F},
+            {"category", "Category", 120.0F},
+        },
+        std::vector<lotui::ListRow>{
+            {lotui::ListCell{lotui::ListCellKind::Text, "Desk"},
+             lotui::ListCell{lotui::ListCellKind::Text, "Office"}},
+        },
+        lotui::Size{260.0F, 120.0F});
+    lotui::ListControl* observed = list.get();
+    std::optional<std::size_t> requested;
+    lotui::Rect anchor{};
+    observed->setOnHeaderFilterRequested(
+        [&requested, &anchor](std::size_t column, lotui::Rect bounds) {
+            requested = column;
+            anchor = bounds;
+        });
+    lotui::WidgetTree tree(std::move(list));
+    tree.layout({0.0F, 0.0F, 260.0F, 120.0F});
+    const lotui::Rect bounds = observed->headerFilterBounds(1);
+    const lotui::Point point{
+        bounds.x + bounds.width * 0.5F,
+        bounds.y + bounds.height * 0.5F,
+    };
+    tree.pointerPressed(point, lotui::PointerButton::Primary);
+    tree.pointerReleased(point, lotui::PointerButton::Primary);
+    require(requested == 1 && anchor.x == bounds.x &&
+            !observed->sortDescriptor(),
+        "header filter clicks must request the column without sorting");
+    observed->setHeaderFilterActive(1, true);
+    require(observed->isHeaderFilterActive(1),
+        "the selected header filter must display as active");
+    observed->moveColumn(1, 0);
+    require(observed->isHeaderFilterActive(0) &&
+            !observed->isHeaderFilterActive(1),
+        "header filter state must follow reordered columns");
+}
+
 void selectsRectanglesWithKeyboardAndPointer() {
     auto engine = std::make_shared<TestTextEngine>();
     auto textCell = [](std::string text) {
@@ -701,6 +743,7 @@ int main() {
     scrollsWithWheelTracksAndDraggableThumbs();
     resizesColumnsAndRequestsSortingFromHeaders();
     reordersAndFreezesColumns();
+    requestsHeaderFiltersWithoutSorting();
     selectsRectanglesWithKeyboardAndPointer();
     copiesAndPastesTabSeparatedSelections();
     std::cout << "list_control_tests passed\n";

@@ -153,6 +153,7 @@ ListControl::ListControl(
     for (ListRow& row : rows_) {
         row.resize(columns_.size());
     }
+    headerFiltersActive_.assign(columns_.size(), false);
 }
 
 Size ListControl::measure(const LayoutConstraints& constraints) const {
@@ -167,6 +168,7 @@ void ListControl::setColumns(std::vector<ListColumn> columns) {
         sanitize(column);
     }
     columns_ = std::move(columns);
+    headerFiltersActive_.assign(columns_.size(), false);
     for (ListRow& row : rows_) {
         row.resize(columns_.size());
     }
@@ -184,6 +186,7 @@ void ListControl::setColumns(std::vector<ListColumn> columns) {
     hoveredHeaderColumn_.reset();
     hoveredResizeColumn_.reset();
     pressedHeaderColumn_.reset();
+    pressedFilterColumn_.reset();
     resizingColumn_.reset();
     reorderingColumn_.reset();
     reorderTargetColumn_.reset();
@@ -265,6 +268,7 @@ void ListControl::moveColumn(std::size_t from, std::size_t to) {
         }
     };
     moveValue(columns_);
+    moveValue(headerFiltersActive_);
     for (ListRow& row : rows_) {
         moveValue(row);
     }
@@ -306,6 +310,20 @@ Rect ListControl::headerCellBounds(std::size_t column) const noexcept {
         geometry.header.y,
         columnWidth(column),
         geometry.header.height,
+    };
+}
+
+Rect ListControl::headerFilterBounds(std::size_t column) const noexcept {
+    if (!onHeaderFilterRequested_ || column >= columns_.size() ||
+        columns_[column].title.empty()) {
+        return {};
+    }
+    const Rect headerCell = headerCellBounds(column);
+    return {
+        headerCell.x + headerCell.width - 26.0F,
+        headerCell.y + 3.0F,
+        18.0F,
+        std::max(0.0F, headerCell.height - 6.0F),
     };
 }
 
@@ -748,6 +766,23 @@ void ListControl::setOnColumnReordered(ColumnReorderedHandler handler) {
     onColumnReordered_ = std::move(handler);
 }
 
+void ListControl::setOnHeaderFilterRequested(
+    HeaderFilterRequestedHandler handler) {
+    onHeaderFilterRequested_ = std::move(handler);
+}
+
+void ListControl::setHeaderFilterActive(std::size_t column, bool active) {
+    if (column >= columns_.size()) {
+        throw std::out_of_range("ListControl column is out of range");
+    }
+    headerFiltersActive_[column] = active;
+}
+
+bool ListControl::isHeaderFilterActive(std::size_t column) const noexcept {
+    return column < headerFiltersActive_.size() &&
+        headerFiltersActive_[column];
+}
+
 void ListControl::setStyle(ListControlStyle style) noexcept {
     sanitize(style);
     style_ = style;
@@ -815,6 +850,9 @@ void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
         textBounds.x += style_.cellPadding.left;
         textBounds.width = std::max(
             0.0F, textBounds.width - style_.cellPadding.horizontal());
+        if (onHeaderFilterRequested_ && !columns_[column].title.empty()) {
+            textBounds.width = std::max(0.0F, textBounds.width - 20.0F);
+        }
         if (sortDescriptor_ && sortDescriptor_->column == column) {
             textBounds.width = std::max(0.0F, textBounds.width - 14.0F);
         }
@@ -837,6 +875,23 @@ void ListControl::onPaint(std::vector<PaintCommand>& commands) const {
             });
         }
         paintSortIndicator(column, headerCell, cellClip, commands);
+        const Rect filterBounds = headerFilterBounds(column);
+        if (hasArea(filterBounds)) {
+            const Color iconColor = isHeaderFilterActive(column)
+                ? style_.controlAccent : style_.secondaryText;
+            commands.push_back({
+                filterBounds, cellClip, style_.controlBackground,
+                invalidTextureId, 3.0F});
+            const float center = filterBounds.x + filterBounds.width * 0.5F;
+            for (std::size_t line = 0; line < 3; ++line) {
+                const float width = 10.0F - static_cast<float>(line) * 3.0F;
+                commands.push_back({
+                    {center - width * 0.5F,
+                     filterBounds.y + 5.0F + static_cast<float>(line) * 3.0F,
+                     width, 1.5F},
+                    cellClip, iconColor, invalidTextureId, 0.75F});
+            }
+        }
         if ((hoveredResizeColumn_ == column || resizingColumn_ == column) &&
             style_.columnResizeHandleWidth > 0.0F) {
             commands.push_back({
@@ -1027,6 +1082,14 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
             }
             return true;
         }
+        pressedFilterColumn_ = headerFilterColumnAt(event.position);
+        if (pressedFilterColumn_) {
+            pressedHeaderColumn_.reset();
+            reorderingColumn_.reset();
+            pointerPressed_ = false;
+            pressedCell_.reset();
+            return true;
+        }
         hoveredResizeColumn_ = resizeColumnAt(event.position);
         if (hoveredResizeColumn_) {
             resizingColumn_ = hoveredResizeColumn_;
@@ -1067,6 +1130,15 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
         }
         return true;
     case WidgetPointerEventType::Release: {
+        if (event.button == PointerButton::Primary && pressedFilterColumn_) {
+            const std::size_t column = *pressedFilterColumn_;
+            pressedFilterColumn_.reset();
+            if (headerFilterColumnAt(event.position) == column &&
+                onHeaderFilterRequested_) {
+                onHeaderFilterRequested_(column, headerFilterBounds(column));
+            }
+            return true;
+        }
         if (event.button == PointerButton::Primary && resizingColumn_) {
             dragColumnResize(event.position);
             resizingColumn_.reset();
@@ -1155,6 +1227,7 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
             hoveredScrollBarPart_ == ScrollBarPart::None &&
             !hoveredHeaderColumn_ && !hoveredResizeColumn_ &&
             !pressedHeaderColumn_ && !resizingColumn_ &&
+            !pressedFilterColumn_ &&
             !reorderingColumn_ && !reorderTargetColumn_) {
             return false;
         }
@@ -1167,6 +1240,7 @@ bool ListControl::onPointerEvent(const WidgetPointerEvent& event) {
         hoveredHeaderColumn_.reset();
         hoveredResizeColumn_.reset();
         pressedHeaderColumn_.reset();
+        pressedFilterColumn_.reset();
         resizingColumn_.reset();
         reorderingColumn_.reset();
         reorderTargetColumn_.reset();
@@ -1616,6 +1690,18 @@ std::optional<std::size_t> ListControl::headerColumnAt(
     return std::nullopt;
 }
 
+std::optional<std::size_t> ListControl::headerFilterColumnAt(
+    Point position) const noexcept {
+    if (!onHeaderFilterRequested_) return std::nullopt;
+    const ScrollGeometry geometry = scrollGeometry();
+    for (std::size_t column = 0; column < columns_.size(); ++column) {
+        const Rect hit = intersect(headerFilterBounds(column),
+            columnPaintClip(column, geometry, geometry.header));
+        if (hasArea(hit) && contains(hit, position)) return column;
+    }
+    return std::nullopt;
+}
+
 std::optional<std::size_t> ListControl::resizeColumnAt(
     Point position) const noexcept {
     const ScrollGeometry geometry = scrollGeometry();
@@ -1740,7 +1826,8 @@ void ListControl::paintSortIndicator(
     const float lineHeight = std::max(1.0F, headerCell.height * 0.06F);
     const float gap = std::max(1.0F, lineHeight * 0.75F);
     const float totalHeight = lineHeight * 3.0F + gap * 2.0F;
-    const float centerX = headerCell.x + headerCell.width - 9.0F;
+    const float centerX = headerCell.x + headerCell.width -
+        (onHeaderFilterRequested_ ? 37.0F : 9.0F);
     const float startY = headerCell.y +
         std::max(0.0F, (headerCell.height - totalHeight) * 0.5F);
     for (std::size_t index = 0; index < 3; ++index) {

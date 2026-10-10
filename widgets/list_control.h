@@ -176,6 +176,8 @@ public:
         std::function<void(std::size_t column, float width)>;
     using ColumnReorderedHandler =
         std::function<void(std::size_t from, std::size_t to)>;
+    using HeaderFilterRequestedHandler =
+        std::function<void(std::size_t column, Rect anchor)>;
     using ClipboardWriteHandler = std::function<void(std::string)>;
     using ClipboardReadHandler =
         std::function<std::optional<std::string>()>;
@@ -202,6 +204,7 @@ public:
     void setFrozenColumnCount(std::size_t count) noexcept;
     std::size_t frozenColumnCount() const noexcept;
     Rect headerCellBounds(std::size_t column) const noexcept;
+    Rect headerFilterBounds(std::size_t column) const noexcept;
     Rect columnResizeHandleBounds(std::size_t column) const noexcept;
     void setCell(ListCellAddress address, ListCell cell);
     const ListCell* cell(ListCellAddress address) const noexcept;
@@ -251,6 +254,9 @@ public:
     void setOnSortChanged(SortChangedHandler handler);
     void setOnColumnResized(ColumnResizedHandler handler);
     void setOnColumnReordered(ColumnReorderedHandler handler);
+    void setOnHeaderFilterRequested(HeaderFilterRequestedHandler handler);
+    void setHeaderFilterActive(std::size_t column, bool active);
+    bool isHeaderFilterActive(std::size_t column) const noexcept;
     void setStyle(ListControlStyle style) noexcept;
     const ListControlStyle& style() const noexcept;
 
@@ -315,6 +321,7 @@ private:
         std::vector<PaintCommand>& commands) const;
     std::optional<ListCellAddress> addressAt(Point position) const noexcept;
     std::optional<std::size_t> headerColumnAt(Point position) const noexcept;
+    std::optional<std::size_t> headerFilterColumnAt(Point position) const noexcept;
     std::optional<std::size_t> resizeColumnAt(Point position) const noexcept;
     std::optional<std::size_t> reorderTargetAt(Point position) const noexcept;
     bool updateHeaderHover(Point position) noexcept;
@@ -394,6 +401,8 @@ private:
     SortChangedHandler onSortChanged_{};
     ColumnResizedHandler onColumnResized_{};
     ColumnReorderedHandler onColumnReordered_{};
+    HeaderFilterRequestedHandler onHeaderFilterRequested_{};
+    std::vector<bool> headerFiltersActive_;
     ListControlStyle style_{};
     TextStyle textStyle_{};
     std::optional<ListCellAddress> selectedCell_;
@@ -413,6 +422,7 @@ private:
     std::optional<std::size_t> hoveredHeaderColumn_;
     std::optional<std::size_t> hoveredResizeColumn_;
     std::optional<std::size_t> pressedHeaderColumn_;
+    std::optional<std::size_t> pressedFilterColumn_;
     std::optional<std::size_t> resizingColumn_;
     float columnResizePointerStart_{0.0F};
     float columnResizeWidthStart_{0.0F};

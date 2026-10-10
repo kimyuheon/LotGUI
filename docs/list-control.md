@@ -7,6 +7,18 @@ receive selection and cell-action callbacks.
 
 ![Standalone ListControl demo](images/list-control-demo.png)
 
+The standalone demo places a compact toolbar above the grid. Undo and Redo
+cover row additions, deletions, sorting, and cell edits (including paste).
+`+ Row` adds an editable row; `- Row` removes the selected row. Choose a
+column, enter a query, and use Find to move to the next matching cell. Each
+column header has a filter button with distinct values and an `(All)` reset;
+active filters limit visible rows while preserving the underlying model.
+The toolbar and its history belong to the sample application; plugins and
+other consumers can compose the same public widgets around `ListControl`.
+`setOnHeaderFilterRequested` reports the clicked column and button bounds so
+the host can open its own popup. After changing its data query, the host calls
+`setRows` and `setHeaderFilterActive` to update the grid and header indicator.
+
 The initial cell kinds are:
 
 - `Text`: display text and request inline editing with Enter or double-click.

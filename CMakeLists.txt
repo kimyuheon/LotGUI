@@ -772,6 +772,10 @@ if(LOTUI_BUILD_EXAMPLES)
         )
         target_link_libraries(list_control_demo PRIVATE
             lotui_vulkan lotui_widgets lotui_text_freetype)
+        if(BUILD_TESTING)
+            add_test(NAME list_control_demo_state_tests
+                COMMAND list_control_demo --self-test)
+        endif()
         lotui_copy_legal_notices(list_control_demo)
         add_custom_command(TARGET list_control_demo POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E make_directory
