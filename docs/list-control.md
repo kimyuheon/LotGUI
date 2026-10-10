@@ -19,6 +19,10 @@ while preserving the underlying model.
 ![Searchable multi-select header filter](images/list-control-filter-popup.png)
 
 Run `list_control_demo --preview-filter` to open this example popup at startup.
+The [20-second demo video](videos/list-control-demo.mp4) shows row commands,
+search, and a multi-value header filter. On Windows, rebuild the recording
+with `examples/list_control_demo/record_video.ps1` after a Release build;
+the script uses `ffmpeg` from PATH or `build/video_tools`.
 The toolbar and its history belong to the sample application; plugins and
 other consumers can compose the same public widgets around `ListControl`.
 `setOnHeaderFilterRequested` reports the clicked column and button bounds so

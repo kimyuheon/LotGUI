@@ -97,6 +97,8 @@ bool containsText(std::string value, std::string query) {
     return value.find(query) != std::string::npos;
 }
 
+struct FilterPopupState;
+
 struct TableState {
     std::vector<lotui::ListRow> rows;
     std::vector<std::size_t> visible;
@@ -107,6 +109,9 @@ struct TableState {
     lotui::Button* redoButton{nullptr};
     lotui::Button* deleteButton{nullptr};
     lotui::ComboBox* columnPicker{nullptr};
+    lotui::TextField* searchField{nullptr};
+    lotui::PopupHost* popupHost{nullptr};
+    std::weak_ptr<FilterPopupState> filterPopup;
     std::vector<std::optional<std::set<std::string>>> columnFilters;
     std::size_t searchColumn{1};
     std::string query;
@@ -252,6 +257,7 @@ struct TableState {
 
 struct FilterPopupState {
     lotui::ListControl* list{nullptr};
+    lotui::TextField* searchField{nullptr};
     std::vector<std::string> values;
     std::vector<std::string> shown;
     std::set<std::string> checked;
@@ -638,6 +644,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
                     popupState->refresh();
                 }, lotui::TextField::SubmittedHandler{},
                 searchStyle, listTextStyle);
+            popupState->searchField = search.get();
             search->setClipboardHandlers(
                 [&window](std::string text) {
                     return window.writeClipboardText(text);
@@ -723,6 +730,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
             options.matchAnchorWidth = false;
             (*hostPointer)->showPopup(
                 std::move(panel), anchor, options);
+            state->filterPopup = popupState;
         });
     list->setOnSelectionRangeChanged(
         [](std::optional<lotui::ListCellRange> range) {
@@ -780,6 +788,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     searchField->setClipboardHandlers(
         [&window](std::string text) { return window.writeClipboardText(text); },
         [&window]() { return window.readClipboardText(); });
+    state->searchField = searchField.get();
     toolbar->addChild(std::move(searchField));
     toolbar->addChild(toolbarButton(textEngine, listTextStyle,
         "Find", 46.0F, [state]() { state->findNext(); }));
@@ -792,6 +801,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
             {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
     auto popupHost = std::make_unique<lotui::PopupHost>(std::move(root));
     *hostPointer = popupHost.get();
+    state->popupHost = popupHost.get();
     state->columnPicker->setPopupHost(popupHost.get());
     state->refresh();
     return std::make_unique<lotui::WidgetTree>(std::move(popupHost));
@@ -865,6 +875,70 @@ void testTableState() {
     }
 }
 
+void runVideoDemoStep(
+    int step,
+    const std::shared_ptr<TableState>& state,
+    lotui::WidgetTree& tree) {
+    switch (step) {
+    case 0:
+        state->addRow();
+        break;
+    case 1:
+        state->stepBack(true);
+        break;
+    case 2:
+        state->stepBack(false);
+        break;
+    case 3:
+        state->list->setSelectedCell(
+            lotui::ListCellAddress{state->visible.size() - 1, 1});
+        state->deleteRow();
+        break;
+    case 4:
+        state->stepBack(true);
+        break;
+    case 5:
+        state->searchField->setText("lamp");
+        state->query = "lamp";
+        state->findNext();
+        break;
+    case 6: {
+        const lotui::Rect filter = state->list->headerFilterBounds(2);
+        const lotui::Point point{
+            filter.x + filter.width * 0.5F,
+            filter.y + filter.height * 0.5F,
+        };
+        tree.pointerPressed(point, lotui::PointerButton::Primary);
+        tree.pointerReleased(point, lotui::PointerButton::Primary);
+        break;
+    }
+    case 7:
+        if (auto popup = state->filterPopup.lock()) {
+            popup->searchField->setText("light");
+            popup->query = "light";
+            popup->refresh();
+        }
+        break;
+    case 8:
+        if (auto popup = state->filterPopup.lock()) {
+            popup->searchField->setText("");
+            popup->query.clear();
+            popup->checked = {"Lighting"};
+            popup->refresh();
+        }
+        break;
+    case 9:
+        state->columnFilters[2] = std::set<std::string>{"Lighting"};
+        state->list->setHeaderFilterActive(2, true);
+        state->refresh();
+        state->popupHost->acceptPopup();
+        state->filterPopup.reset();
+        break;
+    default:
+        break;
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -873,6 +947,8 @@ int main(int argc, char** argv) {
             testTableState();
             return 0;
         }
+        const bool videoDemo =
+            argc > 1 && std::string_view(argv[1]) == "--video-demo";
         auto platform = lotui::createPlatformBackend();
         auto window = platform->createWindow(
             {"LotUI ListControl", 820, 430, true});
@@ -900,7 +976,20 @@ int main(int argc, char** argv) {
 
         std::vector<lotui::PaintCommand> commands;
         bool running = true;
+        const auto demoStart = std::chrono::steady_clock::now();
+        constexpr int demoTimes[]{3000, 4500, 6000, 7500, 9000,
+            10500, 12000, 14000, 16000, 18000};
+        int demoStep = 0;
         while (running) {
+            if (videoDemo) {
+                const auto elapsed = std::chrono::duration_cast<
+                    std::chrono::milliseconds>(
+                        std::chrono::steady_clock::now() - demoStart).count();
+                while (demoStep < 10 && elapsed >= demoTimes[demoStep]) {
+                    runVideoDemoStep(demoStep++, state, *tree);
+                }
+                if (elapsed >= 22000) running = false;
+            }
             bool receivedEvent = false;
             lotui::PlatformEvent event{};
             while (window->pollEvent(event)) {
