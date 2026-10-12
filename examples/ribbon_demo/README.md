@@ -7,6 +7,11 @@ delete, undo, redo, and a modal dialog. View changes row density and frozen
 columns. Data sorts by name and filters to visible rows. The list itself
 supports row selection and visibility checkboxes.
 
+Ribbon commands use a 14-glyph subset of the Lucide 1.55.0 icon font. The
+subset is stored in `resources/fonts/lucide-subset.ttf`; its ISC/MIT license
+notice is in `resources/LUCIDE-LICENSE.txt`. Icons are rendered through the
+same FreeType text engine on all supported platforms.
+
 `ribbon_demo_plugin` is a separate shared library loaded beside the executable.
 Its entry point returns a versioned C descriptor from `plugin_api.h` for a
 button, checkbox, and slider. The host validates the descriptor and creates
@@ -35,7 +40,8 @@ cmake --install build --config Release --component Examples --prefix build/ribbo
 
 The `Examples` component contains `bin/ribbon_demo` (or
 `bin/ribbon_demo.exe`), the adjacent `ribbon_demo_plugin` shared library,
-`bin/resources/fonts/NotoSansKR-Regular.ttf`, and `bin/legal`. Keep the
+`bin/resources/fonts/NotoSansKR-Regular.ttf`,
+`bin/resources/fonts/lucide-subset.ttf`, and `bin/legal`. Keep the
 executable and plugin together. Configure `LOTUI_EXAMPLE_FONT_FILE` with a
 licensed Noto Sans KR font if the default sibling font is unavailable. Verify
 the font's provenance and matching OFL notice before distributing the package.

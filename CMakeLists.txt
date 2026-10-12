@@ -816,6 +816,12 @@ if(LOTUI_BUILD_EXAMPLES)
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                 "${LOTUI_EXAMPLE_FONT_FILE}"
                 "$<TARGET_FILE_DIR:ribbon_demo>/resources/fonts/NotoSansKR-Regular.ttf"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/examples/ribbon_demo/resources/fonts/lucide-subset.ttf"
+                "$<TARGET_FILE_DIR:ribbon_demo>/resources/fonts/lucide-subset.ttf"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/examples/ribbon_demo/resources/LUCIDE-LICENSE.txt"
+                "$<TARGET_FILE_DIR:ribbon_demo>/legal/licenses/LUCIDE-LICENSE.txt"
             VERBATIM)
         install(TARGETS ribbon_demo
             RUNTIME DESTINATION bin COMPONENT Examples)
@@ -824,12 +830,14 @@ if(LOTUI_BUILD_EXAMPLES)
         install(FILES "${LOTUI_EXAMPLE_FONT_FILE}"
             DESTINATION bin/resources/fonts
             RENAME NotoSansKR-Regular.ttf COMPONENT Examples)
+        install(FILES examples/ribbon_demo/resources/fonts/lucide-subset.ttf
+            DESTINATION bin/resources/fonts COMPONENT Examples)
         install(FILES LICENSE THIRD_PARTY_NOTICES.md
             DESTINATION bin/legal COMPONENT Examples)
+        install(FILES examples/ribbon_demo/resources/LUCIDE-LICENSE.txt
+            DESTINATION bin/legal/licenses COMPONENT Examples)
         install(FILES examples/ribbon_demo/README.md
             DESTINATION . RENAME README.md COMPONENT Examples)
-        install(FILES docs/images/ribbon-demo-plugin.png
-            DESTINATION docs/images COMPONENT Examples)
         install(DIRECTORY licenses/
             DESTINATION bin/legal/licenses COMPONENT Examples)
     endif()

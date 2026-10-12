@@ -48,7 +48,8 @@ std::unique_ptr<lotui::Button> commandButton(
     const std::shared_ptr<const lotui::TextEngine>& textEngine,
     std::string title,
     lotui::Button::ClickHandler action,
-    float width = 84.0F) {
+    float width = 84.0F,
+    std::string_view icon = {}) {
     lotui::ButtonStyle style;
     style.normal = {0.22F, 0.29F, 0.34F, 1.0F};
     style.hovered = {0.29F, 0.43F, 0.45F, 1.0F};
@@ -58,8 +59,30 @@ std::unique_ptr<lotui::Button> commandButton(
         textEngine, std::move(title), textStyle(13.0F));
     label->setHorizontalAlignment(lotui::HorizontalTextAlignment::Center);
     label->setVerticalAlignment(lotui::VerticalTextAlignment::Center);
+    std::unique_ptr<lotui::Widget> content = std::move(label);
+    if (!icon.empty()) {
+        auto row = std::make_unique<lotui::Row>();
+        lotui::LinearLayoutOptions options;
+        options.spacing = 4.0F;
+        options.mainAxisSize = lotui::MainAxisSize::Min;
+        options.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
+        row->setOptions(options);
+        auto iconStyle = textStyle(16.0F);
+        iconStyle.fontFamilies = {"Lucide"};
+        auto symbol = std::make_unique<lotui::Label>(
+            textEngine, std::string(icon), iconStyle);
+        symbol->setColor({0.61F, 0.87F, 0.79F, 1.0F});
+        symbol->setHorizontalAlignment(
+            lotui::HorizontalTextAlignment::Center);
+        symbol->setVerticalAlignment(
+            lotui::VerticalTextAlignment::Center);
+        row->addChild(std::move(symbol),
+            {0.0F, {17.0F, 18.0F}, {17.0F, 18.0F}});
+        row->addChild(std::move(content));
+        content = std::move(row);
+    }
     return std::make_unique<lotui::Button>(
-        std::move(label), lotui::Size{width, 25.0F},
+        std::move(content), lotui::Size{width, 25.0F},
         std::move(action), style);
 }
 
@@ -237,9 +260,15 @@ struct DemoState {
     }
 };
 
+struct RibbonAction {
+    std::string title;
+    std::string_view icon;
+    lotui::Button::ClickHandler action;
+};
+
 std::unique_ptr<lotui::RibbonGroup> commandGroup(
     DemoState& state, std::string title,
-    std::vector<std::pair<std::string, lotui::Button::ClickHandler>> actions) {
+    std::vector<RibbonAction> actions) {
     auto controls = std::make_unique<lotui::Row>();
     lotui::LinearLayoutOptions options;
     options.spacing = 4.0F;
@@ -248,7 +277,8 @@ std::unique_ptr<lotui::RibbonGroup> commandGroup(
     controls->setOptions(options);
     for (auto& action : actions) {
         controls->addChild(commandButton(state.textEngine,
-            std::move(action.first), std::move(action.second), 74.0F));
+            std::move(action.title), std::move(action.action),
+            74.0F, action.icon));
     }
     lotui::RibbonGroupStyle style;
     style.cornerRadius = 0.0F;
@@ -281,29 +311,32 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         state.textEngine, ribbonStyle, textStyle(13.0F));
     state.ribbon = ribbon.get();
 
+    // Lucide 1.55.0 glyphs are bundled in the small example font subset.
     auto groups = std::make_unique<lotui::Row>();
     groups->addChild(commandGroup(state, "편집", {
-        {"취소", [&state] { state.undo(); }},
-        {"다시", [&state] { state.redo(); }}}));
+        {"취소", u8"\uE2A1", [&state] { state.undo(); }},
+        {"다시", u8"\uE2A0", [&state] { state.redo(); }}}));
     groups->addChild(commandGroup(state, "항목", {
-        {"추가", [&state] { state.addItem(); }},
-        {"복제", [&state] { state.duplicateItem(); }},
-        {"삭제", [&state] { state.removeItem(); }}}));
+        {"추가", u8"\uE13D", [&state] { state.addItem(); }},
+        {"복제", u8"\uE09E", [&state] { state.duplicateItem(); }},
+        {"삭제", u8"\uE18E", [&state] { state.removeItem(); }}}));
     groups->addChild(commandGroup(state, "창", {
-        {"대화상자", [&state] { state.showDialog(); }}}));
+        {"대화상자", u8"\uE172", [&state] { state.showDialog(); }}}));
     ribbon->addTab(std::make_unique<lotui::RibbonTab>(
         "home", "홈", std::move(groups)));
 
     auto view = std::make_unique<lotui::Row>();
     view->addChild(commandGroup(state, "행 간격", {
-        {"촘촘", [&state] { state.setDensity(23.0F, "촘촘한 목록"); }},
-        {"보통", [&state] { state.setDensity(28.0F, "보통 목록"); }}}));
+        {"촘촘", u8"\uE58A",
+            [&state] { state.setDensity(23.0F, "촘촘한 목록"); }},
+        {"보통", u8"\uE106",
+            [&state] { state.setDensity(28.0F, "보통 목록"); }}}));
     view->addChild(commandGroup(state, "열", {
-        {"고정", [&state] {
+        {"고정", u8"\uE259", [&state] {
             state.list->setFrozenColumnCount(2);
             state.status->setText("이름 열 고정");
         }},
-        {"해제", [&state] {
+        {"해제", u8"\uE2B6", [&state] {
             state.list->setFrozenColumnCount(0);
             state.status->setText("열 고정 해제");
         }}}));
@@ -312,15 +345,17 @@ std::unique_ptr<lotui::WidgetTree> createUi(
 
     auto data = std::make_unique<lotui::Row>();
     data->addChild(commandGroup(state, "이름 정렬", {
-        {"오름차순", [&state] { state.sortByName(true); }},
-        {"내림차순", [&state] { state.sortByName(false); }}}));
+        {"오름차순", u8"\uE41A",
+            [&state] { state.sortByName(true); }},
+        {"내림차순", u8"\uE416",
+            [&state] { state.sortByName(false); }}}));
     data->addChild(commandGroup(state, "표시", {
-        {"전체", [&state] {
+        {"전체", u8"\uE106", [&state] {
             state.visibleOnly = false;
             state.refreshList();
             state.status->setText("전체 항목");
         }},
-        {"표시만", [&state] {
+        {"표시만", u8"\uE0DC", [&state] {
             state.visibleOnly = true;
             state.refreshList();
             state.status->setText("표시 항목만");
@@ -541,7 +576,9 @@ int main(int argc, char** argv) {
         DemoState state;
         state.textEngine = std::make_shared<lotui::FreetypeTextEngine>(
             renderer, std::vector<lotui::FontSource>{
-                {"Noto Sans KR", fontFile}});
+                {"Noto Sans KR", fontFile},
+                {"Lucide", lotui::executableDirectory() /
+                    "resources" / "fonts" / "lucide-subset.ttf"}});
         auto tree = createUi(state, plugin.descriptor());
         updateLayout(*tree, window->metrics());
         if (mode == "--input-test") {
