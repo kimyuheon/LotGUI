@@ -20,7 +20,7 @@ const LotuiDemoControlV1 controls[] = {
     {sizeof(LotuiDemoControlV1), LOTUI_DEMO_BUTTON,
         "run", "실행", 0.0, 0.0, 0.0, nullptr, &onRun},
     {sizeof(LotuiDemoControlV1), LOTUI_DEMO_CHECKBOX,
-        "snap", "스냅", 0.0, 1.0, 0.0, nullptr, &onSnap},
+        "snap", "열 고정", 0.0, 1.0, 0.0, nullptr, &onSnap},
     {sizeof(LotuiDemoControlV1), LOTUI_DEMO_SLIDER,
         "size", "크기", 0.0, 100.0, 35.0, nullptr, &onSize},
 };

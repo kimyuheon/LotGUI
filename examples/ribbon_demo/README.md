@@ -1,17 +1,19 @@
 # Standalone ribbon demo
 
 `ribbon_demo` is a LotUI-only native-window example. It does not include or
-link 3dEngine. The 72-pixel ribbon, modal dialog, button, checkbox, and slider
-use the same public widget API as the engine integration sample.
+link 3dEngine. Its compact 86-pixel ribbon and object list use the same public
+widget API as the engine integration sample. Home provides add, duplicate,
+delete, undo, redo, and a modal dialog. View changes row density and frozen
+columns. Data sorts by name and filters to visible rows. The list itself
+supports row selection and visibility checkboxes.
 
 `ribbon_demo_plugin` is a separate shared library loaded beside the executable.
 Its entry point returns a versioned C descriptor from `plugin_api.h` for a
 button, checkbox, and slider. The host validates the descriptor and creates
 ordinary LotUI widgets in `plugin_tab.cpp`; the plugin does not link LotUI or
-own Vulkan objects. The plugin stays loaded until its widget tree is gone.
+own Vulkan objects. Plugin actions add a row, freeze the name columns, and
+change row density. The plugin stays loaded until its widget tree is gone.
 This example ABI is intentionally local to the demo, not a stable public SDK.
-
-![Ribbon demo with its loaded plugin](../../docs/images/ribbon-demo-plugin.png)
 
 Build and run:
 
@@ -22,8 +24,8 @@ cmake --build build --config Release --target ribbon_demo
 
 Run `ribbon_demo` from the build output's `Release` directory on Windows, or
 from the matching build output directory on macOS/Linux. `--smoke` loads the
-plugin, renders a few frames, and exits. `--input-test` also clicks and drags
-the plugin controls and checks their callbacks.
+plugin, renders a few frames, and exits. `--input-test` checks workspace
+commands, ribbon tab switching, and the plugin controls' callbacks.
 
 To stage a separate example distribution:
 
