@@ -56,7 +56,7 @@ std::unique_ptr<lotui::Button> commandButton(
     style.cornerRadius = 2.0F;
     style.contentPadding = lotui::EdgeInsets::all(2.0F);
     auto label = std::make_unique<lotui::Label>(
-        textEngine, std::move(title), textStyle(13.0F));
+        textEngine, std::move(title), textStyle(15.0F));
     label->setHorizontalAlignment(lotui::HorizontalTextAlignment::Center);
     label->setVerticalAlignment(lotui::VerticalTextAlignment::Center);
     std::unique_ptr<lotui::Widget> content = std::move(label);
@@ -67,7 +67,7 @@ std::unique_ptr<lotui::Button> commandButton(
         options.mainAxisSize = lotui::MainAxisSize::Min;
         options.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
         row->setOptions(options);
-        auto iconStyle = textStyle(16.0F);
+        auto iconStyle = textStyle(17.0F);
         iconStyle.fontFamilies = {"Lucide"};
         auto symbol = std::make_unique<lotui::Label>(
             textEngine, std::string(icon), iconStyle);
@@ -77,7 +77,7 @@ std::unique_ptr<lotui::Button> commandButton(
         symbol->setVerticalAlignment(
             lotui::VerticalTextAlignment::Center);
         row->addChild(std::move(symbol),
-            {0.0F, {17.0F, 18.0F}, {17.0F, 18.0F}});
+            {0.0F, {18.0F, 19.0F}, {18.0F, 19.0F}});
         row->addChild(std::move(content));
         content = std::move(row);
     }
@@ -164,11 +164,47 @@ struct DemoState {
     }
 
     void addItem() {
+        insertItem("New item", "Object", "Default");
+        status->setText("항목 추가");
+    }
+
+    void insertItem(std::string name, std::string type,
+        std::string layer) {
         recordEdit();
-        items.push_back(makeRow("New item " + std::to_string(nextItem++),
-            "Object", "Default", "Draft"));
+        items.push_back(makeRow(name + " " + std::to_string(nextItem++),
+            std::move(type), std::move(layer), "Draft"));
         refreshList(items.size() - 1);
         status->setText("항목 추가");
+    }
+
+    void setSelectedVisible(bool visible) {
+        const auto index = selectedItem();
+        if (!index) {
+            status->setText("항목을 선택하세요");
+            return;
+        }
+        if (items[*index][0].checked == visible) {
+            status->setText(visible ? "이미 표시 중입니다" : "이미 숨겨져 있습니다");
+            return;
+        }
+        recordEdit();
+        items[*index][0].checked = visible;
+        refreshList(*index);
+        status->setText(visible ? "항목 표시" : "항목 숨김");
+    }
+
+    void showAllItems() {
+        if (std::all_of(items.begin(), items.end(),
+                [](const auto& row) { return row[0].checked; })) {
+            status->setText("모든 항목이 표시 중입니다");
+            return;
+        }
+        recordEdit();
+        for (auto& row : items) {
+            row[0].checked = true;
+        }
+        refreshList();
+        status->setText("모든 항목 표시");
     }
 
     void duplicateItem() {
@@ -258,6 +294,37 @@ struct DemoState {
             textEngine, "LotUI 대화상자", textStyle(14.0F)));
         dialogs->showModal(std::move(dialog));
     }
+
+    void showSelectionDetails() {
+        const auto index = selectedItem();
+        if (!index) {
+            status->setText("정보를 볼 항목을 선택하세요");
+            return;
+        }
+        const auto& row = items[*index];
+        auto content = std::make_unique<lotui::Column>();
+        lotui::LinearLayoutOptions options;
+        options.spacing = 5.0F;
+        options.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
+        content->setOptions(options);
+        content->addChild(std::make_unique<lotui::Label>(
+            textEngine, "종류: " + row[2].text, textStyle(14.0F)),
+            fixedHeight(23.0F));
+        content->addChild(std::make_unique<lotui::Label>(
+            textEngine, "레이어: " + row[3].text, textStyle(14.0F)),
+            fixedHeight(23.0F));
+        content->addChild(std::make_unique<lotui::Label>(
+            textEngine, "상태: " + row[4].text, textStyle(14.0F)),
+            fixedHeight(23.0F));
+        content->addChild(commandButton(textEngine, "닫기",
+            [this] { dialogs->dismissModal(); }, 70.0F),
+            fixedHeight(28.0F));
+        auto dialog = std::make_unique<lotui::Dialog>(
+            std::move(content), lotui::Size{300.0F, 220.0F});
+        dialog->setTitle(std::make_unique<lotui::Label>(
+            textEngine, row[1].text, textStyle(15.0F)));
+        dialogs->showModal(std::move(dialog));
+    }
 };
 
 struct RibbonAction {
@@ -282,11 +349,11 @@ std::unique_ptr<lotui::RibbonGroup> commandGroup(
     }
     lotui::RibbonGroupStyle style;
     style.cornerRadius = 0.0F;
-    style.titleHeight = 17.0F;
+    style.titleHeight = 19.0F;
     style.contentPadding = lotui::EdgeInsets::all(3.0F);
-    style.titleColor = {0.75F, 0.81F, 0.80F, 1.0F};
+    style.titleColor = {0.85F, 0.89F, 0.88F, 1.0F};
     return std::make_unique<lotui::RibbonGroup>(state.textEngine,
-        std::move(title), std::move(controls), style, textStyle(11.0F));
+        std::move(title), std::move(controls), style, textStyle(13.0F));
 }
 
 std::unique_ptr<lotui::WidgetTree> createUi(
@@ -303,12 +370,13 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     ribbonStyle.preferredHeight = ribbonHeight;
     ribbonStyle.tabBarHeight = 27.0F;
     ribbonStyle.contentPadding = lotui::EdgeInsets::all(3.0F);
-    ribbonStyle.tabHorizontalPadding = 9.0F;
-    ribbonStyle.minimumTabWidth = 65.0F;
+    ribbonStyle.tabHorizontalPadding = 11.0F;
+    ribbonStyle.minimumTabWidth = 82.0F;
     ribbonStyle.tabCornerRadius = 2.0F;
     ribbonStyle.tabSelected = {0.23F, 0.34F, 0.34F, 1.0F};
+    ribbonStyle.text = {0.91F, 0.94F, 0.95F, 1.0F};
     auto ribbon = std::make_unique<lotui::Ribbon>(
-        state.textEngine, ribbonStyle, textStyle(13.0F));
+        state.textEngine, ribbonStyle, textStyle(15.0F));
     state.ribbon = ribbon.get();
 
     // Lucide 1.55.0 glyphs are bundled in the small example font subset.
@@ -324,6 +392,24 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         {"대화상자", u8"\uE172", [&state] { state.showDialog(); }}}));
     ribbon->addTab(std::make_unique<lotui::RibbonTab>(
         "home", "홈", std::move(groups)));
+
+    auto insert = std::make_unique<lotui::Row>();
+    insert->addChild(commandGroup(state, "모델", {
+        {"조립품", u8"\uE2D0", [&state] {
+            state.insertItem("Assembly", "Assembly", "Architecture");
+        }},
+        {"스케치", u8"\uE4F1", [&state] {
+            state.insertItem("Sketch", "Sketch", "Structure");
+        }}}));
+    insert->addChild(commandGroup(state, "문서", {
+        {"뷰", u8"\uE0BA", [&state] {
+            state.insertItem("View", "View", "Drawings");
+        }},
+        {"표", u8"\uE2F9", [&state] {
+            state.insertItem("Table", "Table", "Architecture");
+        }}}));
+    ribbon->addTab(std::make_unique<lotui::RibbonTab>(
+        "insert", "삽입", std::move(insert)));
 
     auto view = std::make_unique<lotui::Row>();
     view->addChild(commandGroup(state, "행 간격", {
@@ -362,6 +448,21 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         }}}));
     ribbon->addTab(std::make_unique<lotui::RibbonTab>(
         "data", "데이터", std::move(data)));
+
+    auto inspect = std::make_unique<lotui::Row>();
+    inspect->addChild(commandGroup(state, "선택", {
+        {"정보", u8"\uE0F9", [&state] {
+            state.showSelectionDetails();
+        }},
+        {"숨기기", u8"\uE0BB", [&state] {
+            state.setSelectedVisible(false);
+        }}}));
+    inspect->addChild(commandGroup(state, "표시", {
+        {"모두 표시", u8"\uE0BA", [&state] {
+            state.showAllItems();
+        }}}));
+    ribbon->addTab(std::make_unique<lotui::RibbonTab>(
+        "inspect", "검사", std::move(inspect)));
 
     state.pluginControls = lotui::example::addPluginTab(
         *ribbon, state.textEngine,
@@ -515,13 +616,82 @@ void exerciseWorkspace(lotui::WidgetTree& tree, DemoState& state) {
         tree.pointerPressed(point, lotui::PointerButton::Primary);
         tree.pointerReleased(point, lotui::PointerButton::Primary);
     };
-    const auto tab = state.ribbon->tabHeaderBounds(1);
+    if (state.ribbon->tabCount() != 6) {
+        throw std::runtime_error("expected six ribbon tabs");
+    }
+    float previousRight = state.ribbon->bounds().x;
+    for (std::size_t index = 0; index < state.ribbon->tabCount(); ++index) {
+        const auto header = state.ribbon->tabHeaderBounds(index);
+        if (header.width < 82.0F || header.x < previousRight ||
+            header.x + header.width >
+                state.ribbon->bounds().x + state.ribbon->bounds().width) {
+            throw std::runtime_error("ribbon tab headers overlap or overflow");
+        }
+        previousRight = header.x + header.width;
+    }
+    const auto insertTab = state.ribbon->tabHeaderBounds(1);
+    click({insertTab.x + insertTab.width * 0.5F,
+        insertTab.y + insertTab.height * 0.5F});
+    if (state.ribbon->selectedId() != "insert") {
+        throw std::runtime_error("insert ribbon tab did not activate");
+    }
+    const auto initialCount = state.items.size();
+    state.insertItem("Assembly", "Assembly", "Architecture");
+    if (state.items.size() != initialCount + 1 ||
+        state.items.back()[2].text != "Assembly" ||
+        !state.selectedItem()) {
+        throw std::runtime_error("insert ribbon action did not update list");
+    }
+    state.showSelectionDetails();
+    if (!state.dialogs->hasModal()) {
+        throw std::runtime_error("inspect ribbon did not show details");
+    }
+    state.dialogs->dismissModal();
+    state.setSelectedVisible(false);
+    if (state.items.back()[0].checked) {
+        throw std::runtime_error("inspect ribbon did not hide selection");
+    }
+    state.undo();
+    state.showAllItems();
+    if (!std::all_of(state.items.begin(), state.items.end(),
+            [](const auto& row) { return row[0].checked; })) {
+        throw std::runtime_error("inspect ribbon did not show all items");
+    }
+    state.undo();
+    state.undo();
+    if (state.items.size() != initialCount) {
+        throw std::runtime_error("insert ribbon undo did not restore list");
+    }
+    const auto tab = state.ribbon->tabHeaderBounds(2);
     click({tab.x + tab.width * 0.5F, tab.y + tab.height * 0.5F});
     if (state.ribbon->selectedId() != "view") {
         throw std::runtime_error("view ribbon tab did not activate");
     }
     state.ribbon->selectTab("home");
-    const auto initialCount = state.items.size();
+    const auto* homeGroups = dynamic_cast<const lotui::Row*>(
+        state.ribbon->tabAt(0).content());
+    if (!homeGroups) {
+        throw std::runtime_error("home ribbon groups are missing");
+    }
+    for (std::size_t groupIndex = 0;
+            groupIndex < homeGroups->childCount(); ++groupIndex) {
+        const auto* group = dynamic_cast<const lotui::RibbonGroup*>(
+            &homeGroups->childAt(groupIndex));
+        const auto* buttons = group
+            ? dynamic_cast<const lotui::Row*>(group->content()) : nullptr;
+        if (!buttons) {
+            throw std::runtime_error("home ribbon commands are missing");
+        }
+        for (std::size_t buttonIndex = 0;
+                buttonIndex < buttons->childCount(); ++buttonIndex) {
+            const auto bounds = buttons->childAt(buttonIndex).bounds();
+            if (bounds.y < group->bounds().y ||
+                bounds.y + bounds.height >
+                    group->bounds().y + group->bounds().height + 0.5F) {
+                throw std::runtime_error("ribbon command exceeds group height");
+            }
+        }
+    }
     state.addItem();
     if (state.items.size() != initialCount + 1 ||
         !state.selectedItem()) {

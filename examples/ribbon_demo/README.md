@@ -2,12 +2,14 @@
 
 `ribbon_demo` is a LotUI-only native-window example. It does not include or
 link 3dEngine. Its compact 86-pixel ribbon and object list use the same public
-widget API as the engine integration sample. Home provides add, duplicate,
-delete, undo, redo, and a modal dialog. View changes row density and frozen
-columns. Data sorts by name and filters to visible rows. The list itself
-supports row selection and visibility checkboxes.
+widget API as the engine integration sample. Its six tabs are Home, Insert,
+View, Data, Inspect, and Plugin. Home provides add, duplicate, delete, undo,
+redo, and a modal dialog. Insert creates assembly, sketch, view, and table
+rows. View changes row density and frozen columns. Data sorts by name and
+filters to visible rows. Inspect shows selected-row details and changes
+visibility. The list itself supports row selection and visibility checkboxes.
 
-Ribbon commands use a 14-glyph subset of the Lucide 1.55.0 icon font. The
+Ribbon commands use a 20-glyph subset of the Lucide 1.55.0 icon font. The
 subset is stored in `resources/fonts/lucide-subset.ttf`; its ISC/MIT license
 notice is in `resources/LUCIDE-LICENSE.txt`. Icons are rendered through the
 same FreeType text engine on all supported platforms.
