@@ -59,15 +59,15 @@ std::unique_ptr<lotui::Button> commandButton(
     style.cornerRadius = 2.0F;
     style.contentPadding = lotui::EdgeInsets::all(2.0F);
     auto label = std::make_unique<lotui::Label>(
-        textEngine, std::move(title), textStyle(15.0F));
-    label->setHorizontalAlignment(lotui::HorizontalTextAlignment::Center);
+        textEngine, std::move(title), textStyle(14.0F));
+    label->setHorizontalAlignment(lotui::HorizontalTextAlignment::Start);
     label->setVerticalAlignment(lotui::VerticalTextAlignment::Center);
     std::unique_ptr<lotui::Widget> content = std::move(label);
     if (!icon.empty()) {
         auto row = std::make_unique<lotui::Row>();
         lotui::LinearLayoutOptions options;
         options.spacing = 4.0F;
-        options.mainAxisSize = lotui::MainAxisSize::Min;
+        options.mainAxisSize = lotui::MainAxisSize::Max;
         options.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
         row->setOptions(options);
         auto iconStyle = textStyle(17.0F);
@@ -396,7 +396,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     ribbonStyle.tabSelected = {0.23F, 0.34F, 0.34F, 1.0F};
     ribbonStyle.text = {0.91F, 0.94F, 0.95F, 1.0F};
     auto ribbon = std::make_unique<lotui::Ribbon>(
-        state.textEngine, ribbonStyle, textStyle(15.0F));
+        state.textEngine, ribbonStyle, textStyle(13.0F));
     state.ribbon = ribbon.get();
 
     // Lucide 1.55.0 glyphs are bundled in the small example font subset.
@@ -670,6 +670,32 @@ void exerciseWorkspace(lotui::WidgetTree& tree, DemoState& state) {
                     "ribbon panel titles are not aligned");
             }
         }
+    }
+    state.ribbon->selectTab("data");
+    const auto* dataPanels = dynamic_cast<const lotui::Row*>(
+        state.ribbon->tabAt(2).content());
+    const auto* displayPanel = dynamic_cast<const lotui::RibbonGroup*>(
+        &dataPanels->childAt(1));
+    const auto* displayColumns = dynamic_cast<const lotui::Row*>(
+        displayPanel->content());
+    const auto* displayCommands = dynamic_cast<const lotui::Column*>(
+        &displayColumns->childAt(0));
+    const auto commandLabel = [](const lotui::Widget& widget) {
+        const auto* button = dynamic_cast<const lotui::Button*>(&widget);
+        const auto* content = button
+            ? dynamic_cast<const lotui::Row*>(button->content()) : nullptr;
+        return content && content->childCount() == 2
+            ? dynamic_cast<const lotui::Label*>(&content->childAt(1))
+            : nullptr;
+    };
+    const auto* firstLabel = commandLabel(displayCommands->childAt(0));
+    const auto* secondLabel = commandLabel(displayCommands->childAt(1));
+    if (!firstLabel || !secondLabel ||
+        firstLabel->horizontalAlignment() !=
+            lotui::HorizontalTextAlignment::Start ||
+        std::abs(firstLabel->bounds().x -
+            secondLabel->bounds().x) > 0.5F) {
+        throw std::runtime_error("ribbon command labels are not left-aligned");
     }
     const auto viewTab = state.ribbon->tabHeaderBounds(1);
     click({viewTab.x + viewTab.width * 0.5F,
