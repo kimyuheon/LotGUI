@@ -52,8 +52,10 @@ std::unique_ptr<lotui::Button> commandButton(
     float width = 84.0F,
     std::string_view icon = {}) {
     lotui::ButtonStyle style;
-    style.normal = {0.22F, 0.29F, 0.34F, 1.0F};
-    style.hovered = {0.29F, 0.43F, 0.45F, 1.0F};
+    style.normal = {0.0F, 0.0F, 0.0F, 0.0F};
+    style.hovered = {0.32F, 0.45F, 0.48F, 0.6F};
+    style.pressed = {0.35F, 0.53F, 0.54F, 0.8F};
+    style.disabled = {0.0F, 0.0F, 0.0F, 0.0F};
     style.cornerRadius = 2.0F;
     style.contentPadding = lotui::EdgeInsets::all(2.0F);
     auto label = std::make_unique<lotui::Label>(
@@ -586,6 +588,11 @@ void exercisePlugin(lotui::WidgetTree& tree, DemoState& state) {
     if (state.pluginControls.size() != 3) {
         throw std::runtime_error("expected three plugin controls");
     }
+    const auto* pluginButton = dynamic_cast<const lotui::Button*>(
+        state.pluginControls[0]);
+    if (!pluginButton || pluginButton->style().normal.alpha != 0.0F) {
+        throw std::runtime_error("plugin ribbon button has a default fill");
+    }
     state.ribbon->selectTab("plugin");
     const auto click = [&tree](lotui::Point point) {
         tree.pointerMoved(point);
@@ -716,6 +723,11 @@ void exerciseWorkspace(lotui::WidgetTree& tree, DemoState& state) {
         insertGroup->content());
     const auto* firstColumn = dynamic_cast<const lotui::Column*>(
         &insertColumns->childAt(0));
+    const auto* firstButton = dynamic_cast<const lotui::Button*>(
+        &firstColumn->childAt(0));
+    if (!firstButton || firstButton->style().normal.alpha != 0.0F) {
+        throw std::runtime_error("ribbon button has a default fill");
+    }
     const auto initialCount = state.items.size();
     const auto insertButton = firstColumn->childAt(0).bounds();
     click({insertButton.x + insertButton.width * 0.5F,

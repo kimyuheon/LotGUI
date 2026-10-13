@@ -42,8 +42,10 @@ std::vector<Widget*> addPluginTab(
     columnOptions.crossAxisAlignment = CrossAxisAlignment::Stretch;
 
     ButtonStyle buttonStyle;
-    buttonStyle.normal = {0.24F, 0.37F, 0.47F, 1.0F};
-    buttonStyle.hovered = {0.31F, 0.48F, 0.57F, 1.0F};
+    buttonStyle.normal = {0.0F, 0.0F, 0.0F, 0.0F};
+    buttonStyle.hovered = {0.32F, 0.45F, 0.48F, 0.6F};
+    buttonStyle.pressed = {0.35F, 0.53F, 0.54F, 0.8F};
+    buttonStyle.disabled = {0.0F, 0.0F, 0.0F, 0.0F};
     buttonStyle.cornerRadius = 3.0F;
     buttonStyle.contentPadding = EdgeInsets::all(2.0F);
     CheckboxStyle checkboxStyle;
