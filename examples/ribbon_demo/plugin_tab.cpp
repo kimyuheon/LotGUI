@@ -127,6 +127,7 @@ std::vector<Widget*> addPluginTab(
 
     RibbonGroupStyle groupStyle;
     groupStyle.cornerRadius = 0.0F;
+    groupStyle.background = {0.0F, 0.0F, 0.0F, 0.0F};
     groupStyle.titleHeight = 18.0F;
     groupStyle.contentPadding = EdgeInsets::all(2.0F);
     groupStyle.titleColor = {0.87F, 0.91F, 0.96F, 1.0F};

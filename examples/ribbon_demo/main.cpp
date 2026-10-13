@@ -49,8 +49,9 @@ std::unique_ptr<lotui::Button> commandButton(
     const std::shared_ptr<const lotui::TextEngine>& textEngine,
     std::string title,
     lotui::Button::ClickHandler action,
-    float width = 84.0F,
-    std::string_view icon = {}) {
+    float width,
+    std::string_view icon = {},
+    bool prominent = false) {
     lotui::ButtonStyle style;
     style.normal = {0.0F, 0.0F, 0.0F, 0.0F};
     style.hovered = {0.32F, 0.45F, 0.48F, 0.6F};
@@ -59,18 +60,14 @@ std::unique_ptr<lotui::Button> commandButton(
     style.cornerRadius = 2.0F;
     style.contentPadding = lotui::EdgeInsets::all(2.0F);
     auto label = std::make_unique<lotui::Label>(
-        textEngine, std::move(title), textStyle(14.0F));
-    label->setHorizontalAlignment(lotui::HorizontalTextAlignment::Start);
+        textEngine, std::move(title), textStyle(prominent ? 13.0F : 14.0F));
+    label->setHorizontalAlignment(prominent
+        ? lotui::HorizontalTextAlignment::Center
+        : lotui::HorizontalTextAlignment::Start);
     label->setVerticalAlignment(lotui::VerticalTextAlignment::Center);
     std::unique_ptr<lotui::Widget> content = std::move(label);
     if (!icon.empty()) {
-        auto row = std::make_unique<lotui::Row>();
-        lotui::LinearLayoutOptions options;
-        options.spacing = 4.0F;
-        options.mainAxisSize = lotui::MainAxisSize::Max;
-        options.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
-        row->setOptions(options);
-        auto iconStyle = textStyle(17.0F);
+        auto iconStyle = textStyle(prominent ? 29.0F : 17.0F);
         iconStyle.fontFamilies = {"Lucide"};
         auto symbol = std::make_unique<lotui::Label>(
             textEngine, std::string(icon), iconStyle);
@@ -79,13 +76,31 @@ std::unique_ptr<lotui::Button> commandButton(
             lotui::HorizontalTextAlignment::Center);
         symbol->setVerticalAlignment(
             lotui::VerticalTextAlignment::Center);
-        row->addChild(std::move(symbol),
-            {0.0F, {18.0F, 19.0F}, {18.0F, 19.0F}});
-        row->addChild(std::move(content));
-        content = std::move(row);
+        lotui::LinearLayoutOptions options;
+        options.mainAxisSize = prominent
+            ? lotui::MainAxisSize::Min
+            : lotui::MainAxisSize::Max;
+        options.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
+        if (prominent) {
+            options.spacing = 4.0F;
+            auto column = std::make_unique<lotui::Column>();
+            column->setOptions(options);
+            column->addChild(std::move(symbol),
+                {0.0F, {32.0F, 34.0F}, {32.0F, 34.0F}});
+            column->addChild(std::move(content));
+            content = std::move(column);
+        } else {
+            options.spacing = 4.0F;
+            auto row = std::make_unique<lotui::Row>();
+            row->setOptions(options);
+            row->addChild(std::move(symbol),
+                {0.0F, {18.0F, 19.0F}, {18.0F, 19.0F}});
+            row->addChild(std::move(content));
+            content = std::move(row);
+        }
     }
     return std::make_unique<lotui::Button>(
-        std::move(content), lotui::Size{width, 24.0F},
+        std::move(content), lotui::Size{width, prominent ? 76.0F : 24.0F},
         std::move(action), style);
 }
 
@@ -334,6 +349,7 @@ struct RibbonAction {
     std::string title;
     std::string_view icon;
     lotui::Button::ClickHandler action;
+    bool prominent{false};
 };
 
 std::unique_ptr<lotui::Row> ribbonPanels() {
@@ -353,7 +369,6 @@ std::unique_ptr<lotui::RibbonGroup> commandGroup(
     options.mainAxisSize = lotui::MainAxisSize::Min;
     options.crossAxisAlignment = lotui::CrossAxisAlignment::Start;
     controls->setOptions(options);
-    constexpr float commandWidth = 88.0F;
     for (auto& columnActions : columns) {
         auto column = std::make_unique<lotui::Column>();
         lotui::LinearLayoutOptions columnOptions;
@@ -362,15 +377,17 @@ std::unique_ptr<lotui::RibbonGroup> commandGroup(
         columnOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
         column->setOptions(columnOptions);
         for (auto& action : columnActions) {
+            const float commandWidth = action.prominent ? 68.0F : 88.0F;
             column->addChild(commandButton(state.textEngine,
                 std::move(action.title), std::move(action.action),
-                commandWidth, action.icon),
+                commandWidth, action.icon, action.prominent),
                 {0.0F, {}, {commandWidth, lotui::unboundedLayoutSize}});
         }
         controls->addChild(std::move(column));
     }
     lotui::RibbonGroupStyle style;
     style.cornerRadius = 0.0F;
+    style.background = {0.0F, 0.0F, 0.0F, 0.0F};
     style.titleHeight = 18.0F;
     style.contentPadding = lotui::EdgeInsets::all(2.0F);
     style.titleColor = {0.85F, 0.89F, 0.88F, 1.0F};
@@ -407,17 +424,17 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         {{"취소", u8"\uE2A1", [&state] { state.undo(); }},
          {"다시", u8"\uE2A0", [&state] { state.redo(); }}}}));
     groups->addChild(commandGroup(state, "항목", {
-        {{"추가", u8"\uE13D", [&state] { state.addItem(); }},
-         {"복제", u8"\uE09E", [&state] { state.duplicateItem(); }},
+        {{"추가", u8"\uE13D", [&state] { state.addItem(); }, true}},
+        {{"복제", u8"\uE09E", [&state] { state.duplicateItem(); }},
          {"삭제", u8"\uE18E", [&state] { state.removeItem(); }}}}));
     groups->addChild(commandGroup(state, "삽입", {
         {{"조립품", u8"\uE2D0", [&state] {
               state.insertItem("Assembly", "Assembly", "Architecture");
-          }},
-         {"스케치", u8"\uE4F1", [&state] {
+          }, true}},
+        {{"스케치", u8"\uE4F1", [&state] {
               state.insertItem("Sketch", "Sketch", "Structure");
-          }}},
-        {{"뷰", u8"\uE0BA", [&state] {
+          }},
+         {"뷰", u8"\uE0BA", [&state] {
               state.insertItem("View", "View", "Drawings");
           }},
          {"표", u8"\uE2F9", [&state] {
@@ -425,7 +442,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
           }}}}));
     groups->addChild(commandGroup(state, "창", {
         {{"대화상자", u8"\uE172",
-            [&state] { state.showDialog(); }}}}));
+            [&state] { state.showDialog(); }, true}}}));
     ribbon->addTab(std::make_unique<lotui::RibbonTab>(
         "home", "홈", std::move(groups)));
 
@@ -761,6 +778,21 @@ void exerciseWorkspace(lotui::WidgetTree& tree, DemoState& state) {
         &firstColumn->childAt(0));
     if (!firstButton || firstButton->style().normal.alpha != 0.0F) {
         throw std::runtime_error("ribbon button has a default fill");
+    }
+    const auto* primaryContent = dynamic_cast<const lotui::Column*>(
+        firstButton->content());
+    const auto* secondaryColumn = dynamic_cast<const lotui::Column*>(
+        &insertColumns->childAt(1));
+    if (!primaryContent || primaryContent->childCount() != 2 ||
+        !secondaryColumn || secondaryColumn->childCount() != 3 ||
+        firstButton->bounds().height < 70.0F ||
+        primaryContent->childAt(0).bounds().y >=
+            primaryContent->childAt(1).bounds().y ||
+        secondaryColumn->childAt(0).bounds().height > 25.0F ||
+        secondaryColumn->childAt(2).bounds().y +
+            secondaryColumn->childAt(2).bounds().height >
+            firstButton->bounds().y + firstButton->bounds().height + 0.5F) {
+        throw std::runtime_error("ribbon primary command layout is invalid");
     }
     const auto initialCount = state.items.size();
     const auto insertButton = firstColumn->childAt(0).bounds();

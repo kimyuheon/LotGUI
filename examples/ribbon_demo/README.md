@@ -3,9 +3,10 @@
 `ribbon_demo` is a LotUI-only native-window example. It does not include or
 link 3dEngine. Its 134-pixel ribbon and object list use the same public widget
 API as the engine integration sample. The four tabs are Home, View, Data, and
-Plugin. Commands are arranged in two- or three-row columns within each ribbon
-group. Home provides add, duplicate, delete, undo, redo, a modal dialog, and
-assembly/sketch/view/table insertion. View changes row density and frozen
+Plugin. Home combines tall primary commands with two- or three-row secondary
+commands in equal-height ribbon panels. Home provides add, duplicate, delete,
+undo, redo, a modal dialog, and assembly/sketch/view/table insertion. View
+changes row density and frozen
 columns. Data sorts, filters, shows selected-row details, and changes
 visibility. The list itself supports row selection and visibility checkboxes.
 
