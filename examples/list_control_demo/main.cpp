@@ -18,8 +18,12 @@
 #include <cctype>
 #include <chrono>
 #include <exception>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <set>
 #include <string>
@@ -110,6 +114,7 @@ struct TableState {
     lotui::Button* deleteButton{nullptr};
     lotui::ComboBox* columnPicker{nullptr};
     lotui::TextField* searchField{nullptr};
+    lotui::Button* findButton{nullptr};
     lotui::PopupHost* popupHost{nullptr};
     std::weak_ptr<FilterPopupState> filterPopup;
     std::vector<std::optional<std::set<std::string>>> columnFilters;
@@ -790,8 +795,10 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         [&window]() { return window.readClipboardText(); });
     state->searchField = searchField.get();
     toolbar->addChild(std::move(searchField));
-    toolbar->addChild(toolbarButton(textEngine, listTextStyle,
-        "Find", 46.0F, [state]() { state->findNext(); }));
+    auto findButton = toolbarButton(textEngine, listTextStyle,
+        "Find", 46.0F, [state]() { state->findNext(); });
+    state->findButton = findButton.get();
+    toolbar->addChild(std::move(findButton));
     root->addChild(std::move(toolbar),
         {0.0F, {0.0F, 28.0F}, {lotui::unboundedLayoutSize, 28.0F}});
     state->updateButtons();
@@ -939,6 +946,75 @@ void runVideoDemoStep(
     }
 }
 
+void saveCapturedFrame(
+    const lotui::VulkanRenderer::CapturedFrame& frame,
+    const std::filesystem::path& directory,
+    int index) {
+    if (frame.rgba.size() != static_cast<std::size_t>(frame.width) *
+            frame.height * 4) {
+        throw std::runtime_error("captured frame is empty");
+    }
+    std::ostringstream name;
+    name << "frame-" << std::setw(4) << std::setfill('0') << index << ".ppm";
+    std::ofstream output(directory / name.str(), std::ios::binary);
+    if (!output) throw std::runtime_error("failed to open captured frame");
+    output << "P6\n" << frame.width << ' ' << frame.height << "\n255\n";
+    std::vector<std::uint8_t> rgb(
+        static_cast<std::size_t>(frame.width) * frame.height * 3);
+    for (std::size_t pixel = 0; pixel < rgb.size() / 3; ++pixel) {
+        std::copy_n(frame.rgba.data() + pixel * 4, 3,
+            rgb.data() + pixel * 3);
+    }
+    output.write(reinterpret_cast<const char*>(rgb.data()),
+        static_cast<std::streamsize>(rgb.size()));
+    if (!output) throw std::runtime_error("failed to write captured frame");
+}
+
+void captureFindDemo(
+    const std::filesystem::path& directory,
+    const std::shared_ptr<TableState>& state,
+    lotui::WidgetTree& tree,
+    lotui::VulkanRenderer& renderer) {
+    std::filesystem::create_directories(directory);
+    state->list->setSelectedCell(
+        lotui::ListCellAddress{state->visible.size() - 1, 1});
+    constexpr std::string_view queries[]{"lamp", "chair", "desk"};
+    constexpr std::size_t expectedRows[]{0, 1, 3};
+    std::vector<lotui::PaintCommand> commands;
+    for (int frame = 0; frame < 64; ++frame) {
+        if (frame == 8 || frame == 26 || frame == 46) {
+            state->query.clear();
+            state->searchField->setText("");
+        }
+        for (int search = 0; search < 3; ++search) {
+            const int start = search == 0 ? 8 : search == 1 ? 26 : 46;
+            const int find = search == 0 ? 14 : search == 1 ? 33 : 52;
+            const int letter = frame - start;
+            if (letter >= 0 && letter < static_cast<int>(queries[search].size())) {
+                state->query = std::string(queries[search].substr(
+                    0, static_cast<std::size_t>(letter + 1)));
+                state->searchField->setText(state->query);
+            }
+            if (frame == find) {
+                const lotui::Rect bounds = state->findButton->bounds();
+                const lotui::Point center{
+                    bounds.x + bounds.width * 0.5F,
+                    bounds.y + bounds.height * 0.5F};
+                tree.pointerMoved(center);
+                tree.pointerPressed(center, lotui::PointerButton::Primary);
+                tree.pointerReleased(center, lotui::PointerButton::Primary);
+                const auto selected = state->list->selectedCell();
+                if (!selected || selected->row != expectedRows[search]) {
+                    throw std::runtime_error("Find demo selected the wrong row");
+                }
+            }
+        }
+        commands.clear();
+        tree.paint(commands);
+        saveCapturedFrame(renderer.drawFrameCaptured(commands), directory, frame);
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -964,6 +1040,13 @@ int main(int argc, char** argv) {
         std::shared_ptr<TableState> state;
         auto tree = createUi(textEngine, *window, state);
         updateLayout(*tree, window->metrics());
+        if (argc > 1 && std::string_view(argv[1]) == "--capture-find") {
+            if (argc < 3) {
+                throw std::invalid_argument("--capture-find requires an output directory");
+            }
+            captureFindDemo(argv[2], state, *tree, renderer);
+            return 0;
+        }
         if (argc > 1 && std::string_view(argv[1]) == "--preview-filter") {
             const lotui::Rect filter = state->list->headerFilterBounds(2);
             const lotui::Point point{

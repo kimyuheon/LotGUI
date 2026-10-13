@@ -212,7 +212,9 @@ public:
         cleanup();
     }
 
-    void drawFrame(const std::vector<PaintCommand>& paintCommands);
+    void drawFrame(
+        const std::vector<PaintCommand>& paintCommands,
+        VulkanRenderer::CapturedFrame* capture = nullptr);
     TextureId createTexture(const TextureImage& image);
     void updateTexture(TextureId id, const TextureUpdate& update);
     std::shared_ptr<detail::TextureReleaseState> textureReleaseState() const {
@@ -289,7 +291,8 @@ private:
         VkCommandBuffer commandBuffer,
         std::uint32_t imageIndex,
         const FrameSync& frame,
-        const std::vector<PaintBatch>& batches) const;
+        const std::vector<PaintBatch>& batches,
+        VkBuffer captureBuffer) const;
     bool recreateSwapchain();
     void destroySwapchainResources();
     void cleanup();
@@ -318,6 +321,7 @@ private:
 
     VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
     VkFormat swapchainFormat_{VK_FORMAT_UNDEFINED};
+    bool captureSupported_{false};
     VkExtent2D swapchainExtent_{};
     std::vector<VkImage> swapchainImages_;
     std::vector<VkImageView> imageViews_;
@@ -1151,7 +1155,10 @@ void VulkanRenderer::Impl::createSwapchain() {
     createInfo.imageColorSpace = surfaceFormat.colorSpace;
     createInfo.imageExtent = swapchainExtent_;
     createInfo.imageArrayLayers = 1;
-    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    captureSupported_ = (support.capabilities.supportedUsageFlags &
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0;
+    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+        (captureSupported_ ? VK_IMAGE_USAGE_TRANSFER_SRC_BIT : 0);
 
     const std::uint32_t queueFamilies[]{
         graphicsQueueFamily_, presentQueueFamily_};
@@ -1464,7 +1471,8 @@ void VulkanRenderer::Impl::recordCommandBuffer(
     VkCommandBuffer commandBuffer,
     std::uint32_t imageIndex,
     const FrameSync& frame,
-    const std::vector<PaintBatch>& batches) const {
+    const std::vector<PaintBatch>& batches,
+    VkBuffer captureBuffer) const {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -1538,6 +1546,41 @@ void VulkanRenderer::Impl::recordCommandBuffer(
 
     vkCmdEndRenderPass(commandBuffer);
 
+    if (captureBuffer != VK_NULL_HANDLE) {
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = swapchainImages_[imageIndex];
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.layerCount = 1;
+        vkCmdPipelineBarrier(commandBuffer,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+            0, nullptr, 0, nullptr, 1, &barrier);
+
+        VkBufferImageCopy copy{};
+        copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copy.imageSubresource.layerCount = 1;
+        copy.imageExtent = {swapchainExtent_.width, swapchainExtent_.height, 1};
+        vkCmdCopyImageToBuffer(commandBuffer, barrier.image,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, captureBuffer, 1, &copy);
+
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.dstAccessMask = 0;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        vkCmdPipelineBarrier(commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0,
+            0, nullptr, 0, nullptr, 1, &barrier);
+    }
+
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
         throw std::runtime_error("failed to record a Vulkan command buffer");
     }
@@ -1564,13 +1607,21 @@ bool VulkanRenderer::Impl::recreateSwapchain() {
 }
 
 void VulkanRenderer::Impl::drawFrame(
-    const std::vector<PaintCommand>& paintCommands) {
+    const std::vector<PaintCommand>& paintCommands,
+    VulkanRenderer::CapturedFrame* capture) {
     const auto metrics = window_.metrics();
     if (metrics.framebufferWidth <= 0 || metrics.framebufferHeight <= 0) {
         return;
     }
     if (framebufferSizeChanged() && !recreateSwapchain()) {
         return;
+    }
+    if (capture && (!captureSupported_ ||
+        (swapchainFormat_ != VK_FORMAT_B8G8R8A8_SRGB &&
+         swapchainFormat_ != VK_FORMAT_B8G8R8A8_UNORM &&
+         swapchainFormat_ != VK_FORMAT_R8G8B8A8_SRGB &&
+         swapchainFormat_ != VK_FORMAT_R8G8B8A8_UNORM))) {
+        throw std::runtime_error("swapchain format does not support capture");
     }
 
     FrameSync& frame = frames_[currentFrame_];
@@ -1603,10 +1654,31 @@ void VulkanRenderer::Impl::drawFrame(
 
     const PaintBatchPlan batchPlan = uploadInstances(frame, paintCommands);
 
+    VkBuffer captureBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory captureMemory = VK_NULL_HANDLE;
+    struct CaptureBufferCleanup {
+        VkDevice device;
+        VkBuffer& buffer;
+        VkDeviceMemory& memory;
+        ~CaptureBufferCleanup() {
+            if (buffer != VK_NULL_HANDLE) vkDestroyBuffer(device, buffer, nullptr);
+            if (memory != VK_NULL_HANDLE) vkFreeMemory(device, memory, nullptr);
+        }
+    } cleanup{device_, captureBuffer, captureMemory};
+    const VkDeviceSize captureBytes = static_cast<VkDeviceSize>(
+        swapchainExtent_.width) * swapchainExtent_.height * 4;
+    if (capture) {
+        createBuffer(captureBytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            captureBuffer, captureMemory);
+    }
+
     vkResetFences(device_, 1, &frame.inFlight);
     vkResetCommandBuffer(frame.commandBuffer, 0);
     recordCommandBuffer(
-        frame.commandBuffer, imageIndex, frame, batchPlan.batches);
+        frame.commandBuffer, imageIndex, frame, batchPlan.batches,
+        captureBuffer);
 
     const VkPipelineStageFlags waitStage =
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -1633,6 +1705,27 @@ void VulkanRenderer::Impl::drawFrame(
     presentInfo.pImageIndices = &imageIndex;
     const VkResult presentResult =
         vkQueuePresentKHR(presentQueue_, &presentInfo);
+
+    if (capture) {
+        vkWaitForFences(device_, 1, &frame.inFlight, VK_TRUE,
+            std::numeric_limits<std::uint64_t>::max());
+        void* pixels = nullptr;
+        if (vkMapMemory(device_, captureMemory, 0, captureBytes, 0,
+                &pixels) != VK_SUCCESS) {
+            throw std::runtime_error("failed to map captured frame");
+        }
+        capture->width = swapchainExtent_.width;
+        capture->height = swapchainExtent_.height;
+        capture->rgba.resize(static_cast<std::size_t>(captureBytes));
+        std::memcpy(capture->rgba.data(), pixels, capture->rgba.size());
+        vkUnmapMemory(device_, captureMemory);
+        if (swapchainFormat_ == VK_FORMAT_B8G8R8A8_SRGB ||
+            swapchainFormat_ == VK_FORMAT_B8G8R8A8_UNORM) {
+            for (std::size_t i = 0; i < capture->rgba.size(); i += 4) {
+                std::swap(capture->rgba[i], capture->rgba[i + 2]);
+            }
+        }
+    }
 
     currentFrame_ = (currentFrame_ + 1) % frames_.size();
 
@@ -1757,6 +1850,13 @@ VulkanRenderer::~VulkanRenderer() = default;
 void VulkanRenderer::drawFrame(
     const std::vector<PaintCommand>& paintCommands) {
     impl_->drawFrame(paintCommands);
+}
+
+VulkanRenderer::CapturedFrame VulkanRenderer::drawFrameCaptured(
+    const std::vector<PaintCommand>& paintCommands) {
+    CapturedFrame capture;
+    impl_->drawFrame(paintCommands, &capture);
+    return capture;
 }
 
 Texture VulkanRenderer::createTexture(const TextureImage& image) {

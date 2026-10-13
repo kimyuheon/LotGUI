@@ -25,8 +25,12 @@ with `examples/list_control_demo/record_video.ps1` after a Release build;
 the script uses `ffmpeg` from PATH or `build/video_tools`.
 The [row add/delete video](videos/list-control-rows.mp4) is a short excerpt
 from the full recording, focused on the `+ Row` and `- Row` buttons.
-The [Find video](videos/list-control-find.mp4) highlights the selection before
-and after finding `lamp` in the Name column.
+The [three-query Find video](videos/list-control-find-3.mp4) records the actual
+widget without annotations: `lamp`, `chair`, then `desk`. Rebuild it on Windows
+with `examples/list_control_demo/record_video.ps1 -FindThree`. This mode reads
+pixels directly from the Vulkan swapchain, so desktop capture is not required.
+The earlier [single-query clip](videos/list-control-find.mp4) shows an
+annotated before-and-after comparison.
 The toolbar and its history belong to the sample application; plugins and
 other consumers can compose the same public widgets around `ListControl`.
 `setOnHeaderFilterRequested` reports the clicked column and button bounds so

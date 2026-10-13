@@ -1,4 +1,5 @@
 param(
+    [switch]$FindThree,
     [string]$Ffmpeg = ""
 )
 
@@ -23,6 +24,24 @@ if (-not $Ffmpeg) {
 }
 
 New-Item -ItemType Directory -Path (Split-Path $output) -Force | Out-Null
+if ($FindThree) {
+    $frames = Join-Path $root "build/list-control-find-frames"
+    New-Item -ItemType Directory -Path $frames -Force | Out-Null
+    & $exe --capture-find $frames
+    if ($LASTEXITCODE -ne 0) {
+        throw "list_control_demo frame capture failed."
+    }
+    $output = Join-Path $root "docs/videos/list-control-find-3.mp4"
+    & $Ffmpeg -y -hide_banner -loglevel error -framerate 8 `
+        -i (Join-Path $frames "frame-%04d.ppm") -frames:v 64 `
+        -c:v libx264 -preset veryfast -crf 18 -pix_fmt yuv420p `
+        -movflags +faststart $output
+    if ($LASTEXITCODE -ne 0) {
+        throw "ffmpeg failed to encode the Find video."
+    }
+    Write-Output $output
+    return
+}
 $app = Start-Process -FilePath $exe -ArgumentList "--video-demo" `
     -WorkingDirectory (Split-Path $exe) -PassThru
 try {
