@@ -25,6 +25,8 @@ with `examples/list_control_demo/record_video.ps1` after a Release build;
 the script uses `ffmpeg` from PATH or `build/video_tools`.
 The [row add/delete video](videos/list-control-rows.mp4) is a short excerpt
 from the full recording, focused on the `+ Row` and `- Row` buttons.
+The [Find video](videos/list-control-find.mp4) highlights the selection before
+and after finding `lamp` in the Name column.
 The toolbar and its history belong to the sample application; plugins and
 other consumers can compose the same public widgets around `ListControl`.
 `setOnHeaderFilterRequested` reports the clicked column and button bounds so
