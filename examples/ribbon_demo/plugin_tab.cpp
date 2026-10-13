@@ -131,6 +131,9 @@ std::vector<Widget*> addPluginTab(
     TextStyle titleStyle = textStyle;
     titleStyle.fontSize = 13.0F;
     auto groups = std::make_unique<Row>();
+    LinearLayoutOptions groupsOptions;
+    groupsOptions.crossAxisAlignment = CrossAxisAlignment::Stretch;
+    groups->setOptions(groupsOptions);
     groups->addChild(std::make_unique<RibbonGroup>(
         textEngine, descriptor.groupTitle,
         std::move(controls), groupStyle, titleStyle));

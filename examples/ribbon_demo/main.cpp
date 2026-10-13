@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <exception>
 #include <iostream>
@@ -333,6 +334,14 @@ struct RibbonAction {
     lotui::Button::ClickHandler action;
 };
 
+std::unique_ptr<lotui::Row> ribbonPanels() {
+    auto panels = std::make_unique<lotui::Row>();
+    lotui::LinearLayoutOptions options;
+    options.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
+    panels->setOptions(options);
+    return panels;
+}
+
 std::unique_ptr<lotui::RibbonGroup> commandGroup(
     DemoState& state, std::string title,
     std::vector<std::vector<RibbonAction>> columns) {
@@ -389,7 +398,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     state.ribbon = ribbon.get();
 
     // Lucide 1.55.0 glyphs are bundled in the small example font subset.
-    auto groups = std::make_unique<lotui::Row>();
+    auto groups = ribbonPanels();
     groups->addChild(commandGroup(state, "편집", {
         {{"취소", u8"\uE2A1", [&state] { state.undo(); }},
          {"다시", u8"\uE2A0", [&state] { state.redo(); }}}}));
@@ -416,7 +425,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     ribbon->addTab(std::make_unique<lotui::RibbonTab>(
         "home", "홈", std::move(groups)));
 
-    auto view = std::make_unique<lotui::Row>();
+    auto view = ribbonPanels();
     view->addChild(commandGroup(state, "행 간격", {
         {{"촘촘", u8"\uE58A",
             [&state] { state.setDensity(23.0F, "촘촘한 목록"); }},
@@ -434,7 +443,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     ribbon->addTab(std::make_unique<lotui::RibbonTab>(
         "view", "보기", std::move(view)));
 
-    auto data = std::make_unique<lotui::Row>();
+    auto data = ribbonPanels();
     data->addChild(commandGroup(state, "이름 정렬", {
         {{"오름차순", u8"\uE41A",
             [&state] { state.sortByName(true); }},
@@ -628,6 +637,32 @@ void exerciseWorkspace(lotui::WidgetTree& tree, DemoState& state) {
             throw std::runtime_error("ribbon tab headers overlap or overflow");
         }
         previousRight = header.x + header.width;
+    }
+    const auto ribbonBounds = state.ribbon->bounds();
+    const auto& ribbonStyle = state.ribbon->style();
+    const float panelTop = ribbonBounds.y + ribbonStyle.tabBarHeight +
+        ribbonStyle.contentPadding.top;
+    const float panelBottom = ribbonBounds.y + ribbonBounds.height -
+        ribbonStyle.contentPadding.bottom;
+    for (std::size_t tabIndex = 0;
+            tabIndex < state.ribbon->tabCount(); ++tabIndex) {
+        state.ribbon->selectTab(tabIndex);
+        const auto* panels = dynamic_cast<const lotui::Row*>(
+            state.ribbon->tabAt(tabIndex).content());
+        if (!panels || panels->childCount() == 0) {
+            throw std::runtime_error("ribbon panels are missing");
+        }
+        for (std::size_t panelIndex = 0;
+                panelIndex < panels->childCount(); ++panelIndex) {
+            const auto* panel = dynamic_cast<const lotui::RibbonGroup*>(
+                &panels->childAt(panelIndex));
+            if (!panel || std::abs(panel->bounds().y - panelTop) > 0.5F ||
+                std::abs(panel->bounds().y + panel->bounds().height -
+                    panelBottom) > 0.5F) {
+                throw std::runtime_error(
+                    "ribbon panel titles are not aligned");
+            }
+        }
     }
     const auto viewTab = state.ribbon->tabHeaderBounds(1);
     click({viewTab.x + viewTab.width * 0.5F,
