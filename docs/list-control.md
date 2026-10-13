@@ -23,6 +23,8 @@ The [20-second demo video](videos/list-control-demo.mp4) shows row commands,
 search, and a multi-value header filter. On Windows, rebuild the recording
 with `examples/list_control_demo/record_video.ps1` after a Release build;
 the script uses `ffmpeg` from PATH or `build/video_tools`.
+The [row add/delete video](videos/list-control-rows.mp4) is a short excerpt
+from the full recording, focused on the `+ Row` and `- Row` buttons.
 The toolbar and its history belong to the sample application; plugins and
 other consumers can compose the same public widgets around `ListControl`.
 `setOnHeaderFilterRequested` reports the clicked column and button bounds so
