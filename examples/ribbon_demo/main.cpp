@@ -353,6 +353,7 @@ std::unique_ptr<lotui::RibbonGroup> commandGroup(
     options.mainAxisSize = lotui::MainAxisSize::Min;
     options.crossAxisAlignment = lotui::CrossAxisAlignment::Start;
     controls->setOptions(options);
+    constexpr float commandWidth = 88.0F;
     for (auto& columnActions : columns) {
         auto column = std::make_unique<lotui::Column>();
         lotui::LinearLayoutOptions columnOptions;
@@ -363,7 +364,8 @@ std::unique_ptr<lotui::RibbonGroup> commandGroup(
         for (auto& action : columnActions) {
             column->addChild(commandButton(state.textEngine,
                 std::move(action.title), std::move(action.action),
-                88.0F, action.icon));
+                commandWidth, action.icon),
+                {0.0F, {}, {commandWidth, lotui::unboundedLayoutSize}});
         }
         controls->addChild(std::move(column));
     }
@@ -710,10 +712,16 @@ void exerciseWorkspace(lotui::WidgetTree& tree, DemoState& state) {
         throw std::runtime_error("home ribbon groups are missing");
     }
     bool hasThreeRows = false;
+    float previousGroupRight = homeGroups->bounds().x;
     for (std::size_t groupIndex = 0;
             groupIndex < homeGroups->childCount(); ++groupIndex) {
         const auto* group = dynamic_cast<const lotui::RibbonGroup*>(
             &homeGroups->childAt(groupIndex));
+        if (!group || group->bounds().width > 200.0F ||
+            std::abs(group->bounds().x - previousGroupRight) > 0.5F) {
+            throw std::runtime_error("ribbon group width or spacing is invalid");
+        }
+        previousGroupRight = group->bounds().x + group->bounds().width;
         const auto* columns = group
             ? dynamic_cast<const lotui::Row*>(group->content()) : nullptr;
         if (!columns) {
