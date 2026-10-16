@@ -16,6 +16,10 @@ void onSize(void*, double value) {
     std::printf("ribbon plugin: size=%.0f\n", value);
 }
 
+void onName(void*, const char* value) {
+    std::printf("ribbon plugin: name=%s\n", value);
+}
+
 const LotuiDemoControlV1 controls[] = {
     {sizeof(LotuiDemoControlV1), LOTUI_DEMO_BUTTON,
         "run", "실행", 0.0, 0.0, 0.0, nullptr, &onRun},
@@ -33,6 +37,19 @@ const LotuiDemoPluginV1 plugin{
     controls,
 };
 
+const LotuiDemoTextControlV2 textControls[] = {
+    {sizeof(LotuiDemoTextControlV2), "name", "이름", "새 항목",
+        nullptr, &onName},
+};
+
+const LotuiDemoPluginV2 textExtension{
+    LOTUI_DEMO_PLUGIN_TEXT_ABI_VERSION,
+    sizeof(LotuiDemoPluginV2),
+    &plugin,
+    static_cast<uint32_t>(sizeof(textControls) / sizeof(textControls[0])),
+    textControls,
+};
+
 } // namespace
 
 #if defined(_WIN32)
@@ -44,4 +61,9 @@ const LotuiDemoPluginV1 plugin{
 extern "C" LOTUI_DEMO_EXPORT const LotuiDemoPluginV1*
 lotui_demo_get_plugin_v1(void) {
     return &plugin;
+}
+
+extern "C" LOTUI_DEMO_EXPORT const LotuiDemoPluginV2*
+lotui_demo_get_plugin_v2(void) {
+    return &textExtension;
 }

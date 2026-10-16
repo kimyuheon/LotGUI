@@ -24,6 +24,10 @@ PluginLibrary::PluginLibrary(const std::filesystem::path& path) {
     }
     handle_ = module;
     entry_ = entry;
+    dlerror();
+    auto textEntry = reinterpret_cast<LotuiDemoGetPluginV2>(
+        dlsym(module, "lotui_demo_get_plugin_v2"));
+    textEntry_ = dlerror() == nullptr ? textEntry : nullptr;
 }
 
 PluginLibrary::~PluginLibrary() {
@@ -38,6 +42,10 @@ const LotuiDemoPluginV1& PluginLibrary::descriptor() const {
         throw std::runtime_error("ribbon plugin returned no descriptor");
     }
     return *result;
+}
+
+const LotuiDemoPluginV2* PluginLibrary::textExtension() const {
+    return textEntry_ ? textEntry_() : nullptr;
 }
 
 } // namespace lotui::example

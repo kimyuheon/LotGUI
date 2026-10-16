@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #define LOTUI_DEMO_PLUGIN_ABI_VERSION 1u
+#define LOTUI_DEMO_PLUGIN_TEXT_ABI_VERSION 2u
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,6 +40,27 @@ typedef struct LotuiDemoPluginV1 {
 } LotuiDemoPluginV1;
 
 typedef const LotuiDemoPluginV1* (*LotuiDemoGetPluginV1)(void);
+
+typedef void (*LotuiDemoTextAction)(void* context, const char* utf8Text);
+
+typedef struct LotuiDemoTextControlV2 {
+    uint32_t structSize;
+    const char* id;
+    const char* label;
+    const char* initialText;
+    void* context;
+    LotuiDemoTextAction onSubmitted;
+} LotuiDemoTextControlV2;
+
+typedef struct LotuiDemoPluginV2 {
+    uint32_t abiVersion;
+    uint32_t structSize;
+    const LotuiDemoPluginV1* base;
+    uint32_t textControlCount;
+    const LotuiDemoTextControlV2* textControls;
+} LotuiDemoPluginV2;
+
+typedef const LotuiDemoPluginV2* (*LotuiDemoGetPluginV2)(void);
 
 #ifdef __cplusplus
 }

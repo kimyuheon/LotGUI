@@ -16,11 +16,14 @@ notice is in `resources/LUCIDE-LICENSE.txt`. Icons are rendered through the
 same FreeType text engine on all supported platforms.
 
 `ribbon_demo_plugin` is a separate shared library loaded beside the executable.
-Its entry point returns a versioned C descriptor from `plugin_api.h` for a
-button, checkbox, and slider. The host validates the descriptor and creates
-ordinary LotUI widgets in `plugin_tab.cpp`; the plugin does not link LotUI or
-own Vulkan objects. Plugin actions add a row, freeze the name columns, and
-change row density. The plugin stays loaded until its widget tree is gone.
+Its V1 entry point returns a versioned C descriptor from `plugin_api.h` for a
+button, checkbox, and slider. An optional V2 entry point adds a UTF-8 text
+field without changing the V1 descriptor. The host validates both descriptors
+and creates ordinary LotUI widgets in `plugin_tab.cpp`; the plugin does not
+link LotUI or own Vulkan objects. Plugin actions add a row, freeze the name
+columns, change row density, and receive text submitted with Enter. The text
+callback's UTF-8 pointer is valid only during the call. The plugin stays loaded
+until its widget tree is gone.
 This example ABI is intentionally local to the demo, not a stable public SDK.
 
 Build and run:
@@ -33,7 +36,11 @@ cmake --build build --config Release --target ribbon_demo
 Run `ribbon_demo` from the build output's `Release` directory on Windows, or
 from the matching build output directory on macOS/Linux. `--smoke` loads the
 plugin, renders a few frames, and exits. `--input-test` checks workspace
-commands, ribbon tab switching, and the plugin controls' callbacks.
+commands, ribbon tab switching, and all four plugin controls' callbacks,
+including Korean text input. `--input-test-v1` verifies that the original
+three controls still work when the optional V2 entry point is ignored.
+`--capture-plugin output.ppm` writes a frame from the Vulkan renderer without
+depending on desktop capture.
 
 To stage a separate example distribution:
 

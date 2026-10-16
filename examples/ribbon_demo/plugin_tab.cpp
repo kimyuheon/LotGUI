@@ -5,6 +5,7 @@
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/slider.h"
+#include "widgets/text_field.h"
 
 #include <cmath>
 #include <memory>
@@ -18,6 +19,7 @@ std::vector<Widget*> addPluginTab(
     Ribbon& ribbon,
     const std::shared_ptr<const TextEngine>& textEngine,
     const LotuiDemoPluginV1& descriptor,
+    const LotuiDemoPluginV2* textExtension,
     PluginActions actions) {
     if (descriptor.abiVersion != LOTUI_DEMO_PLUGIN_ABI_VERSION ||
         descriptor.structSize < sizeof(LotuiDemoPluginV1) ||
@@ -25,6 +27,15 @@ std::vector<Widget*> addPluginTab(
         descriptor.groupTitle == nullptr || descriptor.controls == nullptr ||
         descriptor.controlCount == 0 || descriptor.controlCount > 32) {
         throw std::runtime_error("ribbon plugin descriptor is invalid");
+    }
+    if (textExtension &&
+        (textExtension->abiVersion != LOTUI_DEMO_PLUGIN_TEXT_ABI_VERSION ||
+         textExtension->structSize < sizeof(LotuiDemoPluginV2) ||
+         textExtension->base != &descriptor ||
+         textExtension->textControlCount > 32 ||
+         (textExtension->textControlCount > 0 &&
+          textExtension->textControls == nullptr))) {
+        throw std::runtime_error("ribbon plugin text extension is invalid");
     }
     TextStyle textStyle;
     textStyle.fontFamilies = {"Noto Sans KR"};
@@ -54,7 +65,8 @@ std::vector<Widget*> addPluginTab(
     checkboxStyle.cornerRadius = 2.0F;
 
     std::vector<Widget*> controlWidgets;
-    controlWidgets.reserve(descriptor.controlCount);
+    controlWidgets.reserve(descriptor.controlCount +
+        (textExtension ? textExtension->textControlCount : 0));
     Column* currentColumn = nullptr;
     for (uint32_t index = 0; index < descriptor.controlCount; ++index) {
         const LotuiDemoControlV1& control = descriptor.controls[index];
@@ -122,6 +134,46 @@ std::vector<Widget*> addPluginTab(
             controlWidgets.push_back(slider.get());
             sliderRow->addChild(std::move(slider));
             currentColumn->addChild(std::move(sliderRow));
+        }
+    }
+
+    if (textExtension) {
+        for (uint32_t index = 0;
+                index < textExtension->textControlCount; ++index) {
+            const LotuiDemoTextControlV2& control =
+                textExtension->textControls[index];
+            if (control.structSize < sizeof(LotuiDemoTextControlV2) ||
+                control.id == nullptr || control.label == nullptr ||
+                control.initialText == nullptr ||
+                control.onSubmitted == nullptr) {
+                throw std::runtime_error("ribbon plugin text control is invalid");
+            }
+            auto column = std::make_unique<Column>();
+            column->setOptions(columnOptions);
+            auto label = std::make_unique<Label>(
+                textEngine, control.label, textStyle);
+            column->addChild(std::move(label));
+
+            TextFieldStyle fieldStyle;
+            fieldStyle.contentPadding = {6.0F, 2.0F, 6.0F, 2.0F};
+            fieldStyle.cornerRadius = 2.0F;
+            TextStyle fieldTextStyle = textStyle;
+            fieldTextStyle.fontSize = 13.0F;
+            auto field = std::make_unique<TextField>(
+                textEngine, control.initialText, Size{130.0F, 23.0F},
+                TextField::ChangedHandler{},
+                [control, onSubmitted = actions.onTextSubmitted]
+                    (const std::string& value) {
+                    control.onSubmitted(control.context, value.c_str());
+                    if (onSubmitted) onSubmitted(control.id, value);
+                }, fieldStyle, fieldTextStyle);
+            if (actions.writeClipboard && actions.readClipboard) {
+                field->setClipboardHandlers(
+                    actions.writeClipboard, actions.readClipboard);
+            }
+            controlWidgets.push_back(field.get());
+            column->addChild(std::move(field));
+            controls->addChild(std::move(column));
         }
     }
 

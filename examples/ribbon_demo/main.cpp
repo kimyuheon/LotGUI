@@ -13,12 +13,14 @@
 #include "widgets/linear_layout.h"
 #include "widgets/list_control.h"
 #include "widgets/ribbon.h"
+#include "widgets/text_field.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <exception>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -397,7 +399,9 @@ std::unique_ptr<lotui::RibbonGroup> commandGroup(
 
 std::unique_ptr<lotui::WidgetTree> createUi(
     DemoState& state,
-    const LotuiDemoPluginV1& pluginDescriptor) {
+    lotui::PlatformWindow& window,
+    const LotuiDemoPluginV1& pluginDescriptor,
+    const LotuiDemoPluginV2* textExtension) {
     auto root = std::make_unique<lotui::Column>();
     root->setDecoration(lotui::BoxDecoration{
         {0.10F, 0.12F, 0.14F, 1.0F}, 0.0F});
@@ -496,7 +500,8 @@ std::unique_ptr<lotui::WidgetTree> createUi(
 
     state.pluginControls = lotui::example::addPluginTab(
         *ribbon, state.textEngine,
-        pluginDescriptor, {[&state](std::string_view id, double value) {
+        pluginDescriptor, textExtension,
+        {[&state](std::string_view id, double value) {
             if (id == "run") {
                 state.addItem();
                 state.status->setText("플러그인 실행");
@@ -511,7 +516,16 @@ std::unique_ptr<lotui::WidgetTree> createUi(
                     static_cast<int>(value)));
                 state.refreshPluginSettings();
             }
-        }});
+        },
+        [&state](std::string_view id, std::string_view value) {
+            if (id == "name") {
+                state.status->setText("플러그인 이름: " + std::string(value));
+            }
+        },
+        [&window](std::string value) {
+            return window.writeClipboardText(std::move(value));
+        },
+        [&window]() { return window.readClipboardText(); }});
     ribbon->selectTab("home");
     root->addChild(std::move(ribbon), fixedHeight(ribbonHeight));
 
@@ -603,9 +617,12 @@ void updateLayout(
     tree.layout({0.0F, 0.0F, width, height});
 }
 
-void exercisePlugin(lotui::WidgetTree& tree, DemoState& state) {
-    if (state.pluginControls.size() != 3) {
-        throw std::runtime_error("expected three plugin controls");
+void exercisePlugin(
+    lotui::WidgetTree& tree,
+    DemoState& state,
+    bool expectText) {
+    if (state.pluginControls.size() != (expectText ? 4u : 3u)) {
+        throw std::runtime_error("unexpected plugin control count");
     }
     const auto* pluginButton = dynamic_cast<const lotui::Button*>(
         state.pluginControls[0]);
@@ -642,6 +659,24 @@ void exercisePlugin(lotui::WidgetTree& tree, DemoState& state) {
         lotui::PointerButton::Primary);
     if (state.size < 80.0 || state.list->style().rowHeight < 31.0F) {
         throw std::runtime_error("plugin slider callback was not routed");
+    }
+    if (!expectText) return;
+    auto* field = dynamic_cast<lotui::TextField*>(state.pluginControls[3]);
+    if (!field || field->text() != "새 항목") {
+        throw std::runtime_error("plugin text field was not created");
+    }
+    const auto input = field->bounds();
+    click({input.x + input.width * 0.5F,
+        input.y + input.height * 0.5F});
+    if (!tree.textInputState().enabled) {
+        throw std::runtime_error("plugin text field did not receive focus");
+    }
+    tree.keyPressed(lotui::KeyCode::A, {false, true});
+    tree.textInput({lotui::TextInputEventType::Commit, u8"한글"});
+    tree.keyPressed(lotui::KeyCode::Enter);
+    if (field->text() != u8"한글" ||
+        state.status->text() != u8"플러그인 이름: 한글") {
+        throw std::runtime_error("plugin text callback was not routed");
     }
 }
 
@@ -859,12 +894,17 @@ void exerciseWorkspace(lotui::WidgetTree& tree, DemoState& state) {
 int main(int argc, char** argv) {
     try {
         const std::string mode = argc == 2 ? argv[1] : "";
-        if (argc > 2 || (argc == 2 && mode != "--smoke" &&
-                mode != "--input-test")) {
-            std::cerr << "usage: ribbon_demo [--smoke|--input-test]\n";
+        const bool capturePlugin = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-plugin";
+        if ((argc > 2 && !capturePlugin) ||
+            (argc == 2 && mode != "--smoke" &&
+                mode != "--input-test" && mode != "--input-test-v1")) {
+            std::cerr << "usage: ribbon_demo "
+                "[--smoke|--input-test|--input-test-v1|"
+                "--capture-plugin output.ppm]\n";
             return 2;
         }
-        const bool smoke = !mode.empty();
+        const bool smoke = !mode.empty() || capturePlugin;
         auto platform = lotui::createPlatformBackend();
         auto window = platform->createWindow(
             {"LotUI Ribbon Demo", 960, 540, true});
@@ -880,11 +920,14 @@ int main(int argc, char** argv) {
                 {"Noto Sans KR", fontFile},
                 {"Lucide", lotui::executableDirectory() /
                     "resources" / "fonts" / "lucide-subset.ttf"}});
-        auto tree = createUi(state, plugin.descriptor());
+        auto tree = createUi(state, *window,
+            plugin.descriptor(),
+            mode == "--input-test-v1" ? nullptr : plugin.textExtension());
         updateLayout(*tree, window->metrics());
-        if (mode == "--input-test") {
+        if (capturePlugin) state.ribbon->selectTab("plugin");
+        if (mode == "--input-test" || mode == "--input-test-v1") {
             exerciseWorkspace(*tree, state);
-            exercisePlugin(*tree, state);
+            exercisePlugin(*tree, state, mode == "--input-test");
         }
 
         std::vector<lotui::PaintCommand> commands;
@@ -901,7 +944,25 @@ int main(int argc, char** argv) {
             if (running) {
                 commands.clear();
                 tree->paint(commands);
-                renderer.drawFrame(commands);
+                if (capturePlugin && frames == 7) {
+                    const auto captured = renderer.drawFrameCaptured(commands);
+                    std::ofstream output(argv[2], std::ios::binary);
+                    if (!output || captured.rgba.empty()) {
+                        throw std::runtime_error("plugin capture failed");
+                    }
+                    output << "P6\n" << captured.width << ' ' <<
+                        captured.height << "\n255\n";
+                    for (std::size_t pixel = 0;
+                            pixel < captured.rgba.size(); pixel += 4) {
+                        output.write(reinterpret_cast<const char*>(
+                            captured.rgba.data() + pixel), 3);
+                    }
+                    if (!output) {
+                        throw std::runtime_error("plugin capture write failed");
+                    }
+                } else {
+                    renderer.drawFrame(commands);
+                }
                 window->setTextInputState(tree->textInputState());
                 ++frames;
             }

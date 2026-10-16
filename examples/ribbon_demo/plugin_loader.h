@@ -15,10 +15,12 @@ public:
     PluginLibrary& operator=(const PluginLibrary&) = delete;
 
     const LotuiDemoPluginV1& descriptor() const;
+    const LotuiDemoPluginV2* textExtension() const;
 
 private:
     void* handle_{nullptr};
     LotuiDemoGetPluginV1 entry_{nullptr};
+    LotuiDemoGetPluginV2 textEntry_{nullptr};
 };
 
 } // namespace lotui::example

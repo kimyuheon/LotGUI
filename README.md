@@ -87,10 +87,13 @@ and [`examples/ribbon.lotml`](examples/ribbon.lotml).
 steps, Home/End, range clamping, and user-change callbacks. It is also drawn
 by the `VulkanAppLotGUI` engine smoke sample.
 
-`ribbon_demo` is a separate, engine-free executable with the 72-pixel ribbon,
+`ribbon_demo` is a separate, engine-free executable with a compact ribbon,
 dialog, and a dynamically loaded example plugin containing a button, checkbox,
-and slider. The plugin uses a versioned C descriptor; the host creates ordinary
-LotUI widgets from it. This example ABI is not yet the public LotUI plugin SDK.
+slider, and optional UTF-8 text field. The plugin uses versioned C descriptors;
+the host creates ordinary LotUI widgets from them. This example ABI is not yet
+the public LotUI plugin SDK.
+The [plugin ribbon capture](docs/images/ribbon-demo-plugin.png) shows the
+host-owned text field beside the existing controls.
 See [`examples/ribbon_demo/README.md`](examples/ribbon_demo/README.md) for
 build and separate example-package instructions.
 
