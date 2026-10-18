@@ -673,6 +673,15 @@ void exercisePlugin(
     }
     tree.keyPressed(lotui::KeyCode::A, {false, true});
     tree.textInput({lotui::TextInputEventType::Commit, u8"한글"});
+    tree.keyPressed(lotui::KeyCode::Z, {false, true});
+    if (field->text() != "새 항목" ||
+        field->selectedText() != "새 항목") {
+        throw std::runtime_error("plugin text undo did not restore selection");
+    }
+    tree.keyPressed(lotui::KeyCode::Z, {true, true});
+    if (field->text() != u8"한글") {
+        throw std::runtime_error("plugin text redo did not restore input");
+    }
     tree.keyPressed(lotui::KeyCode::Enter);
     if (field->text() != u8"한글" ||
         state.status->text() != u8"플러그인 이름: 한글") {

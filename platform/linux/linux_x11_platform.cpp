@@ -89,6 +89,10 @@ KeyCode keyCode(KeySym key) noexcept {
     case XK_V: return KeyCode::V;
     case XK_x:
     case XK_X: return KeyCode::X;
+    case XK_y:
+    case XK_Y: return KeyCode::Y;
+    case XK_z:
+    case XK_Z: return KeyCode::Z;
     default: return KeyCode::Unknown;
     }
 }

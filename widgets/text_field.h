@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace lotui {
 
@@ -46,6 +47,10 @@ public:
 
     void setText(std::string text);
     const std::string& text() const noexcept;
+    bool canUndo() const noexcept;
+    bool canRedo() const noexcept;
+    bool undo();
+    bool redo();
     const std::string& composition() const noexcept;
     std::size_t cursorByteOffset() const noexcept;
     std::string selectedText() const;
@@ -75,6 +80,15 @@ protected:
     bool onTextInputEvent(const TextInputEvent& event) override;
 
 private:
+    struct EditSnapshot {
+        std::string text;
+        std::size_t cursor;
+        std::size_t anchor;
+    };
+
+    void recordEdit(bool typing);
+    void restoreEdit(EditSnapshot snapshot);
+    void endTypingGroup() noexcept;
     std::string displayText() const;
     float prefixWidth(std::size_t committedByteOffset) const;
     float compositionWidth() const;
@@ -85,7 +99,7 @@ private:
     bool hasSelection() const noexcept;
     void updateHorizontalOffset() const;
     float caretPosition() const;
-    void insertCommitted(std::string text);
+    void insertCommitted(std::string text, bool typing = false);
     bool eraseSelection();
     void erasePrevious();
     void eraseNext();
@@ -104,6 +118,9 @@ private:
     std::size_t selectionAnchorByteOffset_{0};
     std::size_t compositionSelectionStart_{0};
     std::size_t compositionSelectionLength_{0};
+    std::vector<EditSnapshot> undoStack_;
+    std::vector<EditSnapshot> redoStack_;
+    bool typingGroup_{false};
     Size preferredSize_{220.0F, 40.0F};
     ChangedHandler onChanged_{};
     SubmittedHandler onSubmitted_{};

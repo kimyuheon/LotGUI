@@ -105,6 +105,9 @@ void TextField::setText(std::string text) {
         return;
     }
     text_ = std::move(text);
+    undoStack_.clear();
+    redoStack_.clear();
+    endTypingGroup();
     cursorByteOffset_ = text_.size();
     selectionAnchorByteOffset_ = cursorByteOffset_;
     horizontalOffset_ = 0.0F;
@@ -114,6 +117,34 @@ void TextField::setText(std::string text) {
 
 const std::string& TextField::text() const noexcept {
     return text_;
+}
+
+bool TextField::canUndo() const noexcept {
+    return !undoStack_.empty();
+}
+
+bool TextField::canRedo() const noexcept {
+    return !redoStack_.empty();
+}
+
+bool TextField::undo() {
+    if (!composition_.empty() || !canUndo()) return false;
+    redoStack_.push_back({text_, cursorByteOffset_,
+        selectionAnchorByteOffset_});
+    EditSnapshot previous = std::move(undoStack_.back());
+    undoStack_.pop_back();
+    restoreEdit(std::move(previous));
+    return true;
+}
+
+bool TextField::redo() {
+    if (!composition_.empty() || !canRedo()) return false;
+    undoStack_.push_back({text_, cursorByteOffset_,
+        selectionAnchorByteOffset_});
+    EditSnapshot next = std::move(redoStack_.back());
+    redoStack_.pop_back();
+    restoreEdit(std::move(next));
+    return true;
 }
 
 const std::string& TextField::composition() const noexcept {
@@ -135,6 +166,7 @@ void TextField::setEnabled(bool enabled) noexcept {
         hovered_ = false;
         draggingSelection_ = false;
         clearComposition();
+        endTypingGroup();
     }
 }
 
@@ -282,6 +314,7 @@ bool TextField::onPointerEvent(const WidgetPointerEvent& event) {
             return false;
         }
         clearComposition();
+        endTypingGroup();
         cursorByteOffset_ = byteOffsetAt(event.position.x);
         if (!event.modifiers.shift || !focused_) {
             selectionAnchorByteOffset_ = cursorByteOffset_;
@@ -315,6 +348,7 @@ bool TextField::onFocusChanged(bool focused) {
     if (!focused_) {
         draggingSelection_ = false;
         clearComposition();
+        endTypingGroup();
         invalidateLayouts();
     }
     return changed;
@@ -342,8 +376,16 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         static_cast<bool>(clipboardWrite_);
     const bool pasteKey = primaryShortcut && event.key == KeyCode::V &&
         static_cast<bool>(clipboardRead_);
+    const bool historyShortcut = (event.modifiers.control ||
+        event.modifiers.meta) && !event.modifiers.alt;
+    const bool undoKey = historyShortcut && !event.modifiers.shift &&
+        event.key == KeyCode::Z;
+    const bool redoKey = historyShortcut &&
+        ((event.modifiers.shift && event.key == KeyCode::Z) ||
+         (!event.modifiers.shift && event.key == KeyCode::Y));
     if (event.type != WidgetKeyEventType::Press) {
-        if (selectAll || copyKey || cutKey || pasteKey) {
+        if (selectAll || copyKey || cutKey || pasteKey ||
+            undoKey || redoKey) {
             return true;
         }
         switch (event.key) {
@@ -360,8 +402,17 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         }
     }
 
+    if (undoKey || redoKey) {
+        if (composition_.empty()) {
+            if (undoKey) undo();
+            else redo();
+        }
+        return true;
+    }
+
     if (selectAll) {
         if (composition_.empty()) {
+            endTypingGroup();
             selectionAnchorByteOffset_ = 0;
             cursorByteOffset_ = text_.size();
             invalidateLayouts();
@@ -369,17 +420,21 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         return true;
     }
     if (copyKey || cutKey) {
+        endTypingGroup();
         std::string selection = selectedText();
         if (!selection.empty()) {
             ClipboardWriteHandler write = clipboardWrite_;
             const bool copied = write(std::move(selection));
-            if (cutKey && copied && eraseSelection()) {
+            if (cutKey && copied) {
+                recordEdit(false);
+                eraseSelection();
                 notifyChanged();
             }
         }
         return true;
     }
     if (pasteKey) {
+        endTypingGroup();
         ClipboardReadHandler read = clipboardRead_;
         const std::optional<std::string> text = read();
         if (text && (!text->empty() || hasSelection())) {
@@ -401,6 +456,7 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         return true;
     case KeyCode::Left:
         if (composition_.empty()) {
+            endTypingGroup();
             if (!event.modifiers.shift && hasSelection()) {
                 cursorByteOffset_ = selectionStart();
             } else {
@@ -414,6 +470,7 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         return true;
     case KeyCode::Right:
         if (composition_.empty()) {
+            endTypingGroup();
             if (!event.modifiers.shift && hasSelection()) {
                 cursorByteOffset_ = selectionEnd();
             } else {
@@ -427,6 +484,7 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         return true;
     case KeyCode::Home:
         if (composition_.empty()) {
+            endTypingGroup();
             cursorByteOffset_ = 0;
             if (!event.modifiers.shift) {
                 selectionAnchorByteOffset_ = cursorByteOffset_;
@@ -436,6 +494,7 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         return true;
     case KeyCode::End:
         if (composition_.empty()) {
+            endTypingGroup();
             cursorByteOffset_ = text_.size();
             if (!event.modifiers.shift) {
                 selectionAnchorByteOffset_ = cursorByteOffset_;
@@ -444,6 +503,7 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         }
         return true;
     case KeyCode::Enter:
+        endTypingGroup();
         if (composition_.empty() && onSubmitted_) {
             SubmittedHandler callback = onSubmitted_;
             callback(text_);
@@ -477,15 +537,18 @@ bool TextField::onTextInputEvent(const TextInputEvent& event) {
         return false;
     }
     switch (event.type) {
-    case TextInputEventType::Commit:
+    case TextInputEventType::Commit: {
+        const bool typing = composition_.empty();
         clearComposition();
         if (!event.text.empty()) {
-            insertCommitted(event.text);
+            insertCommitted(event.text, typing);
         } else {
             invalidateLayouts();
         }
         return true;
+    }
     case TextInputEventType::Composition:
+        endTypingGroup();
         composition_ = event.text;
         compositionSelectionStart_ = std::min(
             event.selectionStart, composition_.size());
@@ -596,7 +659,33 @@ void TextField::updateHorizontalOffset() const {
     }
 }
 
-void TextField::insertCommitted(std::string text) {
+void TextField::recordEdit(bool typing) {
+    if (!typing || !typingGroup_ || hasSelection()) {
+        constexpr std::size_t maxUndo = 100;
+        if (undoStack_.size() == maxUndo) undoStack_.erase(undoStack_.begin());
+        undoStack_.push_back({text_, cursorByteOffset_,
+            selectionAnchorByteOffset_});
+    }
+    redoStack_.clear();
+    typingGroup_ = typing;
+}
+
+void TextField::restoreEdit(EditSnapshot snapshot) {
+    text_ = std::move(snapshot.text);
+    cursorByteOffset_ = snapshot.cursor;
+    selectionAnchorByteOffset_ = snapshot.anchor;
+    clearComposition();
+    endTypingGroup();
+    invalidateLayouts();
+    notifyChanged();
+}
+
+void TextField::endTypingGroup() noexcept {
+    typingGroup_ = false;
+}
+
+void TextField::insertCommitted(std::string text, bool typing) {
+    recordEdit(typing);
     eraseSelection();
     text_.insert(cursorByteOffset_, text);
     cursorByteOffset_ += text.size();
@@ -618,13 +707,16 @@ bool TextField::eraseSelection() {
 }
 
 void TextField::erasePrevious() {
-    if (eraseSelection()) {
+    if (hasSelection()) {
+        recordEdit(false);
+        eraseSelection();
         notifyChanged();
         return;
     }
     if (cursorByteOffset_ == 0) {
         return;
     }
+    recordEdit(false);
     const std::size_t previous = previousCodePoint(text_, cursorByteOffset_);
     text_.erase(previous, cursorByteOffset_ - previous);
     cursorByteOffset_ = previous;
@@ -634,13 +726,16 @@ void TextField::erasePrevious() {
 }
 
 void TextField::eraseNext() {
-    if (eraseSelection()) {
+    if (hasSelection()) {
+        recordEdit(false);
+        eraseSelection();
         notifyChanged();
         return;
     }
     if (cursorByteOffset_ >= text_.size()) {
         return;
     }
+    recordEdit(false);
     const std::size_t next = nextCodePoint(text_, cursorByteOffset_);
     text_.erase(cursorByteOffset_, next - cursorByteOffset_);
     selectionAnchorByteOffset_ = cursorByteOffset_;

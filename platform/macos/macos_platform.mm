@@ -54,6 +54,10 @@ lotui::KeyCode keyCode(NSEvent* event) {
     case 'V': return lotui::KeyCode::V;
     case 'x':
     case 'X': return lotui::KeyCode::X;
+    case 'y':
+    case 'Y': return lotui::KeyCode::Y;
+    case 'z':
+    case 'Z': return lotui::KeyCode::Z;
     default: return lotui::KeyCode::Unknown;
     }
 }

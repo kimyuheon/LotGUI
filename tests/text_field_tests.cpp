@@ -283,6 +283,109 @@ void supportsClipboardShortcutsThroughHandlers() {
         "cut must preserve text when clipboard writing fails");
 }
 
+void groupsTypingAndSupportsHistoryShortcuts() {
+    auto engine = std::make_shared<TestTextEngine>();
+    int changes = 0;
+    auto field = std::make_unique<lotui::TextField>(
+        engine, "", lotui::Size{220.0F, 40.0F},
+        [&changes](const std::string&) { ++changes; });
+    lotui::TextField* input = field.get();
+    lotui::WidgetTree tree(std::move(field));
+    tree.layout({0.0F, 0.0F, 220.0F, 40.0F});
+    tree.keyPressed(lotui::KeyCode::Tab);
+    const lotui::KeyModifiers control{false, true};
+    const lotui::KeyModifiers controlShift{true, true};
+
+    tree.textInput({lotui::TextInputEventType::Commit, "가"});
+    tree.textInput({lotui::TextInputEventType::Commit, "나"});
+    require(input->text() == "가나" && input->canUndo() &&
+            !input->canRedo() && changes == 2,
+        "consecutive UTF-8 commits must form an undoable typing group");
+    tree.keyPressed(lotui::KeyCode::Z, control);
+    require(input->text().empty() && input->canRedo() && changes == 3,
+        "Ctrl+Z must undo the whole typing group once");
+    tree.keyPressed(lotui::KeyCode::Z, controlShift);
+    require(input->text() == "가나" && input->cursorByteOffset() == 6 &&
+            changes == 4,
+        "Ctrl+Shift+Z must redo text and caret position");
+    tree.keyPressed(lotui::KeyCode::Z, control);
+    tree.keyPressed(lotui::KeyCode::Y, control);
+    require(input->text() == "가나" && changes == 6,
+        "Ctrl+Y must be an alternate redo shortcut");
+
+    tree.keyPressed(lotui::KeyCode::Left);
+    tree.textInput({lotui::TextInputEventType::Commit, "다"});
+    require(input->text() == "가다나", "caret movement must split typing groups");
+    require(input->undo() && input->text() == "가나" &&
+            input->cursorByteOffset() == 3,
+        "undo must restore the caret before a separate insertion");
+    tree.textInput({lotui::TextInputEventType::Commit, "라"});
+    require(!input->canRedo() && input->text() == "가라나",
+        "new edits after undo must discard redo history");
+}
+
+void restoresSelectionAndClipboardEdits() {
+    auto engine = std::make_shared<TestTextEngine>();
+    std::optional<std::string> clipboard = "교체";
+    auto field = std::make_unique<lotui::TextField>(engine, "가나다");
+    lotui::TextField* input = field.get();
+    input->setClipboardHandlers(
+        [&clipboard](std::string text) {
+            clipboard = std::move(text);
+            return true;
+        },
+        [&clipboard]() { return clipboard; });
+    lotui::WidgetTree tree(std::move(field));
+    tree.layout({0.0F, 0.0F, 220.0F, 40.0F});
+    tree.keyPressed(lotui::KeyCode::Tab);
+    const lotui::KeyModifiers control{false, true};
+
+    tree.keyPressed(lotui::KeyCode::A, control);
+    tree.keyPressed(lotui::KeyCode::V, control);
+    require(input->text() == "교체" && input->undo() &&
+            input->text() == "가나다" && input->selectedText() == "가나다",
+        "undo paste must restore replaced text and its selection");
+    require(input->redo() && input->text() == "교체" &&
+            input->selectedText().empty(),
+        "redo paste must restore replacement and collapse selection");
+    tree.keyPressed(lotui::KeyCode::A, control);
+    tree.keyPressed(lotui::KeyCode::X, control);
+    require(input->text().empty() && input->undo() &&
+            input->text() == "교체" && input->selectedText() == "교체",
+        "undo cut must restore selected UTF-8 text");
+    tree.keyPressed(lotui::KeyCode::Backspace);
+    require(input->text().empty() && input->undo() &&
+            input->text() == "교체" && input->selectedText() == "교체",
+        "undo Backspace must restore a deleted selection");
+}
+
+void isolatesImeCompositionAndProgrammaticUpdates() {
+    auto engine = std::make_shared<TestTextEngine>();
+    int changes = 0;
+    auto field = std::make_unique<lotui::TextField>(
+        engine, "", lotui::Size{220.0F, 40.0F},
+        [&changes](const std::string&) { ++changes; });
+    lotui::TextField* input = field.get();
+    lotui::WidgetTree tree(std::move(field));
+    tree.layout({0.0F, 0.0F, 220.0F, 40.0F});
+    tree.keyPressed(lotui::KeyCode::Tab);
+
+    tree.textInput({lotui::TextInputEventType::Commit, "A"});
+    tree.textInput({lotui::TextInputEventType::Composition, "한"});
+    require(!input->undo() && input->text() == "A" && changes == 1,
+        "undo must not interrupt active IME pre-edit");
+    tree.keyPressed(lotui::KeyCode::Z, {false, true});
+    require(input->text() == "A" && input->composition() == "한",
+        "history shortcut must leave active IME composition alone");
+    tree.textInput({lotui::TextInputEventType::Commit, "한"});
+    require(input->text() == "A한" && input->undo() &&
+            input->text() == "A" && changes == 3,
+        "IME commit must be its own undo unit");
+    input->setText("reset");
+    require(!input->canUndo() && !input->canRedo() && changes == 3,
+        "programmatic text updates must clear history without notification");
+}
+
 } // namespace
 
 int main() {
@@ -291,6 +394,9 @@ int main() {
     selectsUtf8WithPointerAndKeyboard();
     keepsCaretVisibleInLongText();
     supportsClipboardShortcutsThroughHandlers();
+    groupsTypingAndSupportsHistoryShortcuts();
+    restoresSelectionAndClipboardEdits();
+    isolatesImeCompositionAndProgrammaticUpdates();
     std::cout << "text_field_tests passed\n";
     return EXIT_SUCCESS;
 }

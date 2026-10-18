@@ -170,8 +170,9 @@ of selected text, clipboard copy/cut/paste callbacks, and horizontal caret
 scrolling. `PlatformWindow` supplies native UTF-8 clipboard access on Windows,
 macOS, and X11; `platform_probe` wires it to the field. X11 currently accepts
 up to 64 KiB of UTF-8 clipboard text and does not support incremental INCR
-transfers. The field remains single-line, undo/redo is not implemented yet,
-and the glyph cache uses one atlas page. Native backends keep IME composition
+transfers. It supports bounded edit history with Ctrl/Cmd+Z and
+Ctrl/Cmd+Shift+Z (or Ctrl+Y). The field remains single-line, and the glyph
+cache uses one atlas page. Native backends keep IME composition
 separate from committed UTF-8 and position the candidate UI from the caret.
 
 ## License

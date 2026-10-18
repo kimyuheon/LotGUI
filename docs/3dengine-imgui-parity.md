@@ -35,7 +35,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `Text`, `TextWrapped`, `TextColored`, `TextDisabled`, `BulletText` | `Label`, wrapping and semantic text styles | Basic label complete; wrapping planned |
 | `Button`, `SmallButton` | `Button` and size/style variants | Complete foundation |
 | `Checkbox` | `Checkbox` | Complete foundation |
-| `InputText` | `TextField` with committed text and IME composition | Single-line selection and clipboard foundation complete; undo/redo planned |
+| `InputText` | `TextField` with committed text and IME composition | Single-line selection, clipboard, and bounded undo/redo history complete |
 | `InputInt`, `InputFloat`, `InputFloat3`, `DragFloat`, `DragFloat3` | numeric scalar/vector editor with typing and pointer drag | Scalar stepping partial |
 | `SliderFloat`, `SliderInt` | `Slider` with pointer drag and keyboard steps | Foundation complete; engine smoke in progress |
 | `RadioButton` | `RadioButton` and `RadioGroup` | Planned |

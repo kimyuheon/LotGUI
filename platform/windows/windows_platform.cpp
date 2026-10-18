@@ -59,6 +59,8 @@ KeyCode keyCode(WPARAM key) noexcept {
     case 'C': return KeyCode::C;
     case 'V': return KeyCode::V;
     case 'X': return KeyCode::X;
+    case 'Y': return KeyCode::Y;
+    case 'Z': return KeyCode::Z;
     default: return KeyCode::Unknown;
     }
 }

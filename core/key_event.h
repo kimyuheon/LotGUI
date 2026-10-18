@@ -24,6 +24,8 @@ enum class KeyCode : std::uint16_t {
     C,
     V,
     X,
+    Y,
+    Z,
 };
 
 struct KeyModifiers {
@@ -67,6 +69,8 @@ constexpr const char* keyCodeName(KeyCode key) noexcept {
     case KeyCode::C: return "c";
     case KeyCode::V: return "v";
     case KeyCode::X: return "x";
+    case KeyCode::Y: return "y";
+    case KeyCode::Z: return "z";
     }
     return "unknown";
 }
