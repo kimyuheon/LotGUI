@@ -13,11 +13,18 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <string_view>
 #include <thread>
 #include <vector>
 
-int main() {
+int main(int argc, char** argv) {
     try {
+        const bool smoke = argc == 2 &&
+            std::string_view(argv[1]) == "--smoke";
+        if (argc > 2 || (argc == 2 && !smoke)) {
+            std::cerr << "usage: platform_probe [--smoke]\n";
+            return 2;
+        }
         auto platform = lotui::createPlatformBackend();
         auto window = platform->createWindow(
             {"LotUI Platform Probe", 960, 640, true});
@@ -50,6 +57,13 @@ int main() {
                   << initial.dpiScale << '\n';
 
         std::vector<lotui::PaintCommand> commands;
+        if (smoke) {
+            tree->paint(commands);
+            renderer.drawFrame(commands);
+            std::cout << "platform-probe-smoke: " << commands.size()
+                      << " paint commands\n";
+            return 0;
+        }
         bool running = true;
         while (running) {
             bool receivedEvent = false;
@@ -59,6 +73,10 @@ int main() {
                 running = lotui::example::dispatchPlatformEvent(
                     event, *tree, *window,
                     lotui::example::updateDemoLayout) && running;
+            }
+
+            if (receivedEvent) {
+                lotui::example::updateDemoLayout(*tree, window->metrics());
             }
 
             if (running) {

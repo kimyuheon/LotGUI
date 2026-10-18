@@ -3,6 +3,7 @@
 #include "widgets/box.h"
 #include "widgets/button.h"
 #include "widgets/checkbox.h"
+#include "widgets/disclosure_panel.h"
 #include "widgets/document_tab_view.h"
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
@@ -211,6 +212,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         auto form = std::make_unique<lotui::Column>();
         lotui::LinearLayoutOptions formOptions;
         formOptions.spacing = 8.0F;
+        formOptions.mainAxisSize = lotui::MainAxisSize::Min;
         formOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
         form->setOptions(formOptions);
 
@@ -283,10 +285,22 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
                 numberStyle,
                 controlTextStyle),
             fixedHeight(34.0F));
+        lotui::DisclosurePanelStyle sectionStyle;
+        sectionStyle.normal = {0.18F, 0.23F, 0.28F, 1.0F};
+        sectionStyle.hovered = {0.23F, 0.29F, 0.34F, 1.0F};
+        sectionStyle.pressed = {0.13F, 0.18F, 0.22F, 1.0F};
+        lotui::TextStyle sectionTextStyle = controlTextStyle;
+        sectionTextStyle.weight = lotui::FontWeight::Medium;
         rightContent->addChild(
-            std::move(form),
-            {0.0F, {0.0F, 112.0F},
-                {lotui::unboundedLayoutSize, 112.0F}});
+            std::make_unique<lotui::DisclosurePanel>(
+                textEngine, "객체 속성", std::move(form), true,
+                [](bool expanded) {
+                    std::cout << "property-section: " << std::boolalpha
+                              << expanded << '\n';
+                }, sectionStyle, sectionTextStyle),
+            {0.0F, {0.0F, 28.0F},
+                {lotui::unboundedLayoutSize,
+                    lotui::unboundedLayoutSize}});
     } else {
         rightContent->addChild(
             std::make_unique<lotui::Box>(

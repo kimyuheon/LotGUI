@@ -18,8 +18,8 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `lot_status_bar` | fixed bar, command `TextField`, history, transcript popup, state toggles | Text input foundation complete |
 | `lot_properties_panel` | property grid, numeric/vector editors, combo boxes, checkboxes, color editor | Partial |
 | `lot_material_panel` | list/selection, numeric editors, colors, actions | Partial |
-| `lot_rigging_panel` | collapsible tree, inline rename, selection, vector editing, drag interaction | Planned |
-| `lot_joint_panel` | collapsible groups, sliders, inline rename, combo boxes, repeated rows | Planned |
+| `lot_rigging_panel` | collapsible tree, inline rename, selection, vector editing, drag interaction | Disclosure group foundation complete; tree and engine adapter planned |
+| `lot_joint_panel` | collapsible groups, sliders, inline rename, combo boxes, repeated rows | Disclosure group foundation complete; engine adapter planned |
 | `lot_block_panel` | thumbnail grid, selection, double-click, drag source, rename, tooltip | Planned |
 | `lot_dimension_panel` | actions, numeric editor, integer slider, combo box, color editor | Partial |
 | `lot_section_dialog` | modeless dialog, radio group, sliders, checkboxes, conditional content | Modal host foundation complete; controls planned |
@@ -43,7 +43,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `ColorEdit3` | RGB/RGBA field and `ColorPicker` popup | Planned |
 | `BeginTabBar`, `BeginTabItem`, `TabItemButton` | `TabView` and closeable `DocumentTabView` | Controlled document tab strip foundation complete; content tabs planned |
 | Office-style application commands | `Ribbon`, `RibbonTab`, reusable `RibbonGroup` content | Foundation complete |
-| `CollapsingHeader`, `Indent` | `DisclosurePanel` and `TreeView` | Planned |
+| `CollapsingHeader`, `Indent` | `DisclosurePanel` and `TreeView` | DisclosurePanel complete in standalone sample; TreeView planned |
 | `BeginChild` | clipped `ScrollView` | Planned |
 | `BeginPopup`, `OpenPopup` | anchored `Popup` managed by an overlay host | `PopupHost` foundation complete |
 | `BeginMenu`, `MenuItem` | menu model, menu bar, nested menu popup | `MenuBar` foundation complete; shortcut dispatch and context menus planned |
@@ -83,6 +83,24 @@ widgets and application view models:
 7. toolbar, status bar, property grid and block thumbnail grid composites.
 8. floating panels, docking, layout persistence and viewport integration.
 9. port each 3dEngine surface and remove its corresponding ImGui calls.
+
+## Current engine audit
+
+The standalone `DisclosurePanel` is the first control from the next group of
+engine requirements. `../3dEngine/lot_joint_panel.cpp` uses a default-open
+robot header around playback, joint selection, inline rename, and editors.
+`../3dEngine/lot_rigging_panel.cpp` uses the same header for unrigged objects
+and robot hierarchies. `platform_probe` now embeds a disclosure group, while
+the engine-specific state and callbacks stay in 3dEngine.
+
+The next priority is a virtualized `TreeView`, not a recursive stack of
+disclosure panels. `../3dEngine/lot_scene_tree_panel.cpp` clips large row
+sets, keeps stable node keys and expansion state, and combines visibility,
+selection, inline rename, and drag/drop. The rigging hierarchy needs the
+same stable-identity model. After that, `RadioGroup` can cover operation
+choices in `../3dEngine/boolean/lot_boolean_dialog.cpp` and several
+simulation panels. Engine attachment still requires an adapter and a real
+`VulkanAppLotGUI` build; the standalone demo is not evidence of integration.
 
 LotUI remains an independent library. The parity examples may mirror 3dEngine
 workflows, but LotUI does not include or link CAD engine classes.

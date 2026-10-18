@@ -184,6 +184,7 @@ add_library(lotui_widgets STATIC
     widgets/button.cpp
     widgets/checkbox.cpp
     widgets/combo_box.cpp
+    widgets/disclosure_panel.cpp
     widgets/document_tab_view.cpp
     widgets/dialog.cpp
     widgets/inline_text_editor.cpp
@@ -593,6 +594,12 @@ if(BUILD_TESTING)
     )
     target_link_libraries(text_field_tests PRIVATE lotui_widgets)
     add_test(NAME text_field_tests COMMAND text_field_tests)
+
+    add_executable(disclosure_panel_tests
+        tests/disclosure_panel_tests.cpp
+    )
+    target_link_libraries(disclosure_panel_tests PRIVATE lotui_widgets)
+    add_test(NAME disclosure_panel_tests COMMAND disclosure_panel_tests)
 
     add_executable(ribbon_tests
         tests/ribbon_tests.cpp

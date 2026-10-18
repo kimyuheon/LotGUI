@@ -87,6 +87,11 @@ and [`examples/ribbon.lotml`](examples/ribbon.lotml).
 steps, Home/End, range clamping, and user-change callbacks. It is also drawn
 by the `VulkanAppLotGUI` engine smoke sample.
 
+`DisclosurePanel` provides a compact, keyboard-accessible collapsible group
+for CAD properties and hierarchy sections. It excludes collapsed content from
+painting, hit testing, and focus traversal. The parent layout should be
+updated when its expanded state changes; `platform_probe` demonstrates this.
+
 `ribbon_demo` is a separate, engine-free executable with a compact ribbon,
 dialog, and a dynamically loaded example plugin containing a button, checkbox,
 slider, and optional UTF-8 text field. The plugin uses versioned C descriptors;
