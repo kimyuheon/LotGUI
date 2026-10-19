@@ -165,7 +165,11 @@ if(LOTUI_BUILD_FREETYPE_TEXT)
     add_library(LotUI::TextFreeType ALIAS lotui_text_freetype)
     target_link_libraries(lotui_text_freetype
         PUBLIC lotui_text lotui_renderer
-        PRIVATE ${_lotui_freetype_target} ${_lotui_harfbuzz_target})
+        PRIVATE
+            $<BUILD_INTERFACE:${_lotui_freetype_target}>
+            $<BUILD_INTERFACE:${_lotui_harfbuzz_target}>
+            $<INSTALL_INTERFACE:Freetype::Freetype>
+            $<INSTALL_INTERFACE:harfbuzz::harfbuzz>)
     target_include_directories(lotui_text_freetype PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:include>)
@@ -269,7 +273,9 @@ if(LOTUI_BUILD_DECLARATIVE_UI)
     add_library(LotUI::Declarative ALIAS lotui_declarative)
     target_link_libraries(lotui_declarative
         PUBLIC lotui_widgets
-        PRIVATE ${_lotui_tinyxml2_target})
+        PRIVATE
+            $<BUILD_INTERFACE:${_lotui_tinyxml2_target}>
+            $<INSTALL_INTERFACE:tinyxml2::tinyxml2>)
     target_include_directories(lotui_declarative PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:include>)
@@ -331,7 +337,7 @@ elseif(UNIX)
         platform/linux/linux_runtime_paths.cpp
     )
     target_include_directories(lotui_platform PRIVATE ${X11_INCLUDE_DIR})
-    target_link_libraries(lotui_platform PRIVATE ${X11_LIBRARIES})
+    target_link_libraries(lotui_platform PRIVATE X11::X11)
 else()
     message(FATAL_ERROR "LotUI currently supports Windows, macOS, and Linux")
 endif()
@@ -450,13 +456,15 @@ if(LOTUI_BUILD_VULKAN_RENDERER)
     )
     add_library(LotUI::Vulkan ALIAS lotui_vulkan)
     target_include_directories(lotui_vulkan
-        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+            $<INSTALL_INTERFACE:include>
         PRIVATE
             "${LOTUI_VULKAN_INCLUDE_DIR}"
             "${CMAKE_CURRENT_BINARY_DIR}/generated")
     target_link_libraries(lotui_vulkan
         PUBLIC lotui_platform
-        PRIVATE lotui_renderer "${LOTUI_VULKAN_LIBRARY}")
+        PRIVATE lotui_renderer Vulkan::Vulkan)
 
     set(_lotui_solid_vertex_spv
         "${_lotui_generated_directory}/rectangle_solid.vert.spv")
@@ -532,7 +540,7 @@ if(LOTUI_BUILD_VULKAN_RENDERER)
         target_compile_definitions(lotui_vulkan PRIVATE
             VK_USE_PLATFORM_XLIB_KHR)
         target_include_directories(lotui_vulkan PRIVATE ${X11_INCLUDE_DIR})
-        target_link_libraries(lotui_vulkan PRIVATE ${X11_LIBRARIES})
+        target_link_libraries(lotui_vulkan PRIVATE X11::X11)
     endif()
 
     if(MSVC)
@@ -954,3 +962,6 @@ if(LOTUI_BUILD_VULKAN_RENDERER)
             VERBATIM)
     endif()
 endif()
+
+# Standalone binary SDK for external applications; preserve the embedded SDK above.
+include(cmake/InstallDesktopSDK.cmake)

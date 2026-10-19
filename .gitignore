@@ -2,3 +2,5 @@
 /build-*/
 /.vs/
 /out/
+
+__pycache__/

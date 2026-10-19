@@ -189,3 +189,11 @@ also include the applicable notices described in
 FreeType, HarfBuzz, Noto Sans KR, the Vulkan Loader, or MoltenVK.
 The `platform_probe` build copies these documents into the executable's
 `legal` directory as an example of a binary distribution layout.
+
+## SDK / sample distribution
+
+The separate `lotcad/LotGUI_Sample` repository consumes a prebuilt DesktopSDK,
+not framework `.cpp` files. The existing embedded `SDK` install remains available.
+See [`docs/sdk-distribution.md`](docs/sdk-distribution.md) for per-platform export
+and the source/public-header boundary. Public C++ types retain their existing
+`Widget` inheritance and `onPaint` extension points.
