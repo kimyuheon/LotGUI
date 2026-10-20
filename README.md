@@ -20,6 +20,11 @@ Applications can initially consume LotUI with `add_subdirectory()` and link
 only the targets they use. `platform_probe` demonstrates the full native-window
 to widget-tree to Vulkan path.
 
+For the separate `LotGUI_Sample` repository, stage the static DesktopSDK
+libraries under `sdk/<OS-architecture-toolchain>`; its existing `sdk/include`
+is shared across platforms. See
+[`docs/sample-sdk.md`](docs/sample-sdk.md).
+
 The desktop ImGui layer in the sibling 3dEngine project is the reference
 application for higher-level widget coverage. The audited replacement checklist
 is maintained in

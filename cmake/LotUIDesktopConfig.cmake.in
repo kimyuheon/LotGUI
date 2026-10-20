@@ -1,0 +1,48 @@
+@PACKAGE_INIT@
+
+get_filename_component(_lotui_public_include
+    "${PACKAGE_PREFIX_DIR}/../include" ABSOLUTE)
+if(NOT EXISTS "${_lotui_public_include}/lotui/lotui.h")
+    set(LotUI_FOUND FALSE)
+    set(LotUI_NOT_FOUND_MESSAGE
+        "LotGUI_Sample requires the shared sdk/include headers beside its platform SDK")
+    return()
+endif()
+
+include(CMakeFindDependencyMacro)
+find_dependency(Vulkan)
+if(@LOTUI_DESKTOP_HAS_X11@)
+    find_dependency(X11)
+endif()
+
+foreach(_lotui_dependency freetype harfbuzz tinyxml2)
+    if(NOT TARGET LotUI::${_lotui_dependency})
+        add_library(LotUI::${_lotui_dependency} STATIC IMPORTED)
+    endif()
+    foreach(_lotui_configuration Release Debug RelWithDebInfo MinSizeRel)
+        set(_lotui_archive
+            "${PACKAGE_PREFIX_DIR}/lib/${_lotui_configuration}/lotui_dep_${_lotui_dependency}@LOTUI_DESKTOP_STATIC_SUFFIX@")
+        if(EXISTS "${_lotui_archive}")
+            string(TOUPPER "${_lotui_configuration}"
+                _lotui_configuration_upper)
+            set_property(TARGET LotUI::${_lotui_dependency}
+                APPEND PROPERTY IMPORTED_CONFIGURATIONS
+                "${_lotui_configuration_upper}")
+            set_target_properties(LotUI::${_lotui_dependency} PROPERTIES
+                "IMPORTED_LOCATION_${_lotui_configuration_upper}"
+                "${_lotui_archive}")
+        endif()
+    endforeach()
+endforeach()
+
+add_library(LotUI::FreeTypeBinary ALIAS LotUI::freetype)
+add_library(LotUI::HarfBuzzBinary ALIAS LotUI::harfbuzz)
+add_library(LotUI::TinyXmlBinary ALIAS LotUI::tinyxml2)
+include("${CMAKE_CURRENT_LIST_DIR}/LotUITargets.cmake")
+# The sample owns one shared header tree rather than one copy per triplet.
+foreach(_lotui_target
+    Core Text Widgets Renderer Platform Vulkan VulkanEmbedded TextFreeType Declarative)
+    set_target_properties(LotUI::${_lotui_target} PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${_lotui_public_include}")
+endforeach()
+check_required_components(LotUI)

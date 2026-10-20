@@ -12,6 +12,17 @@ option(LOTUI_STAGE_3DENGINE_SDK
     "Install the embedded LotUI SDK into the sibling 3dEngine checkout on build" OFF)
 option(LOTUI_BUILD_FREETYPE_TEXT "Build the FreeType/HarfBuzz text engine" ON)
 option(LOTUI_BUILD_DECLARATIVE_UI "Build the LotML declarative UI module" ON)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../LotGUI_Sample/CMakeLists.txt")
+    set(_lotui_stage_sample_default ON)
+else()
+    set(_lotui_stage_sample_default OFF)
+endif()
+option(LOTUI_BUILD_DESKTOP_SDK
+    "Build an installable static SDK for the separate LotGUI_Sample project"
+    ${_lotui_stage_sample_default})
+option(LOTUI_STAGE_SAMPLE_SDK
+    "Stage the desktop SDK into the sibling LotGUI_Sample checkout on build"
+    ${_lotui_stage_sample_default})
 option(LOTUI_FETCH_TEXT_DEPENDENCIES
     "Download pinned text dependencies when local packages are unavailable" ON)
 option(LOTUI_FETCH_DECLARATIVE_DEPENDENCIES
@@ -165,7 +176,11 @@ if(LOTUI_BUILD_FREETYPE_TEXT)
     add_library(LotUI::TextFreeType ALIAS lotui_text_freetype)
     target_link_libraries(lotui_text_freetype
         PUBLIC lotui_text lotui_renderer
-        PRIVATE ${_lotui_freetype_target} ${_lotui_harfbuzz_target})
+        PRIVATE
+            $<BUILD_INTERFACE:${_lotui_freetype_target}>
+            $<BUILD_INTERFACE:${_lotui_harfbuzz_target}>
+            $<INSTALL_INTERFACE:LotUI::FreeTypeBinary>
+            $<INSTALL_INTERFACE:LotUI::HarfBuzzBinary>)
     target_include_directories(lotui_text_freetype PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:include>)
@@ -269,7 +284,9 @@ if(LOTUI_BUILD_DECLARATIVE_UI)
     add_library(LotUI::Declarative ALIAS lotui_declarative)
     target_link_libraries(lotui_declarative
         PUBLIC lotui_widgets
-        PRIVATE ${_lotui_tinyxml2_target})
+        PRIVATE
+            $<BUILD_INTERFACE:${_lotui_tinyxml2_target}>
+            $<INSTALL_INTERFACE:LotUI::TinyXmlBinary>)
     target_include_directories(lotui_declarative PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:include>)
@@ -331,7 +348,7 @@ elseif(UNIX)
         platform/linux/linux_runtime_paths.cpp
     )
     target_include_directories(lotui_platform PRIVATE ${X11_INCLUDE_DIR})
-    target_link_libraries(lotui_platform PRIVATE ${X11_LIBRARIES})
+    target_link_libraries(lotui_platform PRIVATE X11::X11)
 else()
     message(FATAL_ERROR "LotUI currently supports Windows, macOS, and Linux")
 endif()
@@ -450,13 +467,15 @@ if(LOTUI_BUILD_VULKAN_RENDERER)
     )
     add_library(LotUI::Vulkan ALIAS lotui_vulkan)
     target_include_directories(lotui_vulkan
-        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+            $<INSTALL_INTERFACE:include>
         PRIVATE
             "${LOTUI_VULKAN_INCLUDE_DIR}"
             "${CMAKE_CURRENT_BINARY_DIR}/generated")
     target_link_libraries(lotui_vulkan
         PUBLIC lotui_platform
-        PRIVATE lotui_renderer "${LOTUI_VULKAN_LIBRARY}")
+        PRIVATE lotui_renderer Vulkan::Vulkan)
 
     set(_lotui_solid_vertex_spv
         "${_lotui_generated_directory}/rectangle_solid.vert.spv")
@@ -532,7 +551,7 @@ if(LOTUI_BUILD_VULKAN_RENDERER)
         target_compile_definitions(lotui_vulkan PRIVATE
             VK_USE_PLATFORM_XLIB_KHR)
         target_include_directories(lotui_vulkan PRIVATE ${X11_INCLUDE_DIR})
-        target_link_libraries(lotui_vulkan PRIVATE ${X11_LIBRARIES})
+        target_link_libraries(lotui_vulkan PRIVATE X11::X11)
     endif()
 
     if(MSVC)
@@ -951,6 +970,141 @@ if(LOTUI_BUILD_VULKAN_RENDERER)
                 lotui_core lotui_text lotui_widgets lotui_renderer
                 lotui_vulkan_embedded
             COMMENT "Staging LotUI SDK in the 3dEngine checkout"
+            VERBATIM)
+    endif()
+endif()
+
+if(LOTUI_STAGE_SAMPLE_SDK AND NOT LOTUI_BUILD_DESKTOP_SDK)
+    message(FATAL_ERROR
+        "LOTUI_STAGE_SAMPLE_SDK requires LOTUI_BUILD_DESKTOP_SDK=ON")
+endif()
+
+if(LOTUI_BUILD_DESKTOP_SDK)
+    if(NOT LOTUI_BUILD_VULKAN_RENDERER OR
+       NOT LOTUI_BUILD_FREETYPE_TEXT OR
+       NOT LOTUI_BUILD_DECLARATIVE_UI)
+        message(FATAL_ERROR
+            "DesktopSDK requires Vulkan, FreeType text, and Declarative UI")
+    endif()
+
+    foreach(_lotui_dependency_target
+        ${_lotui_freetype_target}
+        ${_lotui_harfbuzz_target}
+        ${_lotui_tinyxml2_target})
+        get_target_property(_lotui_dependency_type
+            ${_lotui_dependency_target} TYPE)
+        if(NOT _lotui_dependency_type STREQUAL "STATIC_LIBRARY")
+            message(FATAL_ERROR
+                "DesktopSDK requires static dependency ${_lotui_dependency_target}; configure LotUI against a static build")
+        endif()
+    endforeach()
+
+    include(CMakePackageConfigHelpers)
+    set_target_properties(lotui_platform PROPERTIES EXPORT_NAME Platform)
+    set_target_properties(lotui_vulkan PROPERTIES EXPORT_NAME Vulkan)
+    set_target_properties(lotui_text_freetype PROPERTIES
+        EXPORT_NAME TextFreeType)
+    set_target_properties(lotui_declarative PROPERTIES
+        EXPORT_NAME Declarative)
+
+    install(TARGETS
+        lotui_core lotui_text lotui_widgets lotui_renderer
+        lotui_platform lotui_vulkan lotui_vulkan_embedded
+        lotui_text_freetype lotui_declarative
+        EXPORT LotUIDesktopTargets
+        ARCHIVE DESTINATION "lib/$<CONFIG>"
+        COMPONENT DesktopSDK
+        INCLUDES DESTINATION include)
+    foreach(_lotui_dep_name freetype harfbuzz tinyxml2)
+        if(_lotui_dep_name STREQUAL "freetype")
+            set(_lotui_dep_target ${_lotui_freetype_target})
+        elseif(_lotui_dep_name STREQUAL "harfbuzz")
+            set(_lotui_dep_target ${_lotui_harfbuzz_target})
+        else()
+            set(_lotui_dep_target ${_lotui_tinyxml2_target})
+        endif()
+        install(FILES "$<TARGET_FILE:${_lotui_dep_target}>"
+            DESTINATION "lib/$<CONFIG>"
+            RENAME "lotui_dep_${_lotui_dep_name}${CMAKE_STATIC_LIBRARY_SUFFIX}"
+            COMPONENT DesktopSDK)
+    endforeach()
+
+    if(UNIX AND NOT APPLE)
+        set(LOTUI_DESKTOP_HAS_X11 ON)
+    else()
+        set(LOTUI_DESKTOP_HAS_X11 OFF)
+    endif()
+    set(LOTUI_DESKTOP_STATIC_SUFFIX "${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    configure_package_config_file(
+        cmake/LotUIDesktopConfig.cmake.in
+        "${CMAKE_CURRENT_BINARY_DIR}/LotUIDesktopConfig.cmake"
+        INSTALL_DESTINATION lib/cmake/LotUI)
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/LotUIDesktopConfig.cmake"
+        DESTINATION lib/cmake/LotUI
+        RENAME LotUIConfig.cmake COMPONENT DesktopSDK)
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/LotUIConfigVersion.cmake"
+        DESTINATION lib/cmake/LotUI COMPONENT DesktopSDK)
+    install(EXPORT LotUIDesktopTargets
+        FILE LotUITargets.cmake
+        NAMESPACE LotUI::
+        DESTINATION lib/cmake/LotUI COMPONENT DesktopSDK)
+
+    if(WIN32)
+        set(_lotui_sample_os windows)
+    elseif(APPLE)
+        set(_lotui_sample_os macos)
+    else()
+        set(_lotui_sample_os linux)
+    endif()
+    if(APPLE AND CMAKE_OSX_ARCHITECTURES)
+        list(LENGTH CMAKE_OSX_ARCHITECTURES _lotui_arch_count)
+        if(NOT _lotui_arch_count EQUAL 1)
+            message(FATAL_ERROR
+                "DesktopSDK requires one macOS architecture per triplet")
+        endif()
+        set(_lotui_target_processor "${CMAKE_OSX_ARCHITECTURES}")
+    else()
+        set(_lotui_target_processor "${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+    if(_lotui_target_processor MATCHES "^(AMD64|x86_64)$")
+        set(_lotui_sample_arch x64)
+    elseif(_lotui_target_processor MATCHES "^(ARM64|arm64|aarch64)$")
+        set(_lotui_sample_arch arm64)
+    else()
+        set(_lotui_sample_arch "${_lotui_target_processor}")
+    endif()
+    if(MSVC)
+        set(_lotui_sample_toolchain msvc)
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+        set(_lotui_sample_toolchain clang)
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        set(_lotui_sample_toolchain gcc)
+    else()
+        string(TOLOWER "${CMAKE_CXX_COMPILER_ID}"
+            _lotui_sample_toolchain)
+    endif()
+    set(LOTUI_SAMPLE_SDK_TRIPLET
+        "${_lotui_sample_os}-${_lotui_sample_arch}-${_lotui_sample_toolchain}"
+        CACHE STRING "OS, architecture, and toolchain for the sample SDK")
+    set(LOTUI_SAMPLE_REPO_DIR
+        "${CMAKE_CURRENT_SOURCE_DIR}/../LotGUI_Sample"
+        CACHE PATH "Separate LotGUI_Sample repository")
+    if(LOTUI_STAGE_SAMPLE_SDK)
+        if(NOT EXISTS "${LOTUI_SAMPLE_REPO_DIR}/CMakeLists.txt")
+            message(FATAL_ERROR
+                "LotGUI_Sample checkout not found; set LOTUI_SAMPLE_REPO_DIR")
+        endif()
+        add_custom_target(lotui_stage_sample_sdk ALL
+            COMMAND "${CMAKE_COMMAND}" --install "${CMAKE_CURRENT_BINARY_DIR}"
+                --config $<CONFIG> --component DesktopSDK
+                --prefix "${LOTUI_SAMPLE_REPO_DIR}/sdk/${LOTUI_SAMPLE_SDK_TRIPLET}"
+            DEPENDS
+                lotui_core lotui_text lotui_widgets lotui_renderer
+                lotui_platform lotui_vulkan lotui_vulkan_embedded
+                lotui_text_freetype lotui_declarative
+            COMMENT "Staging ${LOTUI_SAMPLE_SDK_TRIPLET} DesktopSDK in LotGUI_Sample"
             VERBATIM)
     endif()
 endif()
