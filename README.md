@@ -20,11 +20,6 @@ Applications can initially consume LotUI with `add_subdirectory()` and link
 only the targets they use. `platform_probe` demonstrates the full native-window
 to widget-tree to Vulkan path.
 
-For the separate `LotGUI_Sample` repository, stage the static DesktopSDK
-libraries under `sdk/<OS-architecture-toolchain>`; its existing `sdk/include`
-is shared across platforms. See
-[`docs/sample-sdk.md`](docs/sample-sdk.md).
-
 The desktop ImGui layer in the sibling 3dEngine project is the reference
 application for higher-level widget coverage. The audited replacement checklist
 is maintained in
@@ -194,3 +189,13 @@ also include the applicable notices described in
 FreeType, HarfBuzz, Noto Sans KR, the Vulkan Loader, or MoltenVK.
 The `platform_probe` build copies these documents into the executable's
 `legal` directory as an example of a binary distribution layout.
+
+## SDK / sample distribution
+
+The separate `lotcad/LotGUI_Sample` repository consumes a prebuilt DesktopSDK,
+not framework `.cpp` files. Builds stage platform libraries and CMake imports
+while the sample's existing `sdk/include` is shared across platforms. The
+existing embedded `SDK` install remains available.
+See [`docs/sdk-distribution.md`](docs/sdk-distribution.md) for per-platform export
+and the source/public-header boundary. Public C++ types retain their existing
+`Widget` inheritance and `onPaint` extension points.
