@@ -10,9 +10,11 @@
 
 #include <chrono>
 #include <exception>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -21,8 +23,10 @@ int main(int argc, char** argv) {
     try {
         const bool smoke = argc == 2 &&
             std::string_view(argv[1]) == "--smoke";
-        if (argc > 2 || (argc == 2 && !smoke)) {
-            std::cerr << "usage: platform_probe [--smoke]\n";
+        const bool capture = argc == 3 &&
+            std::string_view(argv[1]) == "--capture";
+        if ((argc > 1 && !smoke && !capture)) {
+            std::cerr << "usage: platform_probe [--smoke|--capture output.ppm]\n";
             return 2;
         }
         auto platform = lotui::createPlatformBackend();
@@ -65,6 +69,7 @@ int main(int argc, char** argv) {
             return 0;
         }
         bool running = true;
+        int frames = 0;
         while (running) {
             bool receivedEvent = false;
             lotui::PlatformEvent event{};
@@ -83,8 +88,28 @@ int main(int argc, char** argv) {
                 commands.clear();
                 tree->paint(commands);
                 window->setTextInputState(tree->textInputState());
-                renderer.drawFrame(commands);
+                if (capture && frames == 7) {
+                    const auto captured = renderer.drawFrameCaptured(commands);
+                    std::ofstream output(argv[2], std::ios::binary);
+                    if (!output || captured.rgba.empty()) {
+                        throw std::runtime_error("platform probe capture failed");
+                    }
+                    output << "P6\n" << captured.width << ' ' <<
+                        captured.height << "\n255\n";
+                    for (std::size_t pixel = 0;
+                            pixel < captured.rgba.size(); pixel += 4) {
+                        output.write(reinterpret_cast<const char*>(
+                            captured.rgba.data() + pixel), 3);
+                    }
+                    if (!output) {
+                        throw std::runtime_error("platform probe capture write failed");
+                    }
+                } else {
+                    renderer.drawFrame(commands);
+                }
+                ++frames;
             }
+            if (capture && frames >= 8) running = false;
             if (!receivedEvent) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(8));
             }

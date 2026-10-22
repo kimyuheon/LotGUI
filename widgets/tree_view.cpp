@@ -19,6 +19,17 @@ void sanitize(TreeViewStyle& style) noexcept {
     style.padding = dimension(style.padding);
     style.disclosureSize = dimension(style.disclosureSize);
     style.labelSpacing = dimension(style.labelSpacing);
+    style.connectorWidth = dimension(style.connectorWidth);
+    style.checkboxSize = dimension(style.checkboxSize);
+    style.checkboxSpacing = dimension(style.checkboxSpacing);
+}
+
+void appendLine(std::vector<PaintCommand>& commands, Rect bounds,
+    Rect clip, Color color) {
+    if (hasArea(bounds)) {
+        commands.push_back({bounds, clip, color, invalidTextureId, 0.0F,
+            {0.0F, 0.0F, 1.0F, 1.0F}, true});
+    }
 }
 
 } // namespace
@@ -54,11 +65,20 @@ void TreeView::setNodes(std::vector<TreeNode> nodes) {
                 "TreeView nodes need unique IDs and preorder depths");
         }
     }
-    std::unordered_map<std::string, bool> expansion;
-    for (const TreeNode& node : nodes_) expansion.emplace(node.id, node.expanded);
+    struct NodeState { bool expanded; bool checkable; bool checked; };
+    std::unordered_map<std::string, NodeState> state;
+    for (const TreeNode& node : nodes_) {
+        state.emplace(node.id,
+            NodeState{node.expanded, node.checkable, node.checked});
+    }
     for (TreeNode& node : nodes) {
-        const auto previous = expansion.find(node.id);
-        if (previous != expansion.end()) node.expanded = previous->second;
+        const auto previous = state.find(node.id);
+        if (previous != state.end()) {
+            node.expanded = previous->second.expanded;
+            if (node.checkable && previous->second.checkable) {
+                node.checked = previous->second.checked;
+            }
+        }
     }
     nodes_ = std::move(nodes);
     layouts_.clear();
@@ -70,6 +90,8 @@ void TreeView::setNodes(std::vector<TreeNode> nodes) {
     }
     hoveredRow_.reset();
     pressedRow_.reset();
+    pressedDisclosure_ = false;
+    pressedCheckbox_ = false;
     clampScroll();
 }
 
@@ -98,6 +120,16 @@ bool TreeView::setExpanded(std::string_view id, bool expanded) {
 bool TreeView::isExpanded(std::string_view id) const noexcept {
     const auto index = nodeIndex(id);
     return index && nodes_[*index].expanded;
+}
+
+bool TreeView::setChecked(std::string_view id, bool checked) {
+    const auto index = nodeIndex(id);
+    return index && check(*index, checked, false);
+}
+
+bool TreeView::isChecked(std::string_view id) const noexcept {
+    const auto index = nodeIndex(id);
+    return index && nodes_[*index].checkable && nodes_[*index].checked;
 }
 
 Rect TreeView::rowBounds(std::string_view id) const noexcept {
@@ -133,6 +165,8 @@ void TreeView::setEnabled(bool enabled) noexcept {
         hoveredRow_.reset();
         pressedRow_.reset();
         focused_ = false;
+        pressedDisclosure_ = false;
+        pressedCheckbox_ = false;
     }
 }
 
@@ -150,6 +184,10 @@ void TreeView::setOnActivated(ActivatedHandler handler) {
     onActivated_ = std::move(handler);
 }
 
+void TreeView::setOnCheckedChanged(CheckedChangedHandler handler) {
+    onCheckedChanged_ = std::move(handler);
+}
+
 void TreeView::onArrange() { clampScroll(); }
 
 void TreeView::onPaint(std::vector<PaintCommand>& commands) const {
@@ -162,8 +200,12 @@ void TreeView::onPaint(std::vector<PaintCommand>& commands) const {
         std::ceil(bounds().height / style_.rowHeight)) + 1;
     const std::size_t last = std::min(visibleRows_.size(), first + count);
     for (std::size_t row = first; row < last; ++row) {
-        const TreeNode& node = nodes_[visibleRows_[row]];
-        const Rect rectangle = rowBounds(node.id);
+        const std::size_t index = visibleRows_[row];
+        const TreeNode& node = nodes_[index];
+        const Rect rectangle{bounds().x,
+            bounds().y + static_cast<float>(row) * style_.rowHeight -
+                scrollOffset_,
+            bounds().width, style_.rowHeight};
         const Rect rowClip = intersect(rectangle, clip());
         if (!hasArea(rowClip)) continue;
         const bool selected = selectedId_ && *selectedId_ == node.id;
@@ -176,9 +218,57 @@ void TreeView::onPaint(std::vector<PaintCommand>& commands) const {
             static_cast<float>(node.depth) * style_.indent;
         const float iconY = rectangle.y +
             (rectangle.height - style_.disclosureSize) * 0.5F;
-        if (hasChildren(visibleRows_[row])) {
-            const float middle = iconY + style_.disclosureSize * 0.5F;
-            commands.push_back({{iconX + 2.0F, middle - 1.0F,
+        const float middle = rectangle.y + rectangle.height * 0.5F;
+        if (style_.connectorWidth > 0.0F) {
+            std::size_t branch = index;
+            auto ancestor = parentIndices_[branch];
+            bool directParent = true;
+            while (ancestor) {
+                const TreeNode& parent = nodes_[*ancestor];
+                const float x = rectangle.x + style_.padding +
+                    static_cast<float>(parent.depth) * style_.indent +
+                    style_.disclosureSize * 0.5F;
+                if (directParent || followingSibling_[branch]) {
+                    const float bottom = !directParent ||
+                        followingSibling_[branch] ?
+                        rectangle.y + rectangle.height : middle;
+                    appendLine(commands,
+                        {x - style_.connectorWidth * 0.5F, rectangle.y,
+                            style_.connectorWidth, bottom - rectangle.y},
+                        rowClip, style_.connector);
+                }
+                if (directParent) {
+                    const float end = hasChildren(index) ? iconX :
+                        iconX + style_.disclosureSize * 0.5F;
+                    appendLine(commands,
+                        {x, middle - style_.connectorWidth * 0.5F,
+                            std::max(0.0F, end - x), style_.connectorWidth},
+                        rowClip, style_.connector);
+                }
+                branch = *ancestor;
+                ancestor = parentIndices_[branch];
+                directParent = false;
+            }
+            if (node.expanded && hasChildren(index)) {
+                const float x = iconX + style_.disclosureSize * 0.5F;
+                appendLine(commands,
+                    {x - style_.connectorWidth * 0.5F, middle,
+                        style_.connectorWidth,
+                        rectangle.y + rectangle.height - middle},
+                    rowClip, style_.connector);
+            }
+        }
+        if (hasChildren(index)) {
+            const Rect box{iconX, iconY, style_.disclosureSize,
+                style_.disclosureSize};
+            commands.push_back({box, rowClip, style_.disclosure,
+                invalidTextureId, 2.0F});
+            commands.push_back({{box.x + 1.0F, box.y + 1.0F,
+                std::max(0.0F, box.width - 2.0F),
+                std::max(0.0F, box.height - 2.0F)}, rowClip,
+                style_.background, invalidTextureId, 1.0F});
+            const float iconMiddle = iconY + style_.disclosureSize * 0.5F;
+            commands.push_back({{iconX + 2.0F, iconMiddle - 1.0F,
                 std::max(0.0F, style_.disclosureSize - 4.0F), 2.0F},
                 rowClip, style_.disclosure, invalidTextureId, 0.0F});
             if (!node.expanded) {
@@ -187,10 +277,38 @@ void TreeView::onPaint(std::vector<PaintCommand>& commands) const {
                     std::max(0.0F, style_.disclosureSize - 4.0F)},
                     rowClip, style_.disclosure, invalidTextureId, 0.0F});
             }
+        } else if (node.depth > 0) {
+            commands.push_back({{iconX + style_.disclosureSize * 0.5F - 1.5F,
+                middle - 1.5F, 3.0F, 3.0F}, rowClip,
+                style_.connector, invalidTextureId, 1.5F});
+        }
+        if (node.checkable) {
+            const Rect box = checkboxBounds(index, rectangle);
+            commands.push_back({box, rowClip, style_.checkboxOutline,
+                invalidTextureId, 2.0F});
+            commands.push_back({{box.x + 1.0F, box.y + 1.0F,
+                std::max(0.0F, box.width - 2.0F),
+                std::max(0.0F, box.height - 2.0F)}, rowClip,
+                node.checked ? style_.checkboxChecked :
+                    style_.checkboxBackground,
+                invalidTextureId, 1.0F});
+            if (node.checked && box.width >= 10.0F) {
+                const float x = box.x + (box.width - 8.0F) * 0.5F;
+                const float y = box.y + (box.height - 8.0F) * 0.5F;
+                for (const Point mark : {Point{x, y + 3.0F},
+                         Point{x + 2.0F, y + 5.0F},
+                         Point{x + 4.0F, y + 3.0F},
+                         Point{x + 6.0F, y + 1.0F}}) {
+                    commands.push_back({{mark.x, mark.y, 2.0F, 2.0F},
+                        rowClip, style_.checkboxMark,
+                        invalidTextureId, 0.0F});
+                }
+            }
         }
         if (const TextLayout* layout = layoutFor(node)) {
             const Point origin{iconX + style_.disclosureSize +
-                    style_.labelSpacing,
+                    style_.labelSpacing + (node.checkable ?
+                        style_.checkboxSize + style_.checkboxSpacing : 0.0F),
                 rectangle.y + std::max(0.0F,
                     (rectangle.height - layout->size().height) * 0.5F)};
             layout->appendPaintCommands(origin, rowClip,
@@ -230,6 +348,9 @@ bool TreeView::onPointerEvent(const WidgetPointerEvent& event) {
                 event.position.x >= iconX &&
                 event.position.x < iconX + style_.disclosureSize +
                     style_.labelSpacing;
+            pressedCheckbox_ = !pressedDisclosure_ && node.checkable &&
+                contains(checkboxBounds(visibleRows_[*row],
+                    rowBounds(node.id)), event.position);
         }
         return true;
     case WidgetPointerEventType::Release:
@@ -238,6 +359,11 @@ bool TreeView::onPointerEvent(const WidgetPointerEvent& event) {
             const std::size_t index = visibleRows_[*row];
             if (pressedDisclosure_) {
                 expand(index, !nodes_[index].expanded, true);
+            } else if (pressedCheckbox_) {
+                if (contains(checkboxBounds(index, rowBounds(nodes_[index].id)),
+                        event.position)) {
+                    check(index, !nodes_[index].checked, true);
+                }
             } else {
                 select(index, true);
                 ensureVisible(nodes_[index].id);
@@ -245,10 +371,12 @@ bool TreeView::onPointerEvent(const WidgetPointerEvent& event) {
         }
         pressedRow_.reset();
         pressedDisclosure_ = false;
+        pressedCheckbox_ = false;
         return true;
     case WidgetPointerEventType::Cancel:
         pressedRow_.reset();
         pressedDisclosure_ = false;
+        pressedCheckbox_ = false;
         hoveredRow_.reset();
         return true;
     }
@@ -320,7 +448,9 @@ bool TreeView::onKeyEvent(const WidgetKeyEvent& event) {
     case KeyCode::Space:
         if (selectedId_) {
             const auto index = nodeIndex(*selectedId_);
-            if (index && hasChildren(*index)) {
+            if (index && nodes_[*index].checkable) {
+                check(*index, !nodes_[*index].checked, true);
+            } else if (index && hasChildren(*index)) {
                 expand(*index, !nodes_[*index].expanded, true);
             }
         }
@@ -378,9 +508,20 @@ bool TreeView::hasChildren(std::size_t index) const noexcept {
 
 void TreeView::rebuildVisible() {
     visibleRows_.clear();
+    parentIndices_.assign(nodes_.size(), std::nullopt);
+    followingSibling_.assign(nodes_.size(), false);
     std::vector<bool> descendantVisible;
+    std::vector<std::size_t> previousAtDepth;
     for (std::size_t index = 0; index < nodes_.size(); ++index) {
         const TreeNode& node = nodes_[index];
+        previousAtDepth.resize(node.depth + 1, nodes_.size());
+        if (previousAtDepth[node.depth] != nodes_.size()) {
+            followingSibling_[previousAtDepth[node.depth]] = true;
+        }
+        if (node.depth > 0) {
+            parentIndices_[index] = previousAtDepth[node.depth - 1];
+        }
+        previousAtDepth[node.depth] = index;
         const bool visible = node.depth == 0 ||
             descendantVisible[node.depth - 1];
         descendantVisible.resize(node.depth + 1);
@@ -446,6 +587,26 @@ bool TreeView::moveSelection(int direction) {
         row += direction;
     }
     return false;
+}
+
+bool TreeView::check(std::size_t index, bool checked, bool notify) {
+    if (index >= nodes_.size() || !nodes_[index].checkable ||
+        nodes_[index].checked == checked) return false;
+    nodes_[index].checked = checked;
+    if (notify && onCheckedChanged_) {
+        const std::string id = nodes_[index].id;
+        CheckedChangedHandler callback = onCheckedChanged_;
+        callback(id, checked);
+    }
+    return true;
+}
+
+Rect TreeView::checkboxBounds(std::size_t index, Rect row) const noexcept {
+    const float size = std::min(style_.checkboxSize, row.height);
+    const float x = row.x + style_.padding +
+        static_cast<float>(nodes_[index].depth) * style_.indent +
+        style_.disclosureSize + style_.labelSpacing;
+    return {x, row.y + (row.height - size) * 0.5F, size, size};
 }
 
 const TextLayout* TreeView::layoutFor(const TreeNode& node) const {

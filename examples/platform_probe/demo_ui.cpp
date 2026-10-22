@@ -210,14 +210,14 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         auto sceneTree = std::make_unique<lotui::TreeView>(
             textEngine,
             std::vector<lotui::TreeNode>{
-                {"scene", "장면", 0, true},
-                {"assembly", "조립품", 1, true},
-                {"frame", "프레임", 2},
-                {"shaft", "축", 2},
-                {"fasteners", "체결 부품", 1, false},
-                {"bolt-1", "볼트 01", 2},
-                {"bolt-2", "볼트 02", 2},
-                {"camera", "카메라", 0},
+                {"scene", "장면", 0, true, true, true, true},
+                {"assembly", "조립품", 1, true, true, true, true},
+                {"frame", "프레임", 2, false, true, true, true},
+                {"shaft", "축", 2, false, true, true, true},
+                {"fasteners", "체결 부품", 1, false, true, true, true},
+                {"bolt-1", "볼트 01", 2, false, true, true, true},
+                {"bolt-2", "볼트 02", 2, false, true, true, true},
+                {"camera", "카메라", 0, false, true, true, false},
             },
             lotui::Size{240.0F, 180.0F}, treeStyle, treeTextStyle);
         sceneTree->setOnSelectionChanged([](auto id) {
@@ -227,6 +227,10 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         sceneTree->setOnExpansionChanged([](std::string_view id, bool open) {
             std::cout << "tree-expanded: " << id << ' ' <<
                 std::boolalpha << open << '\n';
+        });
+        sceneTree->setOnCheckedChanged([](std::string_view id, bool checked) {
+            std::cout << "tree-checked: " << id << ' ' <<
+                std::boolalpha << checked << '\n';
         });
         leftPanel->addChild(std::move(sceneTree),
             {1.0F, {0.0F, 130.0F},

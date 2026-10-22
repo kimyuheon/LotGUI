@@ -130,6 +130,82 @@ void virtualizesAndScrolls() {
         "wheel input must change tree scroll offset");
 }
 
+void connectorsAndCheckboxes() {
+    lotui::TreeViewStyle style;
+    style.rowHeight = 24.0F;
+    style.connector = {0.83F, 0.17F, 0.11F, 1.0F};
+    int checks = 0;
+    bool lastChecked = false;
+    auto view = std::make_unique<lotui::TreeView>(nullptr,
+        std::vector<lotui::TreeNode>{
+            {"root", "Root", 0, true},
+            {"first", "First", 1, true, true, true},
+            {"grandchild", "Grandchild", 2, false, true, true},
+            {"last", "Last", 1, false, true, true},
+            {"peer", "Peer", 0},
+        }, lotui::Size{200.0F, 120.0F}, style);
+    auto* observed = view.get();
+    view->setOnCheckedChanged([&checks, &lastChecked](
+            std::string_view id, bool checked) {
+        require(id == "first", "check callback must report node ID");
+        lastChecked = checked;
+        ++checks;
+    });
+    lotui::WidgetTree tree(std::move(view));
+    tree.layout({0.0F, 0.0F, 200.0F, 120.0F});
+    require(observed->setSelectedId("first"), "first node must be selectable");
+    tree.pointerPressed({45.0F, 36.0F}, lotui::PointerButton::Primary);
+    tree.pointerReleased({45.0F, 36.0F}, lotui::PointerButton::Primary);
+    require(observed->isChecked("first") && checks == 1 && lastChecked &&
+            observed->selectedId() == "first" && observed->isExpanded("first"),
+        "checkbox click must not change selection or expansion");
+    tree.keyPressed(lotui::KeyCode::Tab);
+    tree.keyPressed(lotui::KeyCode::Space);
+    require(!observed->isChecked("first") && checks == 2 &&
+            !lastChecked && observed->isExpanded("first"),
+        "Space must toggle a selected checkbox without collapsing its node");
+    require(observed->setChecked("first", true) && checks == 2,
+        "programmatic check must not emit user callback");
+
+    std::vector<lotui::PaintCommand> commands;
+    tree.paint(commands);
+    const auto hasConnector = [&](float x, float y, float height) {
+        for (const auto& command : commands) {
+            if (command.color.red == style.connector.red &&
+                command.bounds.x == x && command.bounds.y == y &&
+                command.bounds.width == style.connectorWidth &&
+                command.bounds.height == height) return true;
+        }
+        return false;
+    };
+    require(hasConnector(13.5F, 12.0F, 12.0F),
+        "parent trunk must start below disclosure");
+    require(hasConnector(13.5F, 24.0F, 24.0F) &&
+            hasConnector(13.5F, 48.0F, 24.0F),
+        "ancestor trunk must continue through nested branch");
+    require(hasConnector(13.5F, 72.0F, 12.0F),
+        "last sibling trunk must stop at its midpoint");
+
+    observed->setNodes({
+        {"root", "Root", 0, false},
+        {"first", "Renamed", 1, false, true, true},
+        {"grandchild", "Grandchild", 2},
+        {"last", "Last", 1},
+    });
+    require(observed->isChecked("first") && observed->isExpanded("first"),
+        "model refresh must keep check and expansion state by ID");
+    require(!observed->setChecked("root", true) &&
+            !observed->setChecked("missing", true),
+        "only existing checkable nodes accept check updates");
+    observed->setExpanded("root", false);
+    commands.clear();
+    tree.paint(commands);
+    for (const auto& command : commands) {
+        require(command.color.red != style.connector.red,
+            "collapsed descendants must not leave connector lines");
+    }
+}
+
 void rejectsInvalidPreorder() {
     lotui::TreeView view(nullptr);
     try {
@@ -151,6 +227,7 @@ void rejectsInvalidPreorder() {
 int main() {
     expansionSelectionAndKeyboard();
     virtualizesAndScrolls();
+    connectorsAndCheckboxes();
     rejectsInvalidPreorder();
     std::cout << "tree_view_tests passed\n";
     return EXIT_SUCCESS;

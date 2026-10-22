@@ -22,6 +22,8 @@ struct TreeNode {
     std::size_t depth{0};
     bool expanded{false};
     bool selectable{true};
+    bool checkable{false};
+    bool checked{false};
 };
 
 struct TreeViewStyle {
@@ -31,12 +33,20 @@ struct TreeViewStyle {
     Color text{0.91F, 0.94F, 0.94F, 1.0F};
     Color disabledText{0.52F, 0.58F, 0.60F, 1.0F};
     Color disclosure{0.69F, 0.79F, 0.80F, 1.0F};
+    Color connector{0.39F, 0.48F, 0.52F, 0.75F};
+    Color checkboxOutline{0.57F, 0.67F, 0.69F, 1.0F};
+    Color checkboxBackground{0.13F, 0.18F, 0.21F, 1.0F};
+    Color checkboxChecked{0.27F, 0.65F, 0.60F, 1.0F};
+    Color checkboxMark{0.96F, 0.98F, 0.97F, 1.0F};
     Color focusLine{0.35F, 0.78F, 0.69F, 1.0F};
     float rowHeight{26.0F};
     float indent{16.0F};
     float padding{8.0F};
     float disclosureSize{12.0F};
     float labelSpacing{6.0F};
+    float connectorWidth{1.0F};
+    float checkboxSize{14.0F};
+    float checkboxSpacing{7.0F};
 };
 
 class TreeView final : public Widget {
@@ -46,6 +56,8 @@ public:
     using ExpansionChangedHandler =
         std::function<void(std::string_view, bool)>;
     using ActivatedHandler = std::function<void(std::string_view)>;
+    using CheckedChangedHandler =
+        std::function<void(std::string_view, bool)>;
 
     TreeView(
         std::shared_ptr<const TextEngine> textEngine,
@@ -62,6 +74,8 @@ public:
     std::optional<std::string> selectedId() const;
     bool setExpanded(std::string_view id, bool expanded);
     bool isExpanded(std::string_view id) const noexcept;
+    bool setChecked(std::string_view id, bool checked);
+    bool isChecked(std::string_view id) const noexcept;
     Rect rowBounds(std::string_view id) const noexcept;
     void ensureVisible(std::string_view id) noexcept;
     void setScrollOffset(float offset) noexcept;
@@ -71,6 +85,7 @@ public:
     void setOnSelectionChanged(SelectionChangedHandler handler);
     void setOnExpansionChanged(ExpansionChangedHandler handler);
     void setOnActivated(ActivatedHandler handler);
+    void setOnCheckedChanged(CheckedChangedHandler handler);
 
 protected:
     void onArrange() override;
@@ -92,11 +107,15 @@ private:
     bool select(std::size_t nodeIndex, bool notify);
     bool expand(std::size_t nodeIndex, bool value, bool notify);
     bool moveSelection(int direction);
+    bool check(std::size_t nodeIndex, bool checked, bool notify);
+    Rect checkboxBounds(std::size_t nodeIndex, Rect row) const noexcept;
     const TextLayout* layoutFor(const TreeNode& node) const;
 
     std::shared_ptr<const TextEngine> textEngine_;
     std::vector<TreeNode> nodes_;
     std::vector<std::size_t> visibleRows_;
+    std::vector<std::optional<std::size_t>> parentIndices_;
+    std::vector<bool> followingSibling_;
     mutable std::unordered_map<std::string, std::unique_ptr<TextLayout>> layouts_;
     Size preferredSize_{};
     TreeViewStyle style_{};
@@ -105,12 +124,14 @@ private:
     std::optional<std::size_t> hoveredRow_;
     std::optional<std::size_t> pressedRow_;
     bool pressedDisclosure_{false};
+    bool pressedCheckbox_{false};
     float scrollOffset_{0.0F};
     bool enabled_{true};
     bool focused_{false};
     SelectionChangedHandler onSelectionChanged_{};
     ExpansionChangedHandler onExpansionChanged_{};
     ActivatedHandler onActivated_{};
+    CheckedChangedHandler onCheckedChanged_{};
 };
 
 } // namespace lotui
