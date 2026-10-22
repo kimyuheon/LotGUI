@@ -200,7 +200,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
     if (textEngine) {
         lotui::TextStyle treeTextStyle;
         treeTextStyle.fontFamilies = {"Noto Sans KR"};
-        treeTextStyle.fontSize = 13.0F;
+        treeTextStyle.fontSize = 15.0F;
         auto treeHeading = std::make_unique<lotui::Label>(
             textEngine, "장면 트리", treeTextStyle);
         leftPanel->addChild(std::move(treeHeading), fixedHeight(20.0F));
@@ -393,7 +393,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
 
     lotui::TextStyle ribbonTextStyle;
     ribbonTextStyle.fontFamilies = {"Noto Sans KR"};
-    ribbonTextStyle.fontSize = 13.0F;
+    ribbonTextStyle.fontSize = 14.0F;
     lotui::RibbonStyle ribbonStyle;
     ribbonStyle.tabBarHeight = 29.0F;
     ribbonStyle.tabHorizontalPadding = 12.0F;
