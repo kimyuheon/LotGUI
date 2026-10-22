@@ -9,14 +9,17 @@
 #include "widgets/linear_layout.h"
 #include "widgets/menu_bar.h"
 #include "widgets/numeric_input.h"
+#include "widgets/radio_group.h"
 #include "widgets/ribbon.h"
 #include "widgets/text_field.h"
+#include "widgets/tree_view.h"
 
 #include <algorithm>
 #include <cmath>
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -189,6 +192,41 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         std::move(buttonRow),
         fixedHeight(34.0F));
     leftPanel->addChild(std::move(status), fixedHeight(6.0F));
+    if (textEngine) {
+        lotui::TextStyle treeTextStyle;
+        treeTextStyle.fontFamilies = {"Noto Sans KR"};
+        treeTextStyle.fontSize = 13.0F;
+        auto treeHeading = std::make_unique<lotui::Label>(
+            textEngine, "장면 트리", treeTextStyle);
+        leftPanel->addChild(std::move(treeHeading), fixedHeight(20.0F));
+
+        lotui::TreeViewStyle treeStyle;
+        treeStyle.rowHeight = 24.0F;
+        auto sceneTree = std::make_unique<lotui::TreeView>(
+            textEngine,
+            std::vector<lotui::TreeNode>{
+                {"scene", "장면", 0, true},
+                {"assembly", "조립품", 1, true},
+                {"frame", "프레임", 2},
+                {"shaft", "축", 2},
+                {"fasteners", "체결 부품", 1, false},
+                {"bolt-1", "볼트 01", 2},
+                {"bolt-2", "볼트 02", 2},
+                {"camera", "카메라", 0},
+            },
+            lotui::Size{240.0F, 180.0F}, treeStyle, treeTextStyle);
+        sceneTree->setOnSelectionChanged([](auto id) {
+            std::cout << "tree-selection: " <<
+                (id ? *id : std::string_view{"none"}) << '\n';
+        });
+        sceneTree->setOnExpansionChanged([](std::string_view id, bool open) {
+            std::cout << "tree-expanded: " << id << ' ' <<
+                std::boolalpha << open << '\n';
+        });
+        leftPanel->addChild(std::move(sceneTree),
+            {1.0F, {0.0F, 130.0F},
+                {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
+    }
 
     auto rightPanel = std::make_unique<lotui::Column>();
     rightPanel->setDecoration(lotui::BoxDecoration{
@@ -285,6 +323,22 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
                 numberStyle,
                 controlTextStyle),
             fixedHeight(34.0F));
+        lotui::RadioGroupStyle radioStyle;
+        radioStyle.rowHeight = 23.0F;
+        radioStyle.indicatorSize = 13.0F;
+        form->addChild(
+            std::make_unique<lotui::RadioGroup>(
+                textEngine,
+                std::vector<lotui::RadioOption>{
+                    {"union", "합집합"},
+                    {"subtract", "차집합"},
+                    {"intersect", "교집합"},
+                },
+                std::optional<std::string>{"union"},
+                [](std::string_view id) {
+                    std::cout << "boolean-operation: " << id << '\n';
+                }, radioStyle, controlTextStyle),
+            fixedHeight(69.0F));
         lotui::DisclosurePanelStyle sectionStyle;
         sectionStyle.normal = {0.18F, 0.23F, 0.28F, 1.0F};
         sectionStyle.hovered = {0.23F, 0.29F, 0.34F, 1.0F};

@@ -18,7 +18,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `lot_status_bar` | fixed bar, command `TextField`, history, transcript popup, state toggles | Text input foundation complete |
 | `lot_properties_panel` | property grid, numeric/vector editors, combo boxes, checkboxes, color editor | Partial |
 | `lot_material_panel` | list/selection, numeric editors, colors, actions | Partial |
-| `lot_rigging_panel` | collapsible tree, inline rename, selection, vector editing, drag interaction | Disclosure group foundation complete; tree and engine adapter planned |
+| `lot_rigging_panel` | collapsible tree, inline rename, selection, vector editing, drag interaction | Tree selection/expansion foundation complete; rename, drag and engine adapter planned |
 | `lot_joint_panel` | collapsible groups, sliders, inline rename, combo boxes, repeated rows | Disclosure group foundation complete; engine adapter planned |
 | `lot_block_panel` | thumbnail grid, selection, double-click, drag source, rename, tooltip | Planned |
 | `lot_dimension_panel` | actions, numeric editor, integer slider, combo box, color editor | Partial |
@@ -38,12 +38,12 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `InputText` | `TextField` with committed text and IME composition | Single-line selection, clipboard, and bounded undo/redo history complete |
 | `InputInt`, `InputFloat`, `InputFloat3`, `DragFloat`, `DragFloat3` | numeric scalar/vector editor with typing and pointer drag | Scalar stepping partial |
 | `SliderFloat`, `SliderInt` | `Slider` with pointer drag and keyboard steps | Foundation complete; engine smoke in progress |
-| `RadioButton` | `RadioButton` and `RadioGroup` | Planned |
+| `RadioButton` | `RadioGroup` | Single-selection foundation complete |
 | `Combo`, `BeginCombo`, `Selectable` | `ComboBox`, `ListView`, selection model | Planned |
 | `ColorEdit3` | RGB/RGBA field and `ColorPicker` popup | Planned |
 | `BeginTabBar`, `BeginTabItem`, `TabItemButton` | `TabView` and closeable `DocumentTabView` | Controlled document tab strip foundation complete; content tabs planned |
 | Office-style application commands | `Ribbon`, `RibbonTab`, reusable `RibbonGroup` content | Foundation complete |
-| `CollapsingHeader`, `Indent` | `DisclosurePanel` and `TreeView` | DisclosurePanel complete in standalone sample; TreeView planned |
+| `CollapsingHeader`, `Indent` | `DisclosurePanel` and `TreeView` | Both foundations complete in standalone sample; tree drag/rename planned |
 | `BeginChild` | clipped `ScrollView` | Planned |
 | `BeginPopup`, `OpenPopup` | anchored `Popup` managed by an overlay host | `PopupHost` foundation complete |
 | `BeginMenu`, `MenuItem` | menu model, menu bar, nested menu popup | `MenuBar` foundation complete; shortcut dispatch and context menus planned |
@@ -93,13 +93,12 @@ robot header around playback, joint selection, inline rename, and editors.
 and robot hierarchies. `platform_probe` now embeds a disclosure group, while
 the engine-specific state and callbacks stay in 3dEngine.
 
-The next priority is a virtualized `TreeView`, not a recursive stack of
-disclosure panels. `../3dEngine/lot_scene_tree_panel.cpp` clips large row
-sets, keeps stable node keys and expansion state, and combines visibility,
-selection, inline rename, and drag/drop. The rigging hierarchy needs the
-same stable-identity model. After that, `RadioGroup` can cover operation
-choices in `../3dEngine/boolean/lot_boolean_dialog.cpp` and several
-simulation panels. Engine attachment still requires an adapter and a real
+`TreeView` now clips and paints only visible rows, keeps stable node IDs,
+selection, expansion and keyboard navigation. `RadioGroup` covers operation
+choices in `../3dEngine/boolean/lot_boolean_dialog.cpp` and related panels.
+`platform_probe` demonstrates both. The next tree work is visibility controls,
+inline rename and drag/drop for `../3dEngine/lot_scene_tree_panel.cpp` and
+rigging. Engine attachment still requires an adapter and a real
 `VulkanAppLotGUI` build; the standalone demo is not evidence of integration.
 
 LotUI remains an independent library. The parity examples may mirror 3dEngine

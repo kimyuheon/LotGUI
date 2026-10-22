@@ -210,10 +210,12 @@ add_library(lotui_widgets STATIC
     widgets/menu_bar.cpp
     widgets/numeric_input.cpp
     widgets/popup.cpp
+    widgets/radio_group.cpp
     widgets/ribbon.cpp
     widgets/single_child_widget.cpp
     widgets/slider.cpp
     widgets/text_field.cpp
+    widgets/tree_view.cpp
 )
 add_library(LotUI::Widgets ALIAS lotui_widgets)
 target_link_libraries(lotui_widgets PUBLIC lotui_core lotui_text)
@@ -619,6 +621,14 @@ if(BUILD_TESTING)
     )
     target_link_libraries(disclosure_panel_tests PRIVATE lotui_widgets)
     add_test(NAME disclosure_panel_tests COMMAND disclosure_panel_tests)
+
+    add_executable(radio_group_tests tests/radio_group_tests.cpp)
+    target_link_libraries(radio_group_tests PRIVATE lotui_widgets)
+    add_test(NAME radio_group_tests COMMAND radio_group_tests)
+
+    add_executable(tree_view_tests tests/tree_view_tests.cpp)
+    target_link_libraries(tree_view_tests PRIVATE lotui_widgets)
+    add_test(NAME tree_view_tests COMMAND tree_view_tests)
 
     add_executable(ribbon_tests
         tests/ribbon_tests.cpp

@@ -83,6 +83,10 @@ checkboxes, text fields, and future controls share the same input and focus
 behavior inside and outside a ribbon. See [`docs/ribbon.md`](docs/ribbon.md)
 and [`examples/ribbon.lotml`](examples/ribbon.lotml).
 
+`TreeView` and `RadioGroup` cover scene hierarchy navigation and exclusive
+operation choices. Their sample wiring is in `platform_probe`; see
+[`docs/tree-and-radio.md`](docs/tree-and-radio.md).
+
 `Slider` is a compact retained value control with pointer dragging, keyboard
 steps, Home/End, range clamping, and user-change callbacks. It is also drawn
 by the `VulkanAppLotGUI` engine smoke sample.
