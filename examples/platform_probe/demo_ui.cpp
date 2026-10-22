@@ -9,10 +9,14 @@
 #include "widgets/linear_layout.h"
 #include "widgets/menu_bar.h"
 #include "widgets/numeric_input.h"
-#include "widgets/radio_group.h"
 #include "widgets/ribbon.h"
 #include "widgets/text_field.h"
+
+#if __has_include("widgets/radio_group.h") && __has_include("widgets/tree_view.h")
+#include "widgets/radio_group.h"
 #include "widgets/tree_view.h"
+#define LOTUI_DEMO_HAS_TREE_AND_RADIO 1
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -75,6 +79,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
     leftOptions.spacing = 14.0F;
     leftOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
     leftPanel->setOptions(leftOptions);
+#ifdef LOTUI_DEMO_HAS_TREE_AND_RADIO
     if (textEngine) {
         auto heading = std::make_unique<lotui::Row>();
         heading->setDecoration(lotui::BoxDecoration{
@@ -227,6 +232,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
             {1.0F, {0.0F, 130.0F},
                 {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
     }
+#endif
 
     auto rightPanel = std::make_unique<lotui::Column>();
     rightPanel->setDecoration(lotui::BoxDecoration{
@@ -323,6 +329,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
                 numberStyle,
                 controlTextStyle),
             fixedHeight(34.0F));
+#ifdef LOTUI_DEMO_HAS_TREE_AND_RADIO
         lotui::RadioGroupStyle radioStyle;
         radioStyle.rowHeight = 23.0F;
         radioStyle.indicatorSize = 13.0F;
@@ -339,6 +346,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
                     std::cout << "boolean-operation: " << id << '\n';
                 }, radioStyle, controlTextStyle),
             fixedHeight(69.0F));
+#endif
         lotui::DisclosurePanelStyle sectionStyle;
         sectionStyle.normal = {0.18F, 0.23F, 0.28F, 1.0F};
         sectionStyle.hovered = {0.23F, 0.29F, 0.34F, 1.0F};

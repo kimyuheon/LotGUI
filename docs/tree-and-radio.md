@@ -37,4 +37,6 @@ operation->setOnChanged([](std::string_view id) {
 });
 ```
 
-The `platform_probe` example contains both controls, including Korean labels.
+The `platform_probe` example contains both controls, including Korean labels,
+when built with a matching SDK. Older SDK packages still build the previous
+probe layout until their platform archives are refreshed.
