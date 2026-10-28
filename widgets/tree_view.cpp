@@ -132,6 +132,14 @@ bool TreeView::isChecked(std::string_view id) const noexcept {
     return index && nodes_[*index].checkable && nodes_[*index].checked;
 }
 
+bool TreeView::setLabel(std::string_view id, std::string label) {
+    const auto index = nodeIndex(id);
+    if (!index || nodes_[*index].label == label) return false;
+    nodes_[*index].label = std::move(label);
+    layouts_.erase(nodes_[*index].id);
+    return true;
+}
+
 Rect TreeView::rowBounds(std::string_view id) const noexcept {
     const auto row = visibleIndex(id);
     if (!row) return {};
@@ -139,6 +147,32 @@ Rect TreeView::rowBounds(std::string_view id) const noexcept {
         bounds().y + static_cast<float>(*row) * style_.rowHeight -
             scrollOffset_,
         bounds().width, style_.rowHeight};
+}
+
+Rect TreeView::labelBounds(std::string_view id) const noexcept {
+    const auto index = nodeIndex(id);
+    if (!index || !visibleIndex(id)) return {};
+    const Rect row = rowBounds(id);
+    const TreeNode& node = nodes_[*index];
+    const float x = row.x + style_.padding +
+        static_cast<float>(node.depth) * style_.indent +
+        style_.disclosureSize + style_.labelSpacing +
+        (node.checkable ? style_.checkboxSize + style_.checkboxSpacing : 0.0F);
+    return {x, row.y, std::max(0.0F,
+        row.x + row.width - style_.padding - x), row.height};
+}
+
+bool TreeView::requestRename(std::string_view id) {
+    const auto index = nodeIndex(id);
+    if (!enabled_ || !onRenameRequested_ || !index ||
+        !nodes_[*index].selectable || !visibleIndex(id)) return false;
+    ensureVisible(id);
+    const Rect anchor = labelBounds(id);
+    if (!hasArea(intersect(anchor, clip()))) return false;
+    const std::string stableId = nodes_[*index].id;
+    RenameRequestedHandler callback = onRenameRequested_;
+    callback(stableId, anchor);
+    return true;
 }
 
 void TreeView::ensureVisible(std::string_view id) noexcept {
@@ -186,6 +220,10 @@ void TreeView::setOnActivated(ActivatedHandler handler) {
 
 void TreeView::setOnCheckedChanged(CheckedChangedHandler handler) {
     onCheckedChanged_ = std::move(handler);
+}
+
+void TreeView::setOnRenameRequested(RenameRequestedHandler handler) {
+    onRenameRequested_ = std::move(handler);
 }
 
 void TreeView::onArrange() { clampScroll(); }
@@ -462,6 +500,8 @@ bool TreeView::onKeyEvent(const WidgetKeyEvent& event) {
             callback(id);
         }
         return true;
+    case KeyCode::F2:
+        return selectedId_ && requestRename(*selectedId_);
     default:
         return false;
     }

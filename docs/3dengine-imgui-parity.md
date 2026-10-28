@@ -18,7 +18,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `lot_status_bar` | fixed bar, command `TextField`, history, transcript popup, state toggles | Text input foundation complete |
 | `lot_properties_panel` | property grid, numeric/vector editors, combo boxes, checkboxes, color editor | Partial |
 | `lot_material_panel` | list/selection, numeric editors, colors, actions | Partial |
-| `lot_rigging_panel` | collapsible tree, inline rename, selection, vector editing, drag interaction | Tree selection/expansion foundation complete; rename, drag and engine adapter planned |
+| `lot_rigging_panel` | collapsible tree, inline rename, selection, vector editing, drag interaction | Tree rename foundation complete; drag and engine adapter planned |
 | `lot_joint_panel` | collapsible groups, sliders, inline rename, combo boxes, repeated rows | Disclosure group foundation complete; engine adapter planned |
 | `lot_block_panel` | thumbnail grid, selection, double-click, drag source, rename, tooltip | Planned |
 | `lot_dimension_panel` | actions, numeric editor, integer slider, combo box, color editor | Partial |
@@ -43,7 +43,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `ColorEdit3` | RGB/RGBA field and `ColorPicker` popup | Planned |
 | `BeginTabBar`, `BeginTabItem`, `TabItemButton` | `TabView` and closeable `DocumentTabView` | Controlled document tab strip foundation complete; content tabs planned |
 | Office-style application commands | `Ribbon`, `RibbonTab`, reusable `RibbonGroup` content | Foundation complete |
-| `CollapsingHeader`, `Indent` | `DisclosurePanel` and `TreeView` | Both foundations complete in standalone sample; tree drag/rename planned |
+| `CollapsingHeader`, `Indent` | `DisclosurePanel` and `TreeView` | Both foundations complete in standalone sample; tree drag planned |
 | `BeginChild` | clipped `ScrollView` | Planned |
 | `BeginPopup`, `OpenPopup` | anchored `Popup` managed by an overlay host | `PopupHost` foundation complete |
 | `BeginMenu`, `MenuItem` | menu model, menu bar, nested menu popup | `MenuBar` foundation complete; shortcut dispatch and context menus planned |
@@ -94,10 +94,10 @@ and robot hierarchies. `platform_probe` now embeds a disclosure group, while
 the engine-specific state and callbacks stay in 3dEngine.
 
 `TreeView` now clips and paints only visible rows, keeps stable node IDs,
-selection, expansion and keyboard navigation. `RadioGroup` covers operation
+selection, expansion, F2 rename requests and keyboard navigation. `RadioGroup` covers operation
 choices in `../3dEngine/boolean/lot_boolean_dialog.cpp` and related panels.
-`platform_probe` demonstrates both. The next tree work is visibility controls,
-inline rename and drag/drop for `../3dEngine/lot_scene_tree_panel.cpp` and
+`platform_probe` demonstrates both. The next tree work is visibility controls
+and drag/drop for `../3dEngine/lot_scene_tree_panel.cpp` and
 rigging. Engine attachment still requires an adapter and a real
 `VulkanAppLotGUI` build; the standalone demo is not evidence of integration.
 

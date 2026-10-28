@@ -1,4 +1,6 @@
 #include "core/widget_tree.h"
+#include "widgets/inline_text_editor.h"
+#include "widgets/popup.h"
 #include "widgets/tree_view.h"
 
 #include <cstdlib>
@@ -206,6 +208,77 @@ void connectorsAndCheckboxes() {
     }
 }
 
+void renamesSelectedNodeWithUtf8Editor() {
+    auto engine = std::make_shared<TestTextEngine>();
+    auto view = std::make_unique<lotui::TreeView>(engine,
+        std::vector<lotui::TreeNode>{
+            {"root", "Root", 0, true},
+            {"part", "Part", 1, false, true, true, true},
+            {"locked", "Locked", 1, false, false},
+        });
+    lotui::TreeView* observed = view.get();
+    lotui::PopupHost* hostPointer = nullptr;
+    view->setOnRenameRequested([&](std::string_view id, lotui::Rect anchor) {
+        const std::string stableId(id);
+        lotui::InlineTextEditHandlers handlers;
+        handlers.committed = [observed, stableId](std::string label) {
+            observed->setLabel(stableId, std::move(label));
+        };
+        const std::string initial = stableId == "part" ?
+            observed->nodes()[1].label : observed->nodes()[0].label;
+        lotui::InlineTextEditor::showAt(*hostPointer, engine, anchor,
+            initial, std::move(handlers));
+    });
+    auto host = std::make_unique<lotui::PopupHost>(std::move(view));
+    hostPointer = host.get();
+    lotui::WidgetTree tree(std::move(host));
+    tree.layout({0.0F, 0.0F, 240.0F, 120.0F});
+    require(observed->setSelectedId("part"),
+        "rename target must be selectable");
+    tree.keyPressed(lotui::KeyCode::Tab);
+    std::vector<lotui::PaintCommand> commands;
+    tree.paint(commands);
+    require(tree.keyPressed(lotui::KeyCode::F2).handled &&
+            hostPointer->hasPopup() && tree.textInputState().enabled,
+        "F2 must open a focused inline editor for the selected row");
+    const lotui::Rect anchor = observed->labelBounds("part");
+    const lotui::Rect popup = hostPointer->popupBounds();
+    require(anchor.x == popup.x && anchor.y == popup.y &&
+            anchor.width == popup.width && anchor.height == popup.height,
+        "rename editor must cover the label area");
+    tree.textInput({lotui::TextInputEventType::Commit,
+        " \xED\x95\x9C\xEA\xB8\x80"});
+    tree.keyPressed(lotui::KeyCode::Enter);
+    const int cachedLayouts = engine->layouts;
+    require(!hostPointer->hasPopup() &&
+            observed->nodes()[1].label ==
+                "Part \xED\x95\x9C\xEA\xB8\x80" &&
+            observed->selectedId() == "part" &&
+            observed->isChecked("part"),
+        "committing a rename must preserve tree selection and check state");
+    commands.clear();
+    tree.paint(commands);
+    require(engine->layouts > cachedLayouts,
+        "renaming must invalidate the cached label layout");
+
+    require(observed->requestRename("part") && hostPointer->hasPopup(),
+        "programmatic rename must use the same editor callback");
+    tree.keyPressed(lotui::KeyCode::Escape);
+    require(!hostPointer->hasPopup() &&
+            observed->nodes()[1].label ==
+                "Part \xED\x95\x9C\xEA\xB8\x80",
+        "Escape must leave the node label unchanged");
+    require(!observed->requestRename("missing") &&
+            !observed->requestRename("locked") &&
+            !observed->setLabel("missing", "Name") &&
+            !observed->setLabel("part",
+                "Part \xED\x95\x9C\xEA\xB8\x80"),
+        "rename and label updates must reject invalid targets");
+    observed->setEnabled(false);
+    require(!observed->requestRename("part"),
+        "disabled trees must not start a rename");
+}
+
 void rejectsInvalidPreorder() {
     lotui::TreeView view(nullptr);
     try {
@@ -228,6 +301,7 @@ int main() {
     expansionSelectionAndKeyboard();
     virtualizesAndScrolls();
     connectorsAndCheckboxes();
+    renamesSelectedNodeWithUtf8Editor();
     rejectsInvalidPreorder();
     std::cout << "tree_view_tests passed\n";
     return EXIT_SUCCESS;

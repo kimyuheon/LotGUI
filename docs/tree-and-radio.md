@@ -26,7 +26,22 @@ Only viewport rows are shaped and painted. Arrow keys navigate; Left and Right
 collapse, expand, or move to parent/child. Space toggles a selected checkbox,
 or expansion when the node has no checkbox. Enter emits
 activation, and mouse-wheel scrolling is clipped to the view. Tree drag/drop,
-visibility toggles and inline rename are not yet part of this control.
+and visibility toggles are not yet part of this control.
+
+F2 requests an inline rename for the selected node. The tree reports a stable
+node ID and label-area anchor; the host owns the editor and validates and
+commits the new name. `platform_probe` connects this request to
+`InlineTextEditor`, including Korean IME input, Enter commit, and Escape cancel.
+The ribbon's Rename command calls the same `requestRename` method. On commit,
+`setLabel` updates the retained row and invalidates only its text layout.
+The example checks `LOTUI_TREE_VIEW_HAS_RENAME` so it can still compile
+against older platform SDK archives until those archives are rebuilt.
+
+```cpp
+tree->setOnRenameRequested([&](std::string_view id, lotui::Rect anchor) {
+    // Show InlineTextEditor at anchor and commit into the app's model.
+});
+```
 
 `RadioGroup` owns one selection across its options. Pointer clicks and arrow
 keys choose enabled options; Home and End jump to the first and last enabled

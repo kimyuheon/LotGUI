@@ -81,6 +81,7 @@ KeyCode keyCode(KeySym key) noexcept {
     case XK_KP_Page_Up: return KeyCode::PageUp;
     case XK_Page_Down:
     case XK_KP_Page_Down: return KeyCode::PageDown;
+    case XK_F2: return KeyCode::F2;
     case XK_a:
     case XK_A: return KeyCode::A;
     case XK_c:

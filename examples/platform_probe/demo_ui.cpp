@@ -5,10 +5,12 @@
 #include "widgets/checkbox.h"
 #include "widgets/disclosure_panel.h"
 #include "widgets/document_tab_view.h"
+#include "widgets/inline_text_editor.h"
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/menu_bar.h"
 #include "widgets/numeric_input.h"
+#include "widgets/popup.h"
 #include "widgets/ribbon.h"
 #include "widgets/text_field.h"
 
@@ -64,6 +66,11 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
     lotui::TextureId demoMaskTexture,
     const std::shared_ptr<const lotui::TextEngine>& textEngine,
     lotui::PlatformWindow& window) {
+    auto popupHostSlot = std::make_shared<lotui::PopupHost*>(nullptr);
+#if defined(LOTUI_DEMO_HAS_TREE_AND_RADIO) && \
+    defined(LOTUI_TREE_VIEW_HAS_RENAME)
+    lotui::TreeView* sceneTreePointer = nullptr;
+#endif
     auto root = std::make_unique<lotui::Row>();
     lotui::LinearLayoutOptions rootOptions;
     rootOptions.spacing = 12.0F;
@@ -220,6 +227,9 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
                 {"camera", "카메라", 0, false, true, true, false},
             },
             lotui::Size{240.0F, 180.0F}, treeStyle, treeTextStyle);
+#ifdef LOTUI_TREE_VIEW_HAS_RENAME
+        sceneTreePointer = sceneTree.get();
+#endif
         sceneTree->setOnSelectionChanged([](auto id) {
             std::cout << "tree-selection: " <<
                 (id ? *id : std::string_view{"none"}) << '\n';
@@ -232,6 +242,40 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
             std::cout << "tree-checked: " << id << ' ' <<
                 std::boolalpha << checked << '\n';
         });
+#ifdef LOTUI_TREE_VIEW_HAS_RENAME
+        sceneTree->setOnRenameRequested(
+            [popupHostSlot, sceneTreePointer, textEngine, treeTextStyle](
+                    std::string_view id, lotui::Rect anchor) {
+                if (!*popupHostSlot) return;
+                const std::string stableId(id);
+                const auto& nodes = sceneTreePointer->nodes();
+                const auto node = std::find_if(nodes.begin(), nodes.end(),
+                    [&stableId](const lotui::TreeNode& item) {
+                        return item.id == stableId;
+                    });
+                if (node == nodes.end()) return;
+                lotui::InlineTextEditHandlers handlers;
+                handlers.validate = [](std::string_view text)
+                    -> std::optional<std::string> {
+                    return text.find_first_not_of(" \t\r\n") ==
+                        std::string_view::npos ?
+                        std::optional<std::string>{"Name is required"} :
+                        std::nullopt;
+                };
+                handlers.committed = [sceneTreePointer, stableId](
+                        std::string label) {
+                    sceneTreePointer->setLabel(stableId, std::move(label));
+                    std::cout << "tree-renamed: " << stableId << '\n';
+                };
+                lotui::TextFieldStyle editorStyle;
+                editorStyle.contentPadding = {4.0F, 2.0F, 4.0F, 2.0F};
+                editorStyle.cornerRadius = 2.0F;
+                editorStyle.focusRingWidth = 1.0F;
+                lotui::InlineTextEditor::showAt(**popupHostSlot,
+                    textEngine, anchor, node->label, std::move(handlers),
+                    {}, editorStyle, treeTextStyle);
+            });
+#endif
         leftPanel->addChild(std::move(sceneTree),
             {1.0F, {0.0F, 130.0F},
                 {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
@@ -467,11 +511,28 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         "다시 실행",
         []() { std::cout << "ribbon-command: redo\n"; }),
         {0.0F, {92.0F, 34.0F}, {92.0F, 34.0F}});
+#if defined(LOTUI_DEMO_HAS_TREE_AND_RADIO) && \
+    defined(LOTUI_TREE_VIEW_HAS_RENAME)
+    editCommands->addChild(commandButton(
+        "이름 변경",
+        [sceneTreePointer]() {
+            if (sceneTreePointer) {
+                const auto selected = sceneTreePointer->selectedId();
+                if (selected) sceneTreePointer->requestRename(*selected);
+            }
+        }),
+        {0.0F, {92.0F, 34.0F}, {92.0F, 34.0F}});
+#endif
     homeGroups->addChild(
         std::make_unique<lotui::RibbonGroup>(
             textEngine, "편집", std::move(editCommands),
             groupStyle, ribbonTextStyle),
+#if defined(LOTUI_DEMO_HAS_TREE_AND_RADIO) && \
+    defined(LOTUI_TREE_VIEW_HAS_RENAME)
+        {0.0F, {298.0F, 58.0F}, {298.0F, 58.0F}});
+#else
         {0.0F, {202.0F, 58.0F}, {202.0F, 58.0F}});
+#endif
     ribbon->addTab(std::make_unique<lotui::RibbonTab>(
         "home", "홈", std::move(homeGroups)));
 
@@ -592,6 +653,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         {1.0F, {0.0F, 220.0F},
             {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
     auto popupHost = std::make_unique<lotui::PopupHost>(std::move(shell));
+    *popupHostSlot = popupHost.get();
     menuBarPointer->setPopupHost(popupHost.get());
     return std::make_unique<lotui::WidgetTree>(std::move(popupHost));
 }

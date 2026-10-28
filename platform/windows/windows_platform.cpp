@@ -55,6 +55,7 @@ KeyCode keyCode(WPARAM key) noexcept {
     case VK_END: return KeyCode::End;
     case VK_PRIOR: return KeyCode::PageUp;
     case VK_NEXT: return KeyCode::PageDown;
+    case VK_F2: return KeyCode::F2;
     case 'A': return KeyCode::A;
     case 'C': return KeyCode::C;
     case 'V': return KeyCode::V;

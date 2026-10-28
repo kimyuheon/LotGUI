@@ -46,6 +46,7 @@ lotui::KeyCode keyCode(NSEvent* event) {
     case NSEndFunctionKey: return lotui::KeyCode::End;
     case NSPageUpFunctionKey: return lotui::KeyCode::PageUp;
     case NSPageDownFunctionKey: return lotui::KeyCode::PageDown;
+    case NSF2FunctionKey: return lotui::KeyCode::F2;
     case 'a':
     case 'A': return lotui::KeyCode::A;
     case 'c':

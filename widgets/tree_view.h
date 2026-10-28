@@ -12,6 +12,8 @@
 #include <unordered_map>
 #include <vector>
 
+#define LOTUI_TREE_VIEW_HAS_RENAME 1
+
 namespace lotui {
 
 // Nodes are supplied in preorder. A child immediately follows its parent
@@ -58,6 +60,8 @@ public:
     using ActivatedHandler = std::function<void(std::string_view)>;
     using CheckedChangedHandler =
         std::function<void(std::string_view, bool)>;
+    using RenameRequestedHandler =
+        std::function<void(std::string_view, Rect)>;
 
     TreeView(
         std::shared_ptr<const TextEngine> textEngine,
@@ -76,7 +80,10 @@ public:
     bool isExpanded(std::string_view id) const noexcept;
     bool setChecked(std::string_view id, bool checked);
     bool isChecked(std::string_view id) const noexcept;
+    bool setLabel(std::string_view id, std::string label);
     Rect rowBounds(std::string_view id) const noexcept;
+    Rect labelBounds(std::string_view id) const noexcept;
+    bool requestRename(std::string_view id);
     void ensureVisible(std::string_view id) noexcept;
     void setScrollOffset(float offset) noexcept;
     float scrollOffset() const noexcept;
@@ -86,6 +93,7 @@ public:
     void setOnExpansionChanged(ExpansionChangedHandler handler);
     void setOnActivated(ActivatedHandler handler);
     void setOnCheckedChanged(CheckedChangedHandler handler);
+    void setOnRenameRequested(RenameRequestedHandler handler);
 
 protected:
     void onArrange() override;
@@ -132,6 +140,7 @@ private:
     ExpansionChangedHandler onExpansionChanged_{};
     ActivatedHandler onActivated_{};
     CheckedChangedHandler onCheckedChanged_{};
+    RenameRequestedHandler onRenameRequested_{};
 };
 
 } // namespace lotui
