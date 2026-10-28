@@ -5,7 +5,9 @@ its parent at depth one greater. Expand and selection state stay with the view;
 `setNodes` preserves selection by ID when that row remains visible.
 Subtle branch guides end at the last sibling. Nodes can opt into a checkbox;
 check state is independent of selection and expansion and survives model
-refreshes with the same ID.
+refreshes with the same ID. A checkable group can also display `Mixed` when
+only some descendants are visible. Clicking it requests `Checked`; the host
+decides whether to apply that state to descendants.
 
 ```cpp
 auto tree = std::make_unique<lotui::TreeView>(textEngine,
@@ -25,8 +27,19 @@ tree->setOnCheckedChanged([](std::string_view id, bool checked) {
 Only viewport rows are shaped and painted. Arrow keys navigate; Left and Right
 collapse, expand, or move to parent/child. Space toggles a selected checkbox,
 or expansion when the node has no checkbox. Enter emits
-activation, and mouse-wheel scrolling is clipped to the view. Tree drag/drop,
-and visibility toggles are not yet part of this control.
+activation, and mouse-wheel scrolling is clipped to the view. Tree drag/drop
+and the engine visibility adapter are not yet part of this control.
+
+```cpp
+tree->setCheckState("group", lotui::TreeCheckState::Mixed);
+tree->setOnCheckedChanged([](std::string_view id, bool checked) {
+    // Apply the requested visibility to the application's scene model.
+});
+```
+
+`platform_probe` shows a partially visible scene and updates its child check
+states when a group is toggled. `setCheckState` and `setChecked` are silent
+model updates; user clicks and Space invoke `setOnCheckedChanged`.
 
 F2 requests an inline rename for the selected node. The tree reports a stable
 node ID and label-area anchor; the host owns the editor and validates and

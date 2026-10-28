@@ -62,13 +62,49 @@ lotui::TextureImage createDemoMask() {
     return image;
 }
 
+#ifdef LOTUI_TREE_VIEW_HAS_MIXED_CHECK
+void updateDemoTreeChecks(lotui::TreeView& tree, std::string_view id,
+    bool checked) {
+    const auto& nodes = tree.nodes();
+    const auto found = std::find_if(nodes.begin(), nodes.end(),
+        [id](const lotui::TreeNode& node) { return node.id == id; });
+    if (found == nodes.end()) return;
+    const std::size_t index = static_cast<std::size_t>(found - nodes.begin());
+    for (std::size_t child = index + 1;
+            child < nodes.size() && nodes[child].depth > nodes[index].depth;
+            ++child) {
+        if (nodes[child].checkable) tree.setChecked(nodes[child].id, checked);
+    }
+    for (std::size_t parent = nodes.size(); parent-- > 0;) {
+        if (!nodes[parent].checkable) continue;
+        bool anyChecked = false;
+        bool anyUnchecked = false;
+        for (std::size_t child = parent + 1;
+                child < nodes.size() &&
+                    nodes[child].depth > nodes[parent].depth;
+                ++child) {
+            if (nodes[child].depth != nodes[parent].depth + 1 ||
+                !nodes[child].checkable) continue;
+            const auto state = tree.checkState(nodes[child].id);
+            anyChecked |= state != lotui::TreeCheckState::Unchecked;
+            anyUnchecked |= state != lotui::TreeCheckState::Checked;
+        }
+        if (anyChecked || anyUnchecked) {
+            tree.setCheckState(nodes[parent].id,
+                anyChecked && anyUnchecked ? lotui::TreeCheckState::Mixed :
+                anyChecked ? lotui::TreeCheckState::Checked :
+                    lotui::TreeCheckState::Unchecked);
+        }
+    }
+}
+#endif
+
 std::unique_ptr<lotui::WidgetTree> createDemoUi(
     lotui::TextureId demoMaskTexture,
     const std::shared_ptr<const lotui::TextEngine>& textEngine,
     lotui::PlatformWindow& window) {
     auto popupHostSlot = std::make_shared<lotui::PopupHost*>(nullptr);
-#if defined(LOTUI_DEMO_HAS_TREE_AND_RADIO) && \
-    defined(LOTUI_TREE_VIEW_HAS_RENAME)
+#ifdef LOTUI_DEMO_HAS_TREE_AND_RADIO
     lotui::TreeView* sceneTreePointer = nullptr;
 #endif
     auto root = std::make_unique<lotui::Row>();
@@ -224,11 +260,12 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
                 {"fasteners", "체결 부품", 1, false, true, true, true},
                 {"bolt-1", "볼트 01", 2, false, true, true, true},
                 {"bolt-2", "볼트 02", 2, false, true, true, true},
-                {"camera", "카메라", 0, false, true, true, false},
+                {"camera", "카메라", 1, false, true, true, false},
             },
             lotui::Size{240.0F, 180.0F}, treeStyle, treeTextStyle);
-#ifdef LOTUI_TREE_VIEW_HAS_RENAME
         sceneTreePointer = sceneTree.get();
+#ifdef LOTUI_TREE_VIEW_HAS_MIXED_CHECK
+        sceneTree->setCheckState("scene", lotui::TreeCheckState::Mixed);
 #endif
         sceneTree->setOnSelectionChanged([](auto id) {
             std::cout << "tree-selection: " <<
@@ -238,7 +275,12 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
             std::cout << "tree-expanded: " << id << ' ' <<
                 std::boolalpha << open << '\n';
         });
-        sceneTree->setOnCheckedChanged([](std::string_view id, bool checked) {
+        sceneTree->setOnCheckedChanged(
+            [sceneTreePointer](std::string_view id, bool checked) {
+            if (!sceneTreePointer) return;
+#ifdef LOTUI_TREE_VIEW_HAS_MIXED_CHECK
+            updateDemoTreeChecks(*sceneTreePointer, id, checked);
+#endif
             std::cout << "tree-checked: " << id << ' ' <<
                 std::boolalpha << checked << '\n';
         });

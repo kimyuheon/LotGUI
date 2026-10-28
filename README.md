@@ -87,7 +87,8 @@ and [`examples/ribbon.lotml`](examples/ribbon.lotml).
 operation choices. Their sample wiring is in `platform_probe`; see
 [`docs/tree-and-radio.md`](docs/tree-and-radio.md). The tree also requests
 inline rename on F2; the sample connects it to the existing IME-aware editor
-and exposes the same action in the ribbon.
+and exposes the same action in the ribbon. Mixed group checkboxes represent
+partially visible scene branches without coupling the widget to CAD objects.
 
 `Slider` is a compact retained value control with pointer dragging, keyboard
 steps, Home/End, range clamping, and user-change callbacks. It is also drawn

@@ -208,6 +208,61 @@ void connectorsAndCheckboxes() {
     }
 }
 
+void mixedCheckboxShowsPartialVisibility() {
+    lotui::TreeViewStyle style;
+    style.rowHeight = 24.0F;
+    int changes = 0;
+    auto view = std::make_unique<lotui::TreeView>(nullptr,
+        std::vector<lotui::TreeNode>{
+            {"group", "Group", 0, true, true, true},
+            {"visible", "Visible", 1, false, true, true, true},
+            {"hidden", "Hidden", 1, false, true, true, false},
+            {"plain", "Plain", 0},
+        }, lotui::Size{200.0F, 100.0F}, style);
+    auto* observed = view.get();
+    view->setOnCheckedChanged([&changes](std::string_view id, bool checked) {
+        require(id == "group" && checked,
+            "mixed checkbox must request a checked group");
+        ++changes;
+    });
+    lotui::WidgetTree tree(std::move(view));
+    tree.layout({0.0F, 0.0F, 200.0F, 100.0F});
+    require(observed->setCheckState("group", lotui::TreeCheckState::Mixed) &&
+            observed->checkState("group") == lotui::TreeCheckState::Mixed &&
+            !observed->isChecked("group"),
+        "mixed state must be distinct from checked");
+    std::vector<lotui::PaintCommand> commands;
+    tree.paint(commands);
+    bool hasMixedMark = false;
+    for (const auto& command : commands) {
+        if (command.color.red == style.checkboxMark.red &&
+            command.bounds.width == 8.0F &&
+            command.bounds.height == 2.0F) hasMixedMark = true;
+    }
+    require(hasMixedMark, "mixed checkbox must paint a centered dash");
+    tree.pointerPressed({33.0F, 12.0F}, lotui::PointerButton::Primary);
+    tree.pointerReleased({33.0F, 12.0F}, lotui::PointerButton::Primary);
+    require(changes == 1 && observed->isChecked("group") &&
+            observed->checkState("group") == lotui::TreeCheckState::Checked,
+        "clicking mixed checkbox must request the checked state");
+    require(observed->setCheckState("group", lotui::TreeCheckState::Mixed),
+        "programmatic mixed state must be accepted");
+    observed->setNodes({
+        {"group", "Group", 0, false, true, true},
+        {"visible", "Visible", 1, false, true, true},
+        {"hidden", "Hidden", 1, false, true, true},
+        {"plain", "Plain", 0},
+    });
+    require(observed->checkState("group") == lotui::TreeCheckState::Mixed,
+        "model refresh must preserve the group's mixed state");
+    require(observed->setChecked("group", false) &&
+            observed->checkState("group") == lotui::TreeCheckState::Unchecked,
+        "setting a boolean state must clear mixed state");
+    require(!observed->setCheckState("plain", lotui::TreeCheckState::Mixed) &&
+            !observed->setCheckState("missing", lotui::TreeCheckState::Mixed),
+        "only checkable existing nodes can be mixed");
+}
+
 void renamesSelectedNodeWithUtf8Editor() {
     auto engine = std::make_shared<TestTextEngine>();
     auto view = std::make_unique<lotui::TreeView>(engine,
@@ -301,6 +356,7 @@ int main() {
     expansionSelectionAndKeyboard();
     virtualizesAndScrolls();
     connectorsAndCheckboxes();
+    mixedCheckboxShowsPartialVisibility();
     renamesSelectedNodeWithUtf8Editor();
     rejectsInvalidPreorder();
     std::cout << "tree_view_tests passed\n";

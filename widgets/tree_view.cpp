@@ -65,11 +65,11 @@ void TreeView::setNodes(std::vector<TreeNode> nodes) {
                 "TreeView nodes need unique IDs and preorder depths");
         }
     }
-    struct NodeState { bool expanded; bool checkable; bool checked; };
+    struct NodeState { bool expanded; bool checkable; bool checked; bool mixed; };
     std::unordered_map<std::string, NodeState> state;
     for (const TreeNode& node : nodes_) {
         state.emplace(node.id,
-            NodeState{node.expanded, node.checkable, node.checked});
+            NodeState{node.expanded, node.checkable, node.checked, node.mixed});
     }
     for (TreeNode& node : nodes) {
         const auto previous = state.find(node.id);
@@ -77,8 +77,10 @@ void TreeView::setNodes(std::vector<TreeNode> nodes) {
             node.expanded = previous->second.expanded;
             if (node.checkable && previous->second.checkable) {
                 node.checked = previous->second.checked;
+                node.mixed = previous->second.mixed;
             }
         }
+        if (node.mixed) node.checked = false;
     }
     nodes_ = std::move(nodes);
     layouts_.clear();
@@ -129,7 +131,28 @@ bool TreeView::setChecked(std::string_view id, bool checked) {
 
 bool TreeView::isChecked(std::string_view id) const noexcept {
     const auto index = nodeIndex(id);
-    return index && nodes_[*index].checkable && nodes_[*index].checked;
+    return index && nodes_[*index].checkable && nodes_[*index].checked &&
+        !nodes_[*index].mixed;
+}
+
+bool TreeView::setCheckState(std::string_view id, TreeCheckState state) {
+    const auto index = nodeIndex(id);
+    if (!index || !nodes_[*index].checkable) return false;
+    TreeNode& node = nodes_[*index];
+    const bool checked = state == TreeCheckState::Checked;
+    const bool mixed = state == TreeCheckState::Mixed;
+    if (node.checked == checked && node.mixed == mixed) return false;
+    node.checked = checked;
+    node.mixed = mixed;
+    return true;
+}
+
+TreeCheckState TreeView::checkState(std::string_view id) const noexcept {
+    const auto index = nodeIndex(id);
+    if (!index || !nodes_[*index].checkable) return TreeCheckState::Unchecked;
+    if (nodes_[*index].mixed) return TreeCheckState::Mixed;
+    return nodes_[*index].checked ?
+        TreeCheckState::Checked : TreeCheckState::Unchecked;
 }
 
 bool TreeView::setLabel(std::string_view id, std::string label) {
@@ -327,10 +350,15 @@ void TreeView::onPaint(std::vector<PaintCommand>& commands) const {
             commands.push_back({{box.x + 1.0F, box.y + 1.0F,
                 std::max(0.0F, box.width - 2.0F),
                 std::max(0.0F, box.height - 2.0F)}, rowClip,
-                node.checked ? style_.checkboxChecked :
+                (node.checked || node.mixed) ? style_.checkboxChecked :
                     style_.checkboxBackground,
                 invalidTextureId, 1.0F});
-            if (node.checked && box.width >= 10.0F) {
+            if (node.mixed && box.width >= 10.0F) {
+                commands.push_back({{box.x + (box.width - 8.0F) * 0.5F,
+                    box.y + (box.height - 2.0F) * 0.5F, 8.0F, 2.0F},
+                    rowClip, style_.checkboxMark,
+                    invalidTextureId, 0.0F});
+            } else if (node.checked && box.width >= 10.0F) {
                 const float x = box.x + (box.width - 8.0F) * 0.5F;
                 const float y = box.y + (box.height - 8.0F) * 0.5F;
                 for (const Point mark : {Point{x, y + 3.0F},
@@ -631,8 +659,9 @@ bool TreeView::moveSelection(int direction) {
 
 bool TreeView::check(std::size_t index, bool checked, bool notify) {
     if (index >= nodes_.size() || !nodes_[index].checkable ||
-        nodes_[index].checked == checked) return false;
+        (nodes_[index].checked == checked && !nodes_[index].mixed)) return false;
     nodes_[index].checked = checked;
+    nodes_[index].mixed = false;
     if (notify && onCheckedChanged_) {
         const std::string id = nodes_[index].id;
         CheckedChangedHandler callback = onCheckedChanged_;

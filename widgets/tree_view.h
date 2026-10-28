@@ -13,8 +13,15 @@
 #include <vector>
 
 #define LOTUI_TREE_VIEW_HAS_RENAME 1
+#define LOTUI_TREE_VIEW_HAS_MIXED_CHECK 1
 
 namespace lotui {
+
+enum class TreeCheckState {
+    Unchecked,
+    Checked,
+    Mixed,
+};
 
 // Nodes are supplied in preorder. A child immediately follows its parent
 // with depth one greater; IDs remain stable across model refreshes.
@@ -26,6 +33,7 @@ struct TreeNode {
     bool selectable{true};
     bool checkable{false};
     bool checked{false};
+    bool mixed{false};
 };
 
 struct TreeViewStyle {
@@ -80,6 +88,8 @@ public:
     bool isExpanded(std::string_view id) const noexcept;
     bool setChecked(std::string_view id, bool checked);
     bool isChecked(std::string_view id) const noexcept;
+    bool setCheckState(std::string_view id, TreeCheckState state);
+    TreeCheckState checkState(std::string_view id) const noexcept;
     bool setLabel(std::string_view id, std::string label);
     Rect rowBounds(std::string_view id) const noexcept;
     Rect labelBounds(std::string_view id) const noexcept;

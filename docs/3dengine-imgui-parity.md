@@ -94,10 +94,11 @@ and robot hierarchies. `platform_probe` now embeds a disclosure group, while
 the engine-specific state and callbacks stay in 3dEngine.
 
 `TreeView` now clips and paints only visible rows, keeps stable node IDs,
-selection, expansion, F2 rename requests and keyboard navigation. `RadioGroup` covers operation
+selection, expansion, mixed group checkboxes, F2 rename requests and keyboard
+navigation. `RadioGroup` covers operation
 choices in `../3dEngine/boolean/lot_boolean_dialog.cpp` and related panels.
-`platform_probe` demonstrates both. The next tree work is visibility controls
-and drag/drop for `../3dEngine/lot_scene_tree_panel.cpp` and
+`platform_probe` demonstrates both. The next tree work is the engine visibility
+adapter and drag/drop for `../3dEngine/lot_scene_tree_panel.cpp` and
 rigging. Engine attachment still requires an adapter and a real
 `VulkanAppLotGUI` build; the standalone demo is not evidence of integration.
 
