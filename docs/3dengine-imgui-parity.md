@@ -101,8 +101,9 @@ choices in `../3dEngine/boolean/lot_boolean_dialog.cpp` and related panels.
 sample now reads `CAD_GetSceneTreeJson`, maps selection and tri-state
 visibility to the CAD API, and paints the tree over the live Vulkan viewport.
 It has an automated pointer/Undo/Redo scenario in
-`../3dEngine/samples/lotui_smoke/`. The remaining tree work is drag/drop,
-inline rename and keyboard/scroll input routing in the engine adapter, plus
+`../3dEngine/samples/lotui_smoke/`. Wheel routing now scrolls the embedded
+tree while preserving viewport wheel input outside it. The remaining tree
+work is drag/drop, inline rename and keyboard input routing, plus
 replacement of other ImGui panels. The standalone demo alone is not evidence
 of integration.
 
