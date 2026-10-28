@@ -99,10 +99,52 @@ void updateDemoTreeChecks(lotui::TreeView& tree, std::string_view id,
 }
 #endif
 
+#ifdef LOTUI_TREE_VIEW_HAS_DROP
+void moveDemoTreeNode(lotui::TreeView& tree, std::string_view source,
+    std::string_view target) {
+    auto nodes = tree.nodes();
+    const auto sourceIt = std::find_if(nodes.begin(), nodes.end(),
+        [source](const auto& node) { return node.id == source; });
+    if (sourceIt == nodes.end()) return;
+    const std::size_t sourceIndex = static_cast<std::size_t>(
+        sourceIt - nodes.begin());
+    std::size_t end = sourceIndex + 1;
+    while (end < nodes.size() &&
+            nodes[end].depth > nodes[sourceIndex].depth) ++end;
+    std::vector<lotui::TreeNode> moved(nodes.begin() + sourceIndex,
+        nodes.begin() + end);
+    nodes.erase(nodes.begin() + sourceIndex, nodes.begin() + end);
+    const auto targetIt = std::find_if(nodes.begin(), nodes.end(),
+        [target](const auto& node) { return node.id == target; });
+    if (targetIt == nodes.end()) return;
+    const std::size_t targetIndex = static_cast<std::size_t>(
+        targetIt - nodes.begin());
+    const std::size_t targetDepth = nodes[targetIndex].depth;
+    const auto relativeDepth = static_cast<std::ptrdiff_t>(
+        targetDepth + 1) - static_cast<std::ptrdiff_t>(moved.front().depth);
+    for (auto& node : moved) {
+        node.depth = static_cast<std::size_t>(
+            static_cast<std::ptrdiff_t>(node.depth) + relativeDepth);
+    }
+    std::size_t insertAt = targetIndex + 1;
+    while (insertAt < nodes.size() &&
+            nodes[insertAt].depth > targetDepth) ++insertAt;
+    nodes.insert(nodes.begin() + insertAt, moved.begin(), moved.end());
+    tree.setNodes(std::move(nodes));
+    tree.setExpanded(target, true);
+#ifdef LOTUI_TREE_VIEW_HAS_MIXED_CHECK
+    updateDemoTreeChecks(tree, source, tree.isChecked(source));
+#endif
+    tree.ensureVisible(source);
+}
+#endif
+
 std::unique_ptr<lotui::WidgetTree> createDemoUi(
     lotui::TextureId demoMaskTexture,
     const std::shared_ptr<const lotui::TextEngine>& textEngine,
-    lotui::PlatformWindow& window) {
+    lotui::PlatformWindow& window,
+    lotui::TreeView** sceneTreeOut) {
+    if (sceneTreeOut) *sceneTreeOut = nullptr;
     auto popupHostSlot = std::make_shared<lotui::PopupHost*>(nullptr);
 #ifdef LOTUI_DEMO_HAS_TREE_AND_RADIO
     lotui::TreeView* sceneTreePointer = nullptr;
@@ -264,6 +306,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
             },
             lotui::Size{240.0F, 180.0F}, treeStyle, treeTextStyle);
         sceneTreePointer = sceneTree.get();
+        if (sceneTreeOut) *sceneTreeOut = sceneTreePointer;
 #ifdef LOTUI_TREE_VIEW_HAS_MIXED_CHECK
         sceneTree->setCheckState("scene", lotui::TreeCheckState::Mixed);
 #endif
@@ -284,6 +327,22 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
             std::cout << "tree-checked: " << id << ' ' <<
                 std::boolalpha << checked << '\n';
         });
+#ifdef LOTUI_TREE_VIEW_HAS_DROP
+        sceneTree->setCanDrop([](std::string_view source,
+                std::string_view target) {
+            const bool leaf = source == "frame" || source == "shaft" ||
+                source == "bolt-1" || source == "bolt-2" ||
+                source == "camera";
+            return leaf && (target == "scene" || target == "assembly" ||
+                target == "fasteners");
+        });
+        sceneTree->setOnDropped([sceneTreePointer](std::string_view source,
+                std::string_view target) {
+            moveDemoTreeNode(*sceneTreePointer, source, target);
+            std::cout << "tree-dropped: " << source << " -> " <<
+                target << '\n';
+        });
+#endif
 #ifdef LOTUI_TREE_VIEW_HAS_RENAME
         sceneTree->setOnRenameRequested(
             [popupHostSlot, sceneTreePointer, textEngine, treeTextStyle](

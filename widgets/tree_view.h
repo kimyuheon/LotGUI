@@ -14,6 +14,7 @@
 
 #define LOTUI_TREE_VIEW_HAS_RENAME 1
 #define LOTUI_TREE_VIEW_HAS_MIXED_CHECK 1
+#define LOTUI_TREE_VIEW_HAS_DROP 1
 
 namespace lotui {
 
@@ -49,6 +50,7 @@ struct TreeViewStyle {
     Color checkboxChecked{0.27F, 0.65F, 0.60F, 1.0F};
     Color checkboxMark{0.96F, 0.98F, 0.97F, 1.0F};
     Color focusLine{0.35F, 0.78F, 0.69F, 1.0F};
+    Color dropTarget{0.20F, 0.43F, 0.48F, 1.0F};
     float rowHeight{26.0F};
     float indent{16.0F};
     float padding{8.0F};
@@ -57,6 +59,7 @@ struct TreeViewStyle {
     float connectorWidth{1.0F};
     float checkboxSize{14.0F};
     float checkboxSpacing{7.0F};
+    float dragThreshold{5.0F};
 };
 
 class TreeView final : public Widget {
@@ -70,6 +73,10 @@ public:
         std::function<void(std::string_view, bool)>;
     using RenameRequestedHandler =
         std::function<void(std::string_view, Rect)>;
+    using DropAllowedHandler =
+        std::function<bool(std::string_view, std::string_view)>;
+    using DroppedHandler =
+        std::function<void(std::string_view, std::string_view)>;
 
     TreeView(
         std::shared_ptr<const TextEngine> textEngine,
@@ -104,6 +111,8 @@ public:
     void setOnActivated(ActivatedHandler handler);
     void setOnCheckedChanged(CheckedChangedHandler handler);
     void setOnRenameRequested(RenameRequestedHandler handler);
+    void setCanDrop(DropAllowedHandler handler);
+    void setOnDropped(DroppedHandler handler);
 
 protected:
     void onArrange() override;
@@ -126,6 +135,7 @@ private:
     bool expand(std::size_t nodeIndex, bool value, bool notify);
     bool moveSelection(int direction);
     bool check(std::size_t nodeIndex, bool checked, bool notify);
+    bool validDrop(std::size_t source, std::size_t target) const;
     Rect checkboxBounds(std::size_t nodeIndex, Rect row) const noexcept;
     const TextLayout* layoutFor(const TreeNode& node) const;
 
@@ -141,6 +151,9 @@ private:
     std::optional<std::string> selectedId_;
     std::optional<std::size_t> hoveredRow_;
     std::optional<std::size_t> pressedRow_;
+    std::optional<std::size_t> dropTargetRow_;
+    Point pressPosition_{};
+    bool dragging_{false};
     bool pressedDisclosure_{false};
     bool pressedCheckbox_{false};
     float scrollOffset_{0.0F};
@@ -151,6 +164,8 @@ private:
     ActivatedHandler onActivated_{};
     CheckedChangedHandler onCheckedChanged_{};
     RenameRequestedHandler onRenameRequested_{};
+    DropAllowedHandler canDrop_{};
+    DroppedHandler onDropped_{};
 };
 
 } // namespace lotui

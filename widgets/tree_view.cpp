@@ -22,6 +22,7 @@ void sanitize(TreeViewStyle& style) noexcept {
     style.connectorWidth = dimension(style.connectorWidth);
     style.checkboxSize = dimension(style.checkboxSize);
     style.checkboxSpacing = dimension(style.checkboxSpacing);
+    style.dragThreshold = dimension(style.dragThreshold);
 }
 
 void appendLine(std::vector<PaintCommand>& commands, Rect bounds,
@@ -92,6 +93,8 @@ void TreeView::setNodes(std::vector<TreeNode> nodes) {
     }
     hoveredRow_.reset();
     pressedRow_.reset();
+    dropTargetRow_.reset();
+    dragging_ = false;
     pressedDisclosure_ = false;
     pressedCheckbox_ = false;
     clampScroll();
@@ -249,6 +252,14 @@ void TreeView::setOnRenameRequested(RenameRequestedHandler handler) {
     onRenameRequested_ = std::move(handler);
 }
 
+void TreeView::setCanDrop(DropAllowedHandler handler) {
+    canDrop_ = std::move(handler);
+}
+
+void TreeView::setOnDropped(DroppedHandler handler) {
+    onDropped_ = std::move(handler);
+}
+
 void TreeView::onArrange() { clampScroll(); }
 
 void TreeView::onPaint(std::vector<PaintCommand>& commands) const {
@@ -270,9 +281,10 @@ void TreeView::onPaint(std::vector<PaintCommand>& commands) const {
         const Rect rowClip = intersect(rectangle, clip());
         if (!hasArea(rowClip)) continue;
         const bool selected = selectedId_ && *selectedId_ == node.id;
-        if (selected || hoveredRow_ == row) {
+        if (selected || hoveredRow_ == row || dropTargetRow_ == row) {
             commands.push_back({rectangle, rowClip,
-                selected ? style_.selected : style_.hovered,
+                dropTargetRow_ == row ? style_.dropTarget :
+                    selected ? style_.selected : style_.hovered,
                 invalidTextureId, 0.0F});
         }
         const float iconX = rectangle.x + style_.padding +
@@ -398,13 +410,29 @@ bool TreeView::onPointerEvent(const WidgetPointerEvent& event) {
     case WidgetPointerEventType::Enter:
     case WidgetPointerEventType::Move:
         hoveredRow_ = row;
+        if (pressedRow_ && !pressedDisclosure_ && !pressedCheckbox_ &&
+            onDropped_ && visibleRows_[*pressedRow_] < nodes_.size()) {
+            const float dx = event.position.x - pressPosition_.x;
+            const float dy = event.position.y - pressPosition_.y;
+            if (!dragging_ && dx * dx + dy * dy >=
+                    style_.dragThreshold * style_.dragThreshold) {
+                dragging_ = true;
+            }
+            dropTargetRow_ = dragging_ && row &&
+                validDrop(visibleRows_[*pressedRow_], visibleRows_[*row])
+                    ? row : std::nullopt;
+        }
         return true;
     case WidgetPointerEventType::Leave:
         hoveredRow_.reset();
+        dropTargetRow_.reset();
         return true;
     case WidgetPointerEventType::Press:
         if (event.button != PointerButton::Primary || !row) return false;
         pressedRow_ = row;
+        pressPosition_ = event.position;
+        dragging_ = false;
+        dropTargetRow_.reset();
         hoveredRow_ = row;
         {
             const TreeNode& node = nodes_[visibleRows_[*row]];
@@ -421,6 +449,25 @@ bool TreeView::onPointerEvent(const WidgetPointerEvent& event) {
         return true;
     case WidgetPointerEventType::Release:
         if (event.button != PointerButton::Primary || !pressedRow_) return false;
+        if (dragging_) {
+            std::string sourceId;
+            std::string targetId;
+            if (row && dropTargetRow_ == row &&
+                validDrop(visibleRows_[*pressedRow_], visibleRows_[*row])) {
+                sourceId = nodes_[visibleRows_[*pressedRow_]].id;
+                targetId = nodes_[visibleRows_[*row]].id;
+            }
+            pressedRow_.reset();
+            dropTargetRow_.reset();
+            dragging_ = false;
+            pressedDisclosure_ = false;
+            pressedCheckbox_ = false;
+            if (!sourceId.empty() && onDropped_) {
+                DroppedHandler callback = onDropped_;
+                callback(sourceId, targetId);
+            }
+            return true;
+        }
         if (row == pressedRow_) {
             const std::size_t index = visibleRows_[*row];
             if (pressedDisclosure_) {
@@ -436,11 +483,15 @@ bool TreeView::onPointerEvent(const WidgetPointerEvent& event) {
             }
         }
         pressedRow_.reset();
+        dropTargetRow_.reset();
+        dragging_ = false;
         pressedDisclosure_ = false;
         pressedCheckbox_ = false;
         return true;
     case WidgetPointerEventType::Cancel:
         pressedRow_.reset();
+        dropTargetRow_.reset();
+        dragging_ = false;
         pressedDisclosure_ = false;
         pressedCheckbox_ = false;
         hoveredRow_.reset();
@@ -572,6 +623,16 @@ std::optional<std::size_t> TreeView::visibleAt(
 bool TreeView::hasChildren(std::size_t index) const noexcept {
     return index + 1 < nodes_.size() &&
         nodes_[index + 1].depth > nodes_[index].depth;
+}
+
+bool TreeView::validDrop(std::size_t source, std::size_t target) const {
+    if (!onDropped_ || source >= nodes_.size() || target >= nodes_.size() ||
+        source == target || !nodes_[source].selectable) return false;
+    for (auto parent = parentIndices_[target]; parent;
+            parent = parentIndices_[*parent]) {
+        if (*parent == source) return false;
+    }
+    return !canDrop_ || canDrop_(nodes_[source].id, nodes_[target].id);
 }
 
 void TreeView::rebuildVisible() {

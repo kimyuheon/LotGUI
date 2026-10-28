@@ -4,11 +4,15 @@
 #include "platform/platform_backend.h"
 #include "platform/runtime_paths.h"
 #include "renderer/vulkan/vulkan_renderer.h"
+#if __has_include("widgets/tree_view.h")
+#include "widgets/tree_view.h"
+#endif
 #ifdef LOTUI_HAS_EXAMPLE_TEXT
 #include "text/freetype/freetype_text_engine.h"
 #endif
 
 #include <chrono>
+#include <algorithm>
 #include <exception>
 #include <fstream>
 #include <iomanip>
@@ -24,9 +28,12 @@ int main(int argc, char** argv) {
         const bool smoke = argc == 2 &&
             std::string_view(argv[1]) == "--smoke";
         const bool capture = argc == 3 &&
-            std::string_view(argv[1]) == "--capture";
+            (std::string_view(argv[1]) == "--capture" ||
+             std::string_view(argv[1]) == "--capture-drag");
+        const bool captureDrag = capture &&
+            std::string_view(argv[1]) == "--capture-drag";
         if ((argc > 1 && !smoke && !capture)) {
-            std::cerr << "usage: platform_probe [--smoke|--capture output.ppm]\n";
+            std::cerr << "usage: platform_probe [--smoke|--capture output.ppm|--capture-drag output.ppm]\n";
             return 2;
         }
         auto platform = lotui::createPlatformBackend();
@@ -47,9 +54,37 @@ int main(int argc, char** argv) {
                 {"Noto Sans KR", fontFile}});
         std::cout << "font-loaded: " << fontFile.string() << '\n';
 #endif
+        lotui::TreeView* sceneTree = nullptr;
         auto tree = lotui::example::createDemoUi(
-            demoMask.id(), textEngine, *window);
+            demoMask.id(), textEngine, *window, &sceneTree);
         lotui::example::updateDemoLayout(*tree, window->metrics());
+#ifdef LOTUI_TREE_VIEW_HAS_DROP
+        if (captureDrag) {
+            if (!sceneTree) throw std::runtime_error("scene tree is missing");
+            const auto source = sceneTree->labelBounds("shaft");
+            const auto target = sceneTree->labelBounds("fasteners");
+            const lotui::Point from{source.x + 20.0F,
+                source.y + source.height * 0.5F};
+            const lotui::Point to{target.x + 20.0F,
+                target.y + target.height * 0.5F};
+            tree->pointerMoved(from);
+            tree->pointerPressed(from, lotui::PointerButton::Primary);
+            tree->pointerMoved(to);
+            tree->pointerReleased(to, lotui::PointerButton::Primary);
+            const auto& nodes = sceneTree->nodes();
+            const auto moved = std::find_if(nodes.begin(), nodes.end(),
+                [](const auto& node) { return node.id == "shaft"; });
+            const auto group = std::find_if(nodes.begin(), nodes.end(),
+                [](const auto& node) { return node.id == "fasteners"; });
+            if (moved == nodes.end() || group == nodes.end() ||
+                moved < group || moved->depth != group->depth + 1) {
+                throw std::runtime_error("scene tree drag did not move shaft");
+            }
+        }
+#else
+        if (captureDrag) throw std::runtime_error(
+            "this SDK does not include TreeView drag support");
+#endif
         window->setTextInputState(tree->textInputState());
 
         const auto initial = window->metrics();

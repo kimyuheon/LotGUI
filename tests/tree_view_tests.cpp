@@ -350,6 +350,60 @@ void rejectsInvalidPreorder() {
     } catch (const std::invalid_argument&) {}
 }
 
+void dragDropUsesStableIdsAndRejectsCycles() {
+    lotui::TreeViewStyle style;
+    style.rowHeight = 24.0F;
+    style.dropTarget = {0.91F, 0.22F, 0.12F, 1.0F};
+    std::string droppedSource;
+    std::string droppedTarget;
+    int drops = 0;
+    auto view = std::make_unique<lotui::TreeView>(nullptr,
+        std::vector<lotui::TreeNode>{
+            {"scene", "Scene", 0, true},
+            {"group-a", "A", 1, true},
+            {"part", "Part", 2, false, true, true},
+            {"group-b", "B", 1, true},
+            {"peer", "Peer", 2},
+        }, lotui::Size{200.0F, 160.0F}, style);
+    auto* observed = view.get();
+    view->setCanDrop([](std::string_view, std::string_view target) {
+        return target == "group-a" || target == "group-b";
+    });
+    view->setOnDropped([&](std::string_view source,
+            std::string_view target) {
+        droppedSource = source;
+        droppedTarget = target;
+        ++drops;
+    });
+    lotui::WidgetTree tree(std::move(view));
+    tree.layout({0.0F, 0.0F, 200.0F, 160.0F});
+
+    tree.pointerPressed({95.0F, 60.0F}, lotui::PointerButton::Primary);
+    tree.pointerMoved({95.0F, 84.0F});
+    std::vector<lotui::PaintCommand> commands;
+    tree.paint(commands);
+    bool highlighted = false;
+    for (const auto& command : commands) {
+        if (command.color.red == style.dropTarget.red &&
+            command.bounds.y == 72.0F) highlighted = true;
+    }
+    require(highlighted, "valid drop row must be highlighted");
+    tree.pointerReleased({95.0F, 84.0F}, lotui::PointerButton::Primary);
+    require(drops == 1 && droppedSource == "part" &&
+            droppedTarget == "group-b" && !observed->selectedId(),
+        "drag must report stable IDs without also selecting a row");
+
+    tree.pointerPressed({95.0F, 36.0F}, lotui::PointerButton::Primary);
+    tree.pointerMoved({95.0F, 60.0F});
+    tree.pointerReleased({95.0F, 60.0F}, lotui::PointerButton::Primary);
+    require(drops == 1, "group cannot be dropped into its own child");
+
+    tree.pointerPressed({95.0F, 60.0F}, lotui::PointerButton::Primary);
+    tree.pointerMoved({95.0F, 108.0F});
+    tree.pointerReleased({95.0F, 108.0F}, lotui::PointerButton::Primary);
+    require(drops == 1, "application drop filter must reject other rows");
+}
+
 } // namespace
 
 int main() {
@@ -358,6 +412,7 @@ int main() {
     connectorsAndCheckboxes();
     mixedCheckboxShowsPartialVisibility();
     renamesSelectedNodeWithUtf8Editor();
+    dragDropUsesStableIdsAndRejectsCycles();
     rejectsInvalidPreorder();
     std::cout << "tree_view_tests passed\n";
     return EXIT_SUCCESS;

@@ -7,6 +7,8 @@
 
 #include <memory>
 
+namespace lotui { class TreeView; }
+
 namespace lotui::example {
 
 TextureImage createDemoMask();
@@ -14,7 +16,8 @@ TextureImage createDemoMask();
 std::unique_ptr<WidgetTree> createDemoUi(
     TextureId demoMaskTexture,
     const std::shared_ptr<const TextEngine>& textEngine,
-    PlatformWindow& window);
+    PlatformWindow& window,
+    TreeView** sceneTreeOut = nullptr);
 
 void updateDemoLayout(
     WidgetTree& tree,

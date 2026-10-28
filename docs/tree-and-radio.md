@@ -27,8 +27,23 @@ tree->setOnCheckedChanged([](std::string_view id, bool checked) {
 Only viewport rows are shaped and painted. Arrow keys navigate; Left and Right
 collapse, expand, or move to parent/child. Space toggles a selected checkbox,
 or expansion when the node has no checkbox. Enter emits
-activation, and mouse-wheel scrolling is clipped to the view. Tree drag/drop
-and the engine visibility adapter are not yet part of this control.
+activation, and mouse-wheel scrolling is clipped to the view. Dragging a
+selectable row over an allowed target highlights the target. The control
+rejects drops onto the source or its descendants; the host can further
+restrict targets and applies the model change in the drop callback.
+
+```cpp
+tree->setCanDrop([](std::string_view source, std::string_view target) {
+    return target == "group" && source != "scene";
+});
+tree->setOnDropped([&](std::string_view source, std::string_view target) {
+    // Move the subtree in the application model, then call setNodes(...).
+});
+```
+
+`platform_probe` moves a sample part into a group and preserves its stable ID.
+Run `platform_probe --capture-drag output.ppm` to exercise this path and save
+a rendered frame. The engine scene adapter still needs its own model update.
 
 ```cpp
 tree->setCheckState("group", lotui::TreeCheckState::Mixed);
