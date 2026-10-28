@@ -97,10 +97,14 @@ the engine-specific state and callbacks stay in 3dEngine.
 selection, expansion, mixed group checkboxes, F2 rename requests and keyboard
 navigation. `RadioGroup` covers operation
 choices in `../3dEngine/boolean/lot_boolean_dialog.cpp` and related panels.
-`platform_probe` demonstrates both. The next tree work is the engine visibility
-adapter and drag/drop for `../3dEngine/lot_scene_tree_panel.cpp` and
-rigging. Engine attachment still requires an adapter and a real
-`VulkanAppLotGUI` build; the standalone demo is not evidence of integration.
+`platform_probe` demonstrates both. The engine's separate `LotCADLotGUI`
+sample now reads `CAD_GetSceneTreeJson`, maps selection and tri-state
+visibility to the CAD API, and paints the tree over the live Vulkan viewport.
+It has an automated pointer/Undo/Redo scenario in
+`../3dEngine/samples/lotui_smoke/`. The remaining tree work is drag/drop,
+inline rename and keyboard/scroll input routing in the engine adapter, plus
+replacement of other ImGui panels. The standalone demo alone is not evidence
+of integration.
 
 LotUI remains an independent library. The parity examples may mirror 3dEngine
 workflows, but LotUI does not include or link CAD engine classes.
