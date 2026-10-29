@@ -14,7 +14,7 @@ struct DisclosurePanelStyle {
     Color hovered{0.23F, 0.26F, 0.29F, 1.0F};
     Color pressed{0.14F, 0.16F, 0.19F, 1.0F};
     Color indicator{0.80F, 0.84F, 0.86F, 1.0F};
-    Color focusLine{0.32F, 0.73F, 0.72F, 1.0F};
+    Color focusLine{0.32F, 0.63F, 0.88F, 1.0F};
     float headerHeight{28.0F};
     float headerPadding{9.0F};
     float indicatorSize{8.0F};

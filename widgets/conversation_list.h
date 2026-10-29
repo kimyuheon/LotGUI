@@ -43,7 +43,7 @@ std::vector<CodeToken> tokenizeCodeLine(
 struct ConversationListStyle {
     Color background{0.10F, 0.13F, 0.18F, 1.0F};
     Color incomingBubble{0.19F, 0.24F, 0.31F, 1.0F};
-    Color outgoingBubble{0.17F, 0.37F, 0.44F, 1.0F};
+    Color outgoingBubble{0.10F, 0.17F, 0.25F, 1.0F};
     Color codeBackground{0.08F, 0.11F, 0.16F, 1.0F};
     Color text{0.95F, 0.96F, 0.97F, 1.0F};
     Color secondaryText{0.70F, 0.76F, 0.80F, 1.0F};
@@ -51,7 +51,7 @@ struct ConversationListStyle {
     Color string{0.74F, 0.88F, 0.60F, 1.0F};
     Color number{0.94F, 0.69F, 0.50F, 1.0F};
     Color comment{0.57F, 0.64F, 0.67F, 1.0F};
-    Color selectedOutline{0.42F, 0.81F, 0.86F, 1.0F};
+    Color selectedOutline{0.37F, 0.65F, 0.90F, 1.0F};
     float maximumBubbleWidth{540.0F};
     float sideMargin{18.0F};
     float messageGap{14.0F};

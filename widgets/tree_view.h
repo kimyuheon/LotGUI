@@ -40,17 +40,17 @@ struct TreeNode {
 struct TreeViewStyle {
     Color background{0.10F, 0.13F, 0.17F, 1.0F};
     Color hovered{0.18F, 0.24F, 0.29F, 1.0F};
-    Color selected{0.16F, 0.36F, 0.43F, 1.0F};
+    Color selected{0.12F, 0.22F, 0.31F, 1.0F};
     Color text{0.91F, 0.94F, 0.94F, 1.0F};
     Color disabledText{0.52F, 0.58F, 0.60F, 1.0F};
-    Color disclosure{0.69F, 0.79F, 0.80F, 1.0F};
+    Color disclosure{0.69F, 0.75F, 0.82F, 1.0F};
     Color connector{0.39F, 0.48F, 0.52F, 0.75F};
-    Color checkboxOutline{0.57F, 0.67F, 0.69F, 1.0F};
+    Color checkboxOutline{0.57F, 0.65F, 0.73F, 1.0F};
     Color checkboxBackground{0.13F, 0.18F, 0.21F, 1.0F};
-    Color checkboxChecked{0.27F, 0.65F, 0.60F, 1.0F};
+    Color checkboxChecked{0.20F, 0.49F, 0.78F, 1.0F};
     Color checkboxMark{0.96F, 0.98F, 0.97F, 1.0F};
-    Color focusLine{0.35F, 0.78F, 0.69F, 1.0F};
-    Color dropTarget{0.20F, 0.43F, 0.48F, 1.0F};
+    Color focusLine{0.32F, 0.63F, 0.88F, 1.0F};
+    Color dropTarget{0.14F, 0.27F, 0.36F, 1.0F};
     float rowHeight{26.0F};
     float indent{16.0F};
     float padding{8.0F};

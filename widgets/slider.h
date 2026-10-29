@@ -16,7 +16,7 @@ struct SliderOptions {
 
 struct SliderStyle {
     Color track{0.27F, 0.31F, 0.36F, 1.0F};
-    Color filled{0.10F, 0.55F, 0.47F, 1.0F};
+    Color filled{0.12F, 0.40F, 0.72F, 1.0F};
     Color thumb{0.95F, 0.96F, 0.97F, 1.0F};
     Color thumbHovered{1.0F, 1.0F, 1.0F, 1.0F};
     Color disabled{0.40F, 0.42F, 0.44F, 1.0F};

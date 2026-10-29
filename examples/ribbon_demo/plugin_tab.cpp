@@ -54,8 +54,8 @@ std::vector<Widget*> addPluginTab(
 
     ButtonStyle buttonStyle;
     buttonStyle.normal = {0.0F, 0.0F, 0.0F, 0.0F};
-    buttonStyle.hovered = {0.32F, 0.45F, 0.48F, 0.6F};
-    buttonStyle.pressed = {0.35F, 0.53F, 0.54F, 0.8F};
+    buttonStyle.hovered = {0.22F, 0.29F, 0.36F, 0.6F};
+    buttonStyle.pressed = {0.18F, 0.26F, 0.34F, 0.8F};
     buttonStyle.disabled = {0.0F, 0.0F, 0.0F, 0.0F};
     buttonStyle.cornerRadius = 3.0F;
     buttonStyle.contentPadding = EdgeInsets::all(2.0F);

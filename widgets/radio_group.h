@@ -21,12 +21,12 @@ struct RadioOption {
 struct RadioGroupStyle {
     Color background{0.10F, 0.13F, 0.17F, 1.0F};
     Color hovered{0.18F, 0.24F, 0.29F, 1.0F};
-    Color selected{0.18F, 0.31F, 0.36F, 1.0F};
-    Color indicator{0.35F, 0.78F, 0.69F, 1.0F};
+    Color selected{0.13F, 0.22F, 0.31F, 1.0F};
+    Color indicator{0.32F, 0.63F, 0.88F, 1.0F};
     Color outline{0.55F, 0.61F, 0.65F, 1.0F};
     Color text{0.91F, 0.94F, 0.94F, 1.0F};
     Color disabledText{0.51F, 0.56F, 0.58F, 1.0F};
-    Color focusLine{0.35F, 0.78F, 0.69F, 1.0F};
+    Color focusLine{0.32F, 0.63F, 0.88F, 1.0F};
     float rowHeight{26.0F};
     float indicatorSize{14.0F};
     float padding{8.0F};

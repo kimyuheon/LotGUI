@@ -56,8 +56,8 @@ std::unique_ptr<lotui::Button> commandButton(
     bool prominent = false) {
     lotui::ButtonStyle style;
     style.normal = {0.0F, 0.0F, 0.0F, 0.0F};
-    style.hovered = {0.32F, 0.45F, 0.48F, 0.6F};
-    style.pressed = {0.35F, 0.53F, 0.54F, 0.8F};
+    style.hovered = {0.22F, 0.29F, 0.36F, 0.6F};
+    style.pressed = {0.18F, 0.26F, 0.34F, 0.8F};
     style.disabled = {0.0F, 0.0F, 0.0F, 0.0F};
     style.cornerRadius = 2.0F;
     style.contentPadding = lotui::EdgeInsets::all(2.0F);
@@ -73,7 +73,7 @@ std::unique_ptr<lotui::Button> commandButton(
         iconStyle.fontFamilies = {"Lucide"};
         auto symbol = std::make_unique<lotui::Label>(
             textEngine, std::string(icon), iconStyle);
-        symbol->setColor({0.61F, 0.87F, 0.79F, 1.0F});
+        symbol->setColor({0.55F, 0.75F, 0.95F, 1.0F});
         symbol->setHorizontalAlignment(
             lotui::HorizontalTextAlignment::Center);
         symbol->setVerticalAlignment(
@@ -416,7 +416,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     ribbonStyle.tabHorizontalPadding = 11.0F;
     ribbonStyle.minimumTabWidth = 82.0F;
     ribbonStyle.tabCornerRadius = 2.0F;
-    ribbonStyle.tabSelected = {0.23F, 0.34F, 0.34F, 1.0F};
+    ribbonStyle.tabSelected = {0.14F, 0.20F, 0.27F, 1.0F};
     ribbonStyle.text = {0.91F, 0.94F, 0.95F, 1.0F};
     auto ribbon = std::make_unique<lotui::Ribbon>(
         state.textEngine, ribbonStyle, textStyle(13.0F));
@@ -558,9 +558,9 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     listStyle.background = {0.13F, 0.15F, 0.17F, 1.0F};
     listStyle.headerBackground = {0.20F, 0.23F, 0.25F, 1.0F};
     listStyle.alternateRow = {0.16F, 0.18F, 0.20F, 1.0F};
-    listStyle.selectedCell = {0.18F, 0.38F, 0.38F, 1.0F};
-    listStyle.selectedCellFocused = {0.20F, 0.47F, 0.45F, 1.0F};
-    listStyle.controlAccent = {0.32F, 0.76F, 0.64F, 1.0F};
+    listStyle.selectedCell = {0.10F, 0.22F, 0.30F, 1.0F};
+    listStyle.selectedCellFocused = {0.12F, 0.26F, 0.34F, 1.0F};
+    listStyle.controlAccent = {0.32F, 0.63F, 0.88F, 1.0F};
     listStyle.rowHeight = 28.0F;
     listStyle.headerHeight = 29.0F;
     listStyle.cornerRadius = 2.0F;

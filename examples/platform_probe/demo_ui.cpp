@@ -200,7 +200,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
 
     auto status = std::make_unique<lotui::Box>(
         lotui::Size{0.0F, 6.0F},
-        lotui::Color{0.28F, 0.72F, 0.63F, 1.0F}, 2.0F);
+        lotui::Color{0.25F, 0.62F, 0.92F, 1.0F}, 2.0F);
     lotui::Box* statusIndicator = status.get();
 
     auto buttonRow = std::make_unique<lotui::Row>();
