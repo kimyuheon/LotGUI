@@ -199,6 +199,7 @@ add_library(lotui_widgets STATIC
     widgets/button.cpp
     widgets/checkbox.cpp
     widgets/combo_box.cpp
+    widgets/conversation_list.cpp
     widgets/disclosure_panel.cpp
     widgets/document_tab_view.cpp
     widgets/dialog.cpp
@@ -630,6 +631,13 @@ if(BUILD_TESTING)
     target_link_libraries(tree_view_tests PRIVATE lotui_widgets)
     add_test(NAME tree_view_tests COMMAND tree_view_tests)
 
+    add_executable(conversation_list_tests tests/conversation_list_tests.cpp)
+    target_link_libraries(conversation_list_tests PRIVATE lotui_widgets)
+    if(MSVC)
+        target_compile_options(conversation_list_tests PRIVATE /utf-8)
+    endif()
+    add_test(NAME conversation_list_tests COMMAND conversation_list_tests)
+
     add_executable(ribbon_tests
         tests/ribbon_tests.cpp
     )
@@ -821,6 +829,22 @@ if(LOTUI_BUILD_EXAMPLES)
                 "$<TARGET_FILE_DIR:list_control_demo>/resources/fonts/NotoSansKR-Regular.ttf"
             VERBATIM)
 
+        add_executable(conversation_demo
+            examples/conversation_demo/main.cpp
+            examples/platform_probe/platform_event_bridge.cpp)
+        target_link_libraries(conversation_demo PRIVATE
+            lotui_vulkan lotui_widgets lotui_text_freetype)
+        lotui_copy_legal_notices(conversation_demo)
+        add_custom_command(TARGET conversation_demo POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "$<TARGET_FILE_DIR:conversation_demo>/resources/fonts"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${LOTUI_EXAMPLE_FONT_FILE}"
+                "$<TARGET_FILE_DIR:conversation_demo>/resources/fonts/NotoSansKR-Regular.ttf"
+            VERBATIM)
+        install(TARGETS conversation_demo
+            RUNTIME DESTINATION bin COMPONENT Examples)
+
         if(WIN32)
             set(_lotui_demo_plugin_loader
                 examples/ribbon_demo/plugin_loader_win32.cpp)
@@ -884,6 +908,10 @@ if(LOTUI_BUILD_EXAMPLES)
             target_compile_options(list_control_demo PRIVATE
                 /W4 /permissive- /utf-8)
         endif()
+        if(TARGET conversation_demo)
+            target_compile_options(conversation_demo PRIVATE
+                /W4 /permissive- /utf-8)
+        endif()
         if(TARGET ribbon_demo)
             target_compile_options(ribbon_demo PRIVATE
                 /W4 /permissive- /utf-8)
@@ -894,6 +922,10 @@ if(LOTUI_BUILD_EXAMPLES)
         target_compile_options(platform_probe PRIVATE -Wall -Wextra -Wpedantic)
         if(TARGET list_control_demo)
             target_compile_options(list_control_demo PRIVATE
+                -Wall -Wextra -Wpedantic)
+        endif()
+        if(TARGET conversation_demo)
+            target_compile_options(conversation_demo PRIVATE
                 -Wall -Wextra -Wpedantic)
         endif()
         if(TARGET ribbon_demo)
