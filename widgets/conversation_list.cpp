@@ -209,7 +209,13 @@ ConversationList::ConversationList(
         style_.maximumBubbleWidth <= 0.0F ||
         !std::isfinite(style_.lineHeight) || style_.lineHeight <= 0.0F ||
         !std::isfinite(style_.codeSpaceAdvance) ||
-        style_.codeSpaceAdvance <= 0.0F)
+        style_.codeSpaceAdvance <= 0.0F ||
+        !std::isfinite(style_.bodyFontSize) ||
+        style_.bodyFontSize <= 0.0F ||
+        !std::isfinite(style_.metaFontSize) ||
+        style_.metaFontSize <= 0.0F ||
+        !std::isfinite(style_.codeFontSize) ||
+        style_.codeFontSize <= 0.0F)
         throw std::invalid_argument("ConversationList style is invalid");
     validateMessages(messages_);
 }
@@ -392,11 +398,11 @@ void ConversationList::rebuild() const {
         bubbleWidth() - style_.bubblePadding * 2.0F);
     TextStyle body;
     body.fontFamilies = {"Noto Sans KR"};
-    body.fontSize = 14.0F;
+    body.fontSize = style_.bodyFontSize;
     TextStyle meta = body;
-    meta.fontSize = 11.0F;
+    meta.fontSize = style_.metaFontSize;
     TextStyle code = body;
-    code.fontSize = 14.0F;
+    code.fontSize = style_.codeFontSize;
     float y = style_.messageGap;
     for (const auto& message : messages_) {
         DrawMessage drawn;

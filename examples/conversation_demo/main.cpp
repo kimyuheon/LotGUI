@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
         }
         auto platform = lotui::createPlatformBackend();
         auto window = platform->createWindow(
-            {"LotUI Conversation", 820, 700, true});
+            {"LotUI Conversation", 820, 760, true});
         window->show();
         lotui::VulkanRenderer renderer(*window);
         const auto font = lotui::executableDirectory() /

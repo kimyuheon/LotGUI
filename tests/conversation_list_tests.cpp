@@ -37,8 +37,9 @@ private:
 class StubEngine final : public lotui::TextEngine {
 public:
     std::unique_ptr<lotui::TextLayout> createLayout(
-        std::string_view text, const lotui::TextStyle&,
+        std::string_view text, const lotui::TextStyle& style,
         const lotui::TextLayoutOptions& options) const override {
+        requestedSizes.push_back(style.fontSize);
         const float width = static_cast<float>(text.size()) * 7.0F;
         const float available = options.wrap ?
             std::max(1.0F, options.maximumWidth) : width;
@@ -47,6 +48,7 @@ public:
         return std::make_unique<StubLayout>(lotui::Size{
             std::min(width, available), lines * 16.0F});
     }
+    mutable std::vector<float> requestedSizes;
 };
 
 void parserAndLanguageTokens() {
@@ -93,7 +95,12 @@ void layoutScrollAndSelection() {
         {"three", "민지", "10:02", false,
             lotui::parseMessageBlocks("다음 메시지")},
     };
-    auto view = std::make_unique<lotui::ConversationList>(engine, messages);
+    lotui::ConversationListStyle visualStyle;
+    visualStyle.bodyFontSize = 16.0F;
+    visualStyle.metaFontSize = 12.0F;
+    visualStyle.codeFontSize = 16.0F;
+    auto view = std::make_unique<lotui::ConversationList>(engine, messages,
+        lotui::Size{400.0F, 150.0F}, visualStyle);
     auto* list = view.get();
     int selected = 0;
     list->setOnSelectionChanged([&](std::string_view id) {
@@ -101,6 +108,13 @@ void layoutScrollAndSelection() {
     });
     lotui::WidgetTree tree(std::move(view));
     tree.layout({0.0F, 0.0F, 400.0F, 150.0F});
+    require(std::find(engine->requestedSizes.begin(),
+                engine->requestedSizes.end(), 16.0F) !=
+            engine->requestedSizes.end() &&
+            std::find(engine->requestedSizes.begin(),
+                engine->requestedSizes.end(), 12.0F) !=
+            engine->requestedSizes.end(),
+        "configured font sizes must reach the text engine");
     const auto first = list->messageBounds("one");
     const auto second = list->messageBounds("two");
     require(first.x < second.x && first.y < second.y,

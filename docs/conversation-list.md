@@ -5,6 +5,8 @@ interfaces. Messages have unique, nonempty stable IDs, sender names, timestamps,
 outgoing side, and ordered text and code blocks. Click a bubble to select it.
 `appendMessage` keeps the view at the bottom when the reader was already there;
 it preserves scroll position when reading older messages.
+`ConversationListStyle` exposes body, metadata, and code font sizes so an
+application can tune readability for its display density.
 
 ```cpp
 auto messages = std::vector<lotui::ConversationMessage>{

@@ -56,8 +56,11 @@ struct ConversationListStyle {
     float sideMargin{18.0F};
     float messageGap{14.0F};
     float bubblePadding{14.0F};
-    float lineHeight{21.0F};
+    float lineHeight{22.0F};
     float codeSpaceAdvance{7.0F};
+    float bodyFontSize{15.0F};
+    float metaFontSize{12.0F};
+    float codeFontSize{15.0F};
 };
 
 class ConversationList final : public Widget {
