@@ -23,6 +23,24 @@ std::string lower(std::string_view value) {
     return result;
 }
 
+std::string expandCodeTabs(std::string_view line) {
+    std::string expanded;
+    expanded.reserve(line.size());
+    std::size_t column = 0;
+    for (const unsigned char c : line) {
+        if (c == '\t') {
+            const std::size_t spaces = 4 - column % 4;
+            expanded.append(spaces, ' ');
+            column += spaces;
+        } else if (c != '\r') {
+            expanded.push_back(static_cast<char>(c));
+            // A UTF-8 continuation byte belongs to the preceding character.
+            if ((c & 0xC0) != 0x80) ++column;
+        }
+    }
+    return expanded;
+}
+
 bool keyword(std::string_view language, std::string_view word) {
     static const std::unordered_set<std::string_view> cpp{
         "auto", "bool", "break", "case", "class", "const", "constexpr",
@@ -124,6 +142,8 @@ std::vector<MessageBlock> parseMessageBlocks(std::string_view markdown) {
 std::vector<CodeToken> tokenizeCodeLine(
     std::string_view language, std::string_view line) {
     const std::string name = lower(language);
+    const std::string expanded = expandCodeTabs(line);
+    line = expanded;
     std::vector<CodeToken> tokens;
     std::size_t i = 0;
     while (i < line.size()) {
@@ -187,7 +207,9 @@ ConversationList::ConversationList(
         "ConversationList requires a TextEngine");
     if (!std::isfinite(style_.maximumBubbleWidth) ||
         style_.maximumBubbleWidth <= 0.0F ||
-        !std::isfinite(style_.lineHeight) || style_.lineHeight <= 0.0F)
+        !std::isfinite(style_.lineHeight) || style_.lineHeight <= 0.0F ||
+        !std::isfinite(style_.codeSpaceAdvance) ||
+        style_.codeSpaceAdvance <= 0.0F)
         throw std::invalid_argument("ConversationList style is invalid");
     validateMessages(messages_);
 }
@@ -314,9 +336,11 @@ void ConversationList::onPaint(std::vector<PaintCommand>& commands) const {
                 for (const auto& line : block.lines) {
                     float runX = x + 10.0F;
                     for (const auto& run : line) {
-                        run.layout->appendPaintCommands({runX, lineY},
-                            codeClip, tokenColor(run.kind), commands);
-                        runX += run.layout->size().width;
+                        if (run.layout) {
+                            run.layout->appendPaintCommands({runX, lineY},
+                                codeClip, tokenColor(run.kind), commands);
+                        }
+                        runX += run.advance;
                     }
                     lineY += style_.lineHeight;
                 }
@@ -400,8 +424,17 @@ void ConversationList::rebuild() const {
                             end - start);
                     std::vector<DrawRun> runs;
                     for (auto& token : tokenizeCodeLine(block.language, line)) {
-                        runs.push_back({layout(*textEngine_, token.text, code),
-                            token.kind});
+                        if (std::all_of(token.text.begin(), token.text.end(),
+                                [](char c) { return c == ' '; })) {
+                            runs.push_back({nullptr, token.kind,
+                                style_.codeSpaceAdvance *
+                                    static_cast<float>(token.text.size())});
+                        } else {
+                            auto run = layout(*textEngine_, token.text, code);
+                            const float advance = run->size().width;
+                            runs.push_back({std::move(run), token.kind,
+                                advance});
+                        }
                     }
                     out.lines.push_back(std::move(runs));
                     if (end == std::string::npos) break;

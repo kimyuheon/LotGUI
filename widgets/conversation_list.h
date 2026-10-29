@@ -57,6 +57,7 @@ struct ConversationListStyle {
     float messageGap{14.0F};
     float bubblePadding{14.0F};
     float lineHeight{21.0F};
+    float codeSpaceAdvance{7.0F};
 };
 
 class ConversationList final : public Widget {
@@ -91,6 +92,7 @@ private:
     struct DrawRun {
         std::unique_ptr<TextLayout> layout;
         CodeTokenKind kind{CodeTokenKind::Plain};
+        float advance{0.0F};
     };
     struct DrawBlock {
         MessageBlockKind kind{MessageBlockKind::Text};

@@ -41,7 +41,7 @@ std::vector<lotui::ConversationMessage> sampleMessages() {
             "for (auto row : rows) { /* render */ }\n```"),
         message("python", "나", "10:27", true,
             "Python도 언어별 색상을 적용합니다.\n```python\n"
-            "def render(items):\n    return [item for item in items]\n```"),
+            "def render(items):\n\treturn [item for item in items]\n```"),
         message("json", "민지", "10:28", false,
             "JSON과 C# 같은 코드 블록도 넣을 수 있어요.\n```json\n"
             "{\"theme\": \"dark\", \"count\": 3}\n```\n"

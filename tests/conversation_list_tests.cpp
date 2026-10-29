@@ -76,6 +76,11 @@ void parserAndLanguageTokens() {
     const auto korean = lotui::tokenizeCodeLine("python", "변수 = 3");
     require(!korean.empty() && korean.front().text == "변수",
         "UTF-8 code identifiers must stay intact for text shaping");
+    const auto tabbed = lotui::tokenizeCodeLine("python", "\t  return 3\r");
+    require(tabbed.size() >= 2 && tabbed.front().text == "      " &&
+            tabbed[1].text == "return" &&
+            tabbed[1].kind == lotui::CodeTokenKind::Keyword,
+        "tabs must expand to four-column stops without losing indentation");
 }
 
 void layoutScrollAndSelection() {
@@ -84,7 +89,7 @@ void layoutScrollAndSelection() {
         {"one", "민지", "10:00", false,
             lotui::parseMessageBlocks("안녕하세요")},
         {"two", "나", "10:01", true,
-            lotui::parseMessageBlocks("```python\ndef run():\n    return 3\n```")},
+            lotui::parseMessageBlocks("```python\ndef run():\n\treturn 3\n```")},
         {"three", "민지", "10:02", false,
             lotui::parseMessageBlocks("다음 메시지")},
     };
@@ -117,6 +122,18 @@ void layoutScrollAndSelection() {
                     command.color.green == colors.keyword.green &&
                     command.color.blue == colors.keyword.blue;
             }), "code keywords must reach paint commands with their color");
+    float lastKeywordY = -1.0F;
+    float lastKeywordX = -1.0F;
+    for (const auto& command : commands) {
+        if (command.texture == 11 &&
+            command.color.red == colors.keyword.red &&
+            command.bounds.y > lastKeywordY) {
+            lastKeywordY = command.bounds.y;
+            lastKeywordX = command.bounds.x;
+        }
+    }
+    require(lastKeywordX == second.x + colors.bubblePadding + 10.0F + 28.0F,
+        "tab indentation must shift rendered code by four spaces");
     list->setScrollOffset(0.0F);
     tree.scroll({100.0F, 80.0F}, {0.0F, 3.0F},
         lotui::ScrollDeltaMode::Line);

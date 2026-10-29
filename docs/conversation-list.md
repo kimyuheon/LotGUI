@@ -23,6 +23,10 @@ includes C, C++, C#, Python, JavaScript, TypeScript, JSON, Bash, and SQL.
 Unknown languages still render as labeled, plain code blocks. The parser only
 recognizes fences; it does not render other Markdown syntax. Plugins can
 construct `ConversationMessage` and `MessageBlock` directly without parsing.
+Spaces and line breaks inside code are preserved. Tabs advance to four-column
+stops, including mixed spaces and tabs. Code spaces use a fixed visual advance
+so indentation remains clear even with the bundled proportional Korean font;
+the stored message text is unchanged.
 
 `conversation_demo` shows incoming and outgoing messages, Korean text, code
 blocks, scrolling, selection, and a text composer. Enter or **보내기** appends
