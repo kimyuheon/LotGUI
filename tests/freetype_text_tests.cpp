@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <functional>
 #include <iostream>
+#include <numeric>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
@@ -68,6 +69,14 @@ public:
     std::size_t createCount() const noexcept { return createCount_; }
     std::size_t updateCount() const noexcept { return updateCount_; }
     std::size_t aliveTextureCount() const noexcept { return images_.size(); }
+    std::uint64_t coverageSum() const noexcept {
+        std::uint64_t sum = 0;
+        for (const auto& entry : images_) {
+            sum += std::accumulate(entry.second.pixels.begin(),
+                entry.second.pixels.end(), std::uint64_t{0});
+        }
+        return sum;
+    }
 
 private:
     lotui::TextureId nextId_{1};
@@ -148,6 +157,26 @@ void testLayoutKeepsAtlasAlive(const std::filesystem::path& fontFile) {
         "glyph atlas outlived its last layout");
 }
 
+void testVariableFontWeight(const std::filesystem::path& fontFile) {
+    auto coverage = [&fontFile](lotui::FontWeight weight) {
+        MemoryTextureStore textures;
+        lotui::FreetypeTextEngine engine(textures,
+            {{"Noto Sans KR", fontFile, 0, weight}}, 512);
+        lotui::TextStyle style;
+        style.fontFamilies = {"Noto Sans KR"};
+        style.fontSize = 24.0F;
+        const auto layout = engine.createLayout(
+            "가나다라마바사 한글", style, {});
+        require(layout->size().width > 0.0F,
+            "variable font layout is empty");
+        return textures.coverageSum();
+    };
+    const auto thin = coverage(lotui::FontWeight::Thin);
+    const auto regular = coverage(lotui::FontWeight::Normal);
+    require(thin > 0 && regular > thin * 11 / 10,
+        "Normal weight must rasterize darker than Thin");
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -159,6 +188,7 @@ int main(int argc, char** argv) {
         require(std::filesystem::exists(fontFile), "test font is missing");
         testKoreanTextLayout(fontFile);
         testLayoutKeepsAtlasAlive(fontFile);
+        if (argc > 1) testVariableFontWeight(argv[1]);
         std::cout << "freetype_text_tests passed\n";
         return 0;
     } catch (const std::exception& error) {

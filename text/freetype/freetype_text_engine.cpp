@@ -2,6 +2,7 @@
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_MULTIPLE_MASTERS_H
 #include <hb-ft.h>
 #include <hb.h>
 
@@ -397,6 +398,13 @@ private:
                 record->source.file.u8string());
         }
         FT_Select_Charmap(record->face, FT_ENCODING_UNICODE);
+        try {
+            selectVariableWeight(record->face, record->source.weight);
+        } catch (...) {
+            FT_Done_Face(record->face);
+            record->face = nullptr;
+            throw;
+        }
         record->harfbuzzFont = hb_ft_font_create_referenced(record->face);
         if (record->harfbuzzFont == nullptr) {
             FT_Done_Face(record->face);
@@ -404,6 +412,37 @@ private:
             throw std::runtime_error("failed to create a HarfBuzz font");
         }
         faces_.push_back(std::move(record));
+    }
+
+    void selectVariableWeight(FT_Face face, FontWeight weight) {
+        if (!FT_HAS_MULTIPLE_MASTERS(face)) return;
+        FT_MM_Var* raw = nullptr;
+        if (FT_Get_MM_Var(face, &raw) != 0 || raw == nullptr) {
+            throw std::runtime_error("failed to read variable font axes");
+        }
+        const auto release = [this](FT_MM_Var* axes) {
+            FT_Done_MM_Var(library_, axes);
+        };
+        const std::unique_ptr<FT_MM_Var, decltype(release)> axes(raw, release);
+        std::vector<FT_Fixed> coordinates;
+        coordinates.reserve(axes->num_axis);
+        bool hasWeight = false;
+        for (FT_UInt index = 0; index < axes->num_axis; ++index) {
+            const FT_Var_Axis& axis = axes->axis[index];
+            FT_Fixed coordinate = axis.def;
+            if (axis.tag == FT_MAKE_TAG('w', 'g', 'h', 't')) {
+                coordinate = std::clamp(
+                    static_cast<FT_Fixed>(static_cast<int>(weight) * 65536),
+                    axis.minimum, axis.maximum);
+                hasWeight = true;
+            }
+            coordinates.push_back(coordinate);
+        }
+        if (hasWeight && FT_Set_Var_Design_Coordinates(face,
+                static_cast<FT_UInt>(coordinates.size()),
+                coordinates.data()) != 0) {
+            throw std::runtime_error("failed to select variable font weight");
+        }
     }
 
     void prepareFace(FaceRecord& face, std::uint32_t pixelSize) {
