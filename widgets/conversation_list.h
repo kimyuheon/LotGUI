@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace lotui {
@@ -41,10 +42,12 @@ std::vector<CodeToken> tokenizeCodeLine(
     std::string_view language, std::string_view line);
 
 struct ConversationListStyle {
-    Color background{0.10F, 0.13F, 0.18F, 1.0F};
-    Color incomingBubble{0.19F, 0.24F, 0.31F, 1.0F};
-    Color outgoingBubble{0.10F, 0.17F, 0.25F, 1.0F};
-    Color codeBackground{0.08F, 0.11F, 0.16F, 1.0F};
+    Color background{0.009F, 0.012F, 0.018F, 1.0F};
+    Color incomingBubble{0.017F, 0.024F, 0.037F, 1.0F};
+    Color outgoingBubble{0.014F, 0.027F, 0.045F, 1.0F};
+    Color codeBackground{0.007F, 0.010F, 0.016F, 1.0F};
+    Color copyButton{0.038F, 0.050F, 0.072F, 1.0F};
+    Color copyButtonHovered{0.060F, 0.080F, 0.11F, 1.0F};
     Color text{0.95F, 0.96F, 0.97F, 1.0F};
     Color secondaryText{0.70F, 0.76F, 0.80F, 1.0F};
     Color keyword{0.53F, 0.72F, 1.00F, 1.0F};
@@ -58,14 +61,16 @@ struct ConversationListStyle {
     float bubblePadding{14.0F};
     float lineHeight{22.0F};
     float codeSpaceAdvance{7.0F};
-    float bodyFontSize{15.0F};
-    float metaFontSize{12.0F};
-    float codeFontSize{15.0F};
+    float bodyFontSize{16.0F};
+    float metaFontSize{13.0F};
+    float codeFontSize{16.0F};
+    bool incomingFullWidth{false};
 };
 
 class ConversationList final : public Widget {
 public:
     using SelectionHandler = std::function<void(std::string_view)>;
+    using ClipboardWriteHandler = std::function<bool(std::string)>;
 
     ConversationList(std::shared_ptr<const TextEngine> textEngine,
         std::vector<ConversationMessage> messages = {},
@@ -81,8 +86,10 @@ public:
     void scrollToEnd() noexcept;
     float contentHeight() const;
     Rect messageBounds(std::string_view id) const;
+    Rect codeCopyBounds(std::string_view id, std::size_t blockIndex) const;
     std::optional<std::string> selectedId() const;
     void setOnSelectionChanged(SelectionHandler handler);
+    void setClipboardWriteHandler(ClipboardWriteHandler handler);
 
 protected:
     void onArrange() override;
@@ -100,8 +107,10 @@ private:
     struct DrawBlock {
         MessageBlockKind kind{MessageBlockKind::Text};
         std::string language;
-        std::unique_ptr<TextLayout> text;
+        std::vector<std::unique_ptr<TextLayout>> textLines;
         std::unique_ptr<TextLayout> languageLabel;
+        std::unique_ptr<TextLayout> copyLabel;
+        std::unique_ptr<TextLayout> copiedLabel;
         std::vector<std::vector<DrawRun>> lines;
         float height{0.0F};
     };
@@ -116,9 +125,11 @@ private:
     void rebuild() const;
     void invalidate() noexcept;
     void clampScroll() noexcept;
-    float bubbleWidth() const noexcept;
+    float bubbleWidth(bool outgoing) const noexcept;
     Color tokenColor(CodeTokenKind kind) const noexcept;
     std::optional<std::size_t> hitMessage(Point point) const;
+    std::optional<std::pair<std::size_t, std::size_t>> hitCopyButton(
+        Point point) const;
 
     std::shared_ptr<const TextEngine> textEngine_;
     std::vector<ConversationMessage> messages_;
@@ -130,7 +141,11 @@ private:
     float scrollOffset_{0.0F};
     std::optional<std::string> selectedId_;
     std::optional<std::size_t> pressedMessage_;
+    std::optional<std::pair<std::size_t, std::size_t>> pressedCopy_;
+    std::optional<std::pair<std::size_t, std::size_t>> hoveredCopy_;
+    std::optional<std::pair<std::size_t, std::size_t>> copiedCode_;
     SelectionHandler onSelectionChanged_{};
+    ClipboardWriteHandler clipboardWrite_{};
 };
 
 } // namespace lotui

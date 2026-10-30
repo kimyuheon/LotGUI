@@ -551,9 +551,6 @@ private:
             update.height = result.height;
             update.pixels.resize(
                 static_cast<std::size_t>(result.width) * result.height);
-            // Raise edge contrast without moving the stroke midpoint.
-            constexpr int edgeLow = 40;
-            constexpr int edgeHigh = 215;
             for (std::uint32_t row = 0; row < result.height; ++row) {
                 const int sourceRow = bitmap.pitch >= 0
                     ? static_cast<int>(row)
@@ -561,11 +558,8 @@ private:
                 const unsigned char* source = bitmap.buffer +
                     sourceRow * std::abs(bitmap.pitch);
                 for (std::uint32_t column = 0; column < result.width; ++column) {
-                    const int coverage = static_cast<int>(source[column]);
                     update.pixels[static_cast<std::size_t>(row) * result.width +
-                        column] = static_cast<std::uint8_t>(std::clamp(
-                        (coverage - edgeLow) * 255 / (edgeHigh - edgeLow),
-                        0, 255));
+                        column] = source[column];
                 }
             }
             textureStore_.updateTexture(*atlas_, update);

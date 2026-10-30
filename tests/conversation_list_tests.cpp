@@ -171,11 +171,74 @@ void layoutScrollAndSelection() {
         "removed selection must clear after model replacement");
 }
 
+void copiesOriginalCodeWithoutSelectingMessage() {
+    auto engine = std::make_shared<StubEngine>();
+    auto view = std::make_unique<lotui::ConversationList>(engine,
+        std::vector<lotui::ConversationMessage>{{
+            "code", "민지", "10:00", false,
+            lotui::parseMessageBlocks(
+                "예제\n```cpp\nint value = 3;\n```\n"
+                "```python\n# 한글 주석\ndef run():\n\treturn 3\n```")}});
+    auto* list = view.get();
+    std::string copied;
+    list->setClipboardWriteHandler([&copied](std::string text) {
+        copied = std::move(text);
+        return true;
+    });
+    lotui::WidgetTree tree(std::move(view));
+    tree.layout({0.0F, 0.0F, 600.0F, 400.0F});
+    require(!lotui::hasArea(list->codeCopyBounds("code", 0)) &&
+            lotui::hasArea(list->codeCopyBounds("code", 1)) &&
+            lotui::hasArea(list->codeCopyBounds("code", 2)),
+        "copy buttons must appear only on code blocks");
+    const auto button = list->codeCopyBounds("code", 2);
+    const lotui::Point center{button.x + button.width * 0.5F,
+        button.y + button.height * 0.5F};
+    tree.pointerPressed(center, lotui::PointerButton::Primary);
+    tree.pointerReleased(center, lotui::PointerButton::Primary);
+    require(copied == "# 한글 주석\ndef run():\n\treturn 3" &&
+            !list->selectedId(),
+        "copy must preserve UTF-8 code text and indentation without selecting");
+    list->setClipboardWriteHandler({});
+    require(!lotui::hasArea(list->codeCopyBounds("code", 2)),
+        "copy controls must hide when no clipboard writer is available");
+}
+
+void wideAnswersWrapWhenResized() {
+    auto engine = std::make_shared<StubEngine>();
+    lotui::ConversationListStyle style;
+    style.incomingFullWidth = true;
+    auto view = std::make_unique<lotui::ConversationList>(engine,
+        std::vector<lotui::ConversationMessage>{
+            {"question", "나", "10:31", true,
+                lotui::parseMessageBlocks("짧은 질문")},
+            {"answer", "LotUI", "10:31", false,
+                lotui::parseMessageBlocks(
+                    "한글로 작성한 답변은 가로 폭이 줄면 자동으로 다음 줄에 "
+                    "계속 표시되어야 합니다. 끝까지 표시합니다.")},
+        }, lotui::Size{600.0F, 400.0F}, style);
+    auto* list = view.get();
+    lotui::WidgetTree tree(std::move(view));
+    tree.layout({0.0F, 0.0F, 600.0F, 600.0F});
+    const auto wideAnswer = list->messageBounds("answer");
+    const auto question = list->messageBounds("question");
+    require(wideAnswer.width > question.width &&
+            question.x > wideAnswer.x,
+        "questions must sit right of full-width answers");
+    tree.layout({0.0F, 0.0F, 320.0F, 600.0F});
+    const auto narrowAnswer = list->messageBounds("answer");
+    require(narrowAnswer.width < wideAnswer.width &&
+            narrowAnswer.height > wideAnswer.height,
+        "long answers must reflow into more lines when the view narrows");
+}
+
 } // namespace
 
 int main() {
     parserAndLanguageTokens();
     layoutScrollAndSelection();
+    copiesOriginalCodeWithoutSelectingMessage();
+    wideAnswersWrapWhenResized();
     std::cout << "conversation_list_tests passed\n";
     return EXIT_SUCCESS;
 }

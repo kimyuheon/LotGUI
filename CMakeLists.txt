@@ -829,21 +829,26 @@ if(LOTUI_BUILD_EXAMPLES)
                 "$<TARGET_FILE_DIR:list_control_demo>/resources/fonts/NotoSansKR-Regular.ttf"
             VERBATIM)
 
-        add_executable(conversation_demo
-            examples/conversation_demo/main.cpp
-            examples/platform_probe/platform_event_bridge.cpp)
-        target_link_libraries(conversation_demo PRIVATE
-            lotui_vulkan lotui_widgets lotui_text_freetype)
-        lotui_copy_legal_notices(conversation_demo)
-        add_custom_command(TARGET conversation_demo POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E make_directory
-                "$<TARGET_FILE_DIR:conversation_demo>/resources/fonts"
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-                "${LOTUI_EXAMPLE_FONT_FILE}"
-                "$<TARGET_FILE_DIR:conversation_demo>/resources/fonts/NotoSansKR-Regular.ttf"
-            VERBATIM)
-        install(TARGETS conversation_demo
-            RUNTIME DESTINATION bin COMPONENT Examples)
+        foreach(_lotui_conversation_target
+                conversation_demo conversation_qa_demo)
+            add_executable(${_lotui_conversation_target}
+                examples/conversation_demo/main.cpp
+                examples/platform_probe/platform_event_bridge.cpp)
+            target_link_libraries(${_lotui_conversation_target} PRIVATE
+                lotui_vulkan lotui_widgets lotui_text_freetype)
+            lotui_copy_legal_notices(${_lotui_conversation_target})
+            add_custom_command(TARGET ${_lotui_conversation_target} POST_BUILD
+                COMMAND "${CMAKE_COMMAND}" -E make_directory
+                    "$<TARGET_FILE_DIR:${_lotui_conversation_target}>/resources/fonts"
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                    "${LOTUI_EXAMPLE_FONT_FILE}"
+                    "$<TARGET_FILE_DIR:${_lotui_conversation_target}>/resources/fonts/NotoSansKR-Regular.ttf"
+                VERBATIM)
+            install(TARGETS ${_lotui_conversation_target}
+                RUNTIME DESTINATION bin COMPONENT Examples)
+        endforeach()
+        target_compile_definitions(conversation_qa_demo PRIVATE
+            LOTUI_CONVERSATION_QA_DEMO=1)
 
         if(WIN32)
             set(_lotui_demo_plugin_loader
@@ -911,6 +916,8 @@ if(LOTUI_BUILD_EXAMPLES)
         if(TARGET conversation_demo)
             target_compile_options(conversation_demo PRIVATE
                 /W4 /permissive- /utf-8)
+            target_compile_options(conversation_qa_demo PRIVATE
+                /W4 /permissive- /utf-8)
         endif()
         if(TARGET ribbon_demo)
             target_compile_options(ribbon_demo PRIVATE
@@ -926,6 +933,8 @@ if(LOTUI_BUILD_EXAMPLES)
         endif()
         if(TARGET conversation_demo)
             target_compile_options(conversation_demo PRIVATE
+                -Wall -Wextra -Wpedantic)
+            target_compile_options(conversation_qa_demo PRIVATE
                 -Wall -Wextra -Wpedantic)
         endif()
         if(TARGET ribbon_demo)

@@ -100,6 +100,71 @@ std::unique_ptr<TextLayout> layout(const TextEngine& engine,
     return result;
 }
 
+std::size_t nextUtf8Boundary(std::string_view text, std::size_t offset) {
+    ++offset;
+    while (offset < text.size() &&
+            (static_cast<unsigned char>(text[offset]) & 0xC0) == 0x80)
+        ++offset;
+    return offset;
+}
+
+std::vector<std::unique_ptr<TextLayout>> wrapMessageText(
+    const TextEngine& engine, std::string_view text,
+    const TextStyle& style, float maximumWidth) {
+    std::vector<std::unique_ptr<TextLayout>> lines;
+    std::size_t paragraphStart = 0;
+    do {
+        const std::size_t paragraphEnd = text.find('\n', paragraphStart);
+        const std::string_view paragraph = text.substr(paragraphStart,
+            paragraphEnd == std::string_view::npos ?
+                std::string_view::npos : paragraphEnd - paragraphStart);
+        std::string current;
+        std::size_t offset = 0;
+        while (offset < paragraph.size()) {
+            while (offset < paragraph.size() && paragraph[offset] == ' ')
+                ++offset;
+            const std::size_t tokenStart = offset;
+            while (offset < paragraph.size() && paragraph[offset] != ' ')
+                offset = nextUtf8Boundary(paragraph, offset);
+            const std::string_view word = paragraph.substr(tokenStart,
+                offset - tokenStart);
+            if (word.empty()) continue;
+            const std::string candidate = current.empty() ?
+                std::string(word) : current + " " + std::string(word);
+            if (layout(engine, candidate, style)->size().width <= maximumWidth) {
+                current = candidate;
+                continue;
+            }
+            if (!current.empty()) {
+                lines.push_back(layout(engine, current, style));
+                current.clear();
+            }
+            if (layout(engine, word, style)->size().width <= maximumWidth) {
+                current.assign(word);
+                continue;
+            }
+            std::size_t wordOffset = 0;
+            while (wordOffset < word.size()) {
+                const std::size_t next = nextUtf8Boundary(word, wordOffset);
+                const std::string part = current +
+                    std::string(word.substr(wordOffset, next - wordOffset));
+                if (!current.empty() &&
+                    layout(engine, part, style)->size().width > maximumWidth) {
+                    lines.push_back(layout(engine, current, style));
+                    current.clear();
+                }
+                current += std::string(word.substr(wordOffset,
+                    next - wordOffset));
+                wordOffset = next;
+            }
+        }
+        lines.push_back(layout(engine, current, style));
+        if (paragraphEnd == std::string_view::npos) break;
+        paragraphStart = paragraphEnd + 1;
+    } while (true);
+    return lines;
+}
+
 void validateMessages(const std::vector<ConversationMessage>& messages) {
     std::unordered_set<std::string_view> ids;
     for (const auto& message : messages) {
@@ -227,6 +292,9 @@ Size ConversationList::measure(const LayoutConstraints& constraints) const {
 void ConversationList::setMessages(std::vector<ConversationMessage> messages) {
     validateMessages(messages);
     messages_ = std::move(messages);
+    pressedCopy_.reset();
+    hoveredCopy_.reset();
+    copiedCode_.reset();
     if (selectedId_ && std::none_of(messages_.begin(), messages_.end(),
             [this](const auto& message) { return message.id == *selectedId_; }))
         selectedId_.reset();
@@ -275,12 +343,35 @@ Rect ConversationList::messageBounds(std::string_view id) const {
     rebuild();
     for (std::size_t i = 0; i < messages_.size(); ++i) {
         if (messages_[i].id != id) continue;
-        const float width = bubbleWidth();
+        const float width = bubbleWidth(messages_[i].outgoing);
         return {messages_[i].outgoing ?
                 bounds().x + bounds().width - style_.sideMargin - width :
                 bounds().x + style_.sideMargin,
             bounds().y + drawMessages_[i].y - scrollOffset_,
             width, drawMessages_[i].height};
+    }
+    return {};
+}
+
+Rect ConversationList::codeCopyBounds(
+    std::string_view id, std::size_t blockIndex) const {
+    if (!clipboardWrite_) return {};
+    rebuild();
+    for (std::size_t i = 0; i < messages_.size(); ++i) {
+        if (messages_[i].id != id ||
+            blockIndex >= drawMessages_[i].blocks.size() ||
+            drawMessages_[i].blocks[blockIndex].kind != MessageBlockKind::Code)
+            continue;
+        const Rect bubble = messageBounds(id);
+        float y = bubble.y + style_.bubblePadding +
+            std::max(drawMessages_[i].author->size().height,
+                drawMessages_[i].time->size().height) + 10.0F;
+        for (std::size_t j = 0; j < blockIndex; ++j)
+            y += drawMessages_[i].blocks[j].height + 8.0F;
+        constexpr float buttonWidth = 62.0F;
+        return {bubble.x + bubble.width - style_.bubblePadding -
+                buttonWidth - 6.0F,
+            y + 3.0F, buttonWidth, 22.0F};
     }
     return {};
 }
@@ -293,6 +384,16 @@ void ConversationList::setOnSelectionChanged(SelectionHandler handler) {
     onSelectionChanged_ = std::move(handler);
 }
 
+void ConversationList::setClipboardWriteHandler(
+    ClipboardWriteHandler handler) {
+    clipboardWrite_ = std::move(handler);
+    if (!clipboardWrite_) {
+        pressedCopy_.reset();
+        hoveredCopy_.reset();
+        copiedCode_.reset();
+    }
+}
+
 void ConversationList::onArrange() { invalidate(); clampScroll(); }
 
 void ConversationList::onPaint(std::vector<PaintCommand>& commands) const {
@@ -301,12 +402,12 @@ void ConversationList::onPaint(std::vector<PaintCommand>& commands) const {
     commands.push_back({bounds(), area, style_.background,
         invalidTextureId, 0.0F});
     rebuild();
-    const float width = bubbleWidth();
     const float padding = style_.bubblePadding;
     for (std::size_t i = 0; i < drawMessages_.size(); ++i) {
         const auto& drawn = drawMessages_[i];
         const auto& message = messages_[i];
         const Rect bubble = messageBounds(message.id);
+        const float width = bubble.width;
         const Rect bubbleClip = intersect(bubble, area);
         if (!hasArea(bubbleClip)) continue;
         commands.push_back({bubble, bubbleClip,
@@ -325,10 +426,17 @@ void ConversationList::onPaint(std::vector<PaintCommand>& commands) const {
             bubbleClip, style_.secondaryText, commands);
         y += std::max(drawn.author->size().height,
             drawn.time->size().height) + 10.0F;
-        for (const auto& block : drawn.blocks) {
+        for (std::size_t blockIndex = 0;
+                blockIndex < drawn.blocks.size(); ++blockIndex) {
+            const auto& block = drawn.blocks[blockIndex];
             if (block.kind == MessageBlockKind::Text) {
-                block.text->appendPaintCommands({x, y}, bubbleClip,
-                    style_.text, commands);
+                float lineY = y;
+                for (const auto& line : block.textLines) {
+                    line->appendPaintCommands({x, lineY}, bubbleClip,
+                        style_.text, commands);
+                    lineY += std::max(style_.lineHeight,
+                        line->size().height);
+                }
             } else {
                 const Rect code{x, y, width - 2.0F * padding,
                     block.height};
@@ -338,6 +446,22 @@ void ConversationList::onPaint(std::vector<PaintCommand>& commands) const {
                 block.languageLabel->appendPaintCommands(
                     {x + 10.0F, y + 5.0F}, codeClip,
                     style_.secondaryText, commands);
+                if (clipboardWrite_) {
+                    const auto key = std::make_pair(i, blockIndex);
+                    const Rect button = codeCopyBounds(
+                        message.id, blockIndex);
+                    commands.push_back({button, codeClip,
+                        hoveredCopy_ == key ? style_.copyButtonHovered :
+                            style_.copyButton,
+                        invalidTextureId, 3.0F});
+                    const auto& buttonLabel = copiedCode_ == key ?
+                        block.copiedLabel : block.copyLabel;
+                    buttonLabel->appendPaintCommands(
+                        {button.x + (button.width -
+                                buttonLabel->size().width) * 0.5F,
+                            button.y + 3.0F}, codeClip,
+                        style_.text, commands);
+                }
                 float lineY = y + 28.0F;
                 for (const auto& line : block.lines) {
                     float runX = x + 10.0F;
@@ -361,14 +485,39 @@ bool ConversationList::acceptsPointerEvents() const noexcept { return true; }
 bool ConversationList::onPointerEvent(const WidgetPointerEvent& event) {
     if (event.type == WidgetPointerEventType::Cancel) {
         pressedMessage_.reset();
+        pressedCopy_.reset();
+        hoveredCopy_.reset();
         return true;
+    }
+    if (event.type == WidgetPointerEventType::Leave) {
+        hoveredCopy_.reset();
+        return false;
+    }
+    if (event.type == WidgetPointerEventType::Move) {
+        hoveredCopy_ = hitCopyButton(event.position);
+        return hoveredCopy_.has_value();
     }
     if (event.button != PointerButton::Primary) return false;
     if (event.type == WidgetPointerEventType::Press) {
+        pressedCopy_ = hitCopyButton(event.position);
+        if (pressedCopy_) {
+            pressedMessage_.reset();
+            return true;
+        }
         pressedMessage_ = hitMessage(event.position);
         return pressedMessage_.has_value();
     }
     if (event.type == WidgetPointerEventType::Release) {
+        if (pressedCopy_) {
+            const auto releasedCopy = hitCopyButton(event.position);
+            if (releasedCopy == pressedCopy_ && clipboardWrite_) {
+                const auto [messageIndex, blockIndex] = *pressedCopy_;
+                if (clipboardWrite_(messages_[messageIndex].blocks[blockIndex].text))
+                    copiedCode_ = pressedCopy_;
+            }
+            pressedCopy_.reset();
+            return true;
+        }
         const auto released = hitMessage(event.position);
         if (pressedMessage_ && pressedMessage_ == released) {
             const std::string id = messages_[*pressedMessage_].id;
@@ -394,8 +543,6 @@ void ConversationList::rebuild() const {
         drawMessages_.size() == messages_.size()) return;
     drawMessages_.clear();
     cachedWidth_ = bounds().width;
-    const float textWidth = std::max(1.0F,
-        bubbleWidth() - style_.bubblePadding * 2.0F);
     TextStyle body;
     body.fontFamilies = {"Noto Sans KR"};
     body.fontSize = style_.bodyFontSize;
@@ -405,6 +552,8 @@ void ConversationList::rebuild() const {
     code.fontSize = style_.codeFontSize;
     float y = style_.messageGap;
     for (const auto& message : messages_) {
+        const float textWidth = std::max(1.0F,
+            bubbleWidth(message.outgoing) - style_.bubblePadding * 2.0F);
         DrawMessage drawn;
         drawn.y = y;
         drawn.author = layout(*textEngine_, message.author, body);
@@ -417,11 +566,16 @@ void ConversationList::rebuild() const {
             out.kind = block.kind;
             out.language = block.language;
             if (block.kind == MessageBlockKind::Text) {
-                out.text = layout(*textEngine_, block.text, body, textWidth);
-                out.height = out.text->size().height;
+                out.textLines = wrapMessageText(*textEngine_, block.text,
+                    body, textWidth);
+                for (const auto& line : out.textLines)
+                    out.height += std::max(style_.lineHeight,
+                        line->size().height);
             } else {
                 out.languageLabel = layout(*textEngine_,
                     block.language.empty() ? "CODE" : block.language, meta);
+                out.copyLabel = layout(*textEngine_, "복사", meta);
+                out.copiedLabel = layout(*textEngine_, "복사됨", meta);
                 std::size_t start = 0;
                 while (start <= block.text.size()) {
                     const auto end = block.text.find('\n', start);
@@ -472,7 +626,10 @@ void ConversationList::clampScroll() noexcept {
     } catch (...) { scrollOffset_ = 0.0F; }
 }
 
-float ConversationList::bubbleWidth() const noexcept {
+float ConversationList::bubbleWidth(bool outgoing) const noexcept {
+    if (!outgoing && style_.incomingFullWidth)
+        return std::max(1.0F,
+            bounds().width - 2.0F * style_.sideMargin);
     return std::max(1.0F, std::min(style_.maximumBubbleWidth,
         std::min(bounds().width * 0.78F,
             bounds().width - 2.0F * style_.sideMargin)));
@@ -494,6 +651,22 @@ std::optional<std::size_t> ConversationList::hitMessage(Point point) const {
     rebuild();
     for (std::size_t i = 0; i < messages_.size(); ++i) {
         if (contains(messageBounds(messages_[i].id), point)) return i;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::pair<std::size_t, std::size_t>>
+ConversationList::hitCopyButton(Point point) const {
+    if (!clipboardWrite_ || !contains(clip(), point)) return std::nullopt;
+    rebuild();
+    for (std::size_t i = 0; i < messages_.size(); ++i) {
+        const Rect bubble = messageBounds(messages_[i].id);
+        if (!contains(intersect(bubble, clip()), point)) continue;
+        for (std::size_t j = 0; j < drawMessages_[i].blocks.size(); ++j) {
+            const Rect button = codeCopyBounds(messages_[i].id, j);
+            if (hasArea(button) && contains(intersect(button, clip()), point))
+                return std::make_pair(i, j);
+        }
     }
     return std::nullopt;
 }

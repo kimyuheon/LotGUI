@@ -7,6 +7,9 @@ outgoing side, and ordered text and code blocks. Click a bubble to select it.
 it preserves scroll position when reading older messages.
 `ConversationListStyle` exposes body, metadata, and code font sizes so an
 application can tune readability for its display density.
+Set `incomingFullWidth` to give answer messages the full content width while
+questions remain compact on the right. Text blocks wrap at word boundaries,
+and long unbroken words wrap at UTF-8 code-point boundaries when resized.
 
 ```cpp
 auto messages = std::vector<lotui::ConversationMessage>{
@@ -17,6 +20,9 @@ auto messages = std::vector<lotui::ConversationMessage>{
 auto view = std::make_unique<lotui::ConversationList>(textEngine, messages);
 view->setOnSelectionChanged([](std::string_view id) {
     // Open a message menu or update the application's selection.
+});
+view->setClipboardWriteHandler([nativeWindow](std::string code) {
+    return nativeWindow->writeClipboardText(code);
 });
 ```
 
@@ -29,6 +35,10 @@ Spaces and line breaks inside code are preserved. Tabs advance to four-column
 stops, including mixed spaces and tabs. Code spaces use a fixed visual advance
 so indentation remains clear even with the bundled proportional Korean font;
 the stored message text is unchanged.
+When a clipboard writer is set, each code block shows a **복사** button. It
+copies the original UTF-8 code, including indentation, and reports **복사됨**
+after a successful write. The widget uses a callback so plugins can provide
+their host application's clipboard without depending on an OS API.
 
 `conversation_demo` shows incoming and outgoing messages, Korean text, code
 blocks, scrolling, selection, and a text composer. Enter or **보내기** appends
@@ -37,3 +47,6 @@ the composed message. The demo can save a screenshot with:
 ```text
 conversation_demo --capture output.ppm
 ```
+
+`conversation_qa_demo` is a separate executable showing right-side questions
+and full-width answers. It accepts the same `--smoke` and `--capture` flags.

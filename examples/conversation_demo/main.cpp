@@ -30,6 +30,24 @@ std::vector<lotui::ConversationMessage> sampleMessages() {
         return lotui::ConversationMessage{std::move(id), std::move(author),
             std::move(time), outgoing, lotui::parseMessageBlocks(body)};
     };
+#if defined(LOTUI_CONVERSATION_QA_DEMO)
+    return {
+        message("question-1", "나", "10:31", true,
+            "Vulkan GUI에서 코드 블록을 복사하려면 어떻게 하나요?"),
+        message("answer-1", "LotUI", "10:31", false,
+            "코드 블록 오른쪽 위의 복사 버튼을 누르면 원본 코드가 클립보드에 들어갑니다. "
+            "들여쓰기와 한글 주석도 그대로 유지됩니다. 복사한 코드는 아래 입력창에 붙여 넣어 확인할 수 있습니다.\n"
+            "```cpp\n"
+            "list.setClipboardWriteHandler([window](std::string code) {\n"
+            "    return window->writeClipboardText(code);\n"
+            "});\n```"),
+        message("question-2", "나", "10:32", true,
+            "답변이 길어지면 어디까지 표시되나요?"),
+        message("answer-2", "LotUI", "10:32", false,
+            "답변은 왼쪽의 넓은 영역을 사용하고 긴 문장은 자동으로 다음 줄에 이어집니다. "
+            "질문은 오른쪽 말풍선에 표시되며, 창 크기를 바꾸면 답변 줄도 새 너비에 맞춰 다시 배치합니다."),
+    };
+#else
     return {
         message("hello", "민지", "10:24", false,
             "안녕하세요! 새 대화 목록 위젯을 테스트해 볼까요?"),
@@ -47,6 +65,7 @@ std::vector<lotui::ConversationMessage> sampleMessages() {
             "{\"theme\": \"dark\", \"count\": 3}\n```\n"
             "```csharp\nvar message = \"안녕하세요\";\n```"),
     };
+#endif
 }
 
 void writeCapture(const lotui::VulkanRenderer::CapturedFrame& frame,
@@ -74,7 +93,11 @@ int main(int argc, char** argv) {
         }
         auto platform = lotui::createPlatformBackend();
         auto window = platform->createWindow(
+#if defined(LOTUI_CONVERSATION_QA_DEMO)
+            {"LotUI Q&A", 820, 760, true});
+#else
             {"LotUI Conversation", 820, 760, true});
+#endif
         window->show();
         lotui::VulkanRenderer renderer(*window);
         const auto font = lotui::executableDirectory() /
@@ -84,7 +107,7 @@ int main(int argc, char** argv) {
 
         auto root = std::make_unique<lotui::Column>();
         root->setDecoration(lotui::BoxDecoration{
-            {0.10F, 0.13F, 0.18F, 1.0F}, 0.0F});
+            {0.009F, 0.012F, 0.018F, 1.0F}, 0.0F});
         lotui::LinearLayoutOptions options;
         options.padding = {18.0F, 16.0F, 18.0F, 16.0F};
         options.spacing = 12.0F;
@@ -96,13 +119,30 @@ int main(int argc, char** argv) {
         titleStyle.fontSize = 20.0F;
         titleStyle.weight = lotui::FontWeight::SemiBold;
         root->addChild(std::make_unique<lotui::Label>(
-            textEngine, "LotUI 대화 · 언어별 코드 블록", titleStyle),
+            textEngine,
+#if defined(LOTUI_CONVERSATION_QA_DEMO)
+            "LotUI 질문과 답변 · 코드 복사",
+#else
+            "LotUI 대화 · 언어별 코드 블록",
+#endif
+            titleStyle),
             {0.0F, {0.0F, 30.0F}, {lotui::unboundedLayoutSize, 30.0F}});
         auto list = std::make_unique<lotui::ConversationList>(
-            textEngine, sampleMessages());
+            textEngine, sampleMessages(), lotui::Size{720.0F, 480.0F},
+            [] {
+                lotui::ConversationListStyle style;
+#if defined(LOTUI_CONVERSATION_QA_DEMO)
+                style.incomingFullWidth = true;
+#endif
+                return style;
+            }());
         auto* conversations = list.get();
         list->setOnSelectionChanged([](std::string_view id) {
             std::cout << "selected-message: " << id << '\n';
+        });
+        list->setClipboardWriteHandler([nativeWindow = window.get()](
+                std::string text) {
+            return nativeWindow->writeClipboardText(text);
         });
         root->addChild(std::move(list), {1.0F});
 
@@ -114,6 +154,13 @@ int main(int argc, char** argv) {
         composer->setOptions(composerOptions);
         auto field = std::make_unique<lotui::TextField>(textEngine);
         auto* input = field.get();
+        input->setClipboardHandlers(
+            [nativeWindow = window.get()](std::string text) {
+                return nativeWindow->writeClipboardText(text);
+            },
+            [nativeWindow = window.get()]() {
+                return nativeWindow->readClipboardText();
+            });
         auto send = [conversations, input]() {
             if (input->text().empty()) return;
             conversations->appendMessage({
