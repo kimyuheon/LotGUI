@@ -35,14 +35,15 @@ Spaces and line breaks inside code are preserved. Tabs advance to four-column
 stops, including mixed spaces and tabs. Code spaces use a fixed visual advance
 so indentation remains clear even with the bundled proportional Korean font;
 the stored message text is unchanged.
-When a clipboard writer is set, each code block shows a **복사** button. It
-copies the original UTF-8 code, including indentation, and reports **복사됨**
-after a successful write. The widget uses a callback so plugins can provide
-their host application's clipboard without depending on an OS API.
+When a clipboard writer is set, each code block shows a copy-icon **복사** button.
+It copies the original UTF-8 code, including indentation, and changes to a
+green **복사됨** state after a successful write. The widget uses a callback so
+plugins can provide their host application's clipboard without depending on an
+OS API.
 
 `conversation_demo` shows incoming and outgoing messages, Korean text, code
-blocks, scrolling, selection, and a text composer. Enter or **보내기** appends
-the composed message. The demo can save a screenshot with:
+blocks, scrolling, selection, and a text composer. Enter or the upward-arrow
+button appends the composed message. The demo can save a screenshot with:
 
 ```text
 conversation_demo --capture output.ppm

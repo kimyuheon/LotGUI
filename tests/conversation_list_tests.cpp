@@ -199,6 +199,15 @@ void copiesOriginalCodeWithoutSelectingMessage() {
     require(copied == "# 한글 주석\ndef run():\n\treturn 3" &&
             !list->selectedId(),
         "copy must preserve UTF-8 code text and indentation without selecting");
+    std::vector<lotui::PaintCommand> painted;
+    tree.paint(painted);
+    const auto success = lotui::ConversationListStyle{}.copyButtonCopied;
+    require(std::any_of(painted.begin(), painted.end(), [success](
+            const lotui::PaintCommand& command) {
+            return command.color.red == success.red &&
+                command.color.green == success.green &&
+                command.color.blue == success.blue;
+        }), "successful copy must show its completion state");
     list->setClipboardWriteHandler({});
     require(!lotui::hasArea(list->codeCopyBounds("code", 2)),
         "copy controls must hide when no clipboard writer is available");

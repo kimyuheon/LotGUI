@@ -46,8 +46,9 @@ struct ConversationListStyle {
     Color incomingBubble{0.017F, 0.024F, 0.037F, 1.0F};
     Color outgoingBubble{0.014F, 0.027F, 0.045F, 1.0F};
     Color codeBackground{0.007F, 0.010F, 0.016F, 1.0F};
-    Color copyButton{0.038F, 0.050F, 0.072F, 1.0F};
-    Color copyButtonHovered{0.060F, 0.080F, 0.11F, 1.0F};
+    Color copyButton{0.048F, 0.064F, 0.086F, 1.0F};
+    Color copyButtonHovered{0.075F, 0.098F, 0.13F, 1.0F};
+    Color copyButtonCopied{0.025F, 0.10F, 0.075F, 1.0F};
     Color text{0.95F, 0.96F, 0.97F, 1.0F};
     Color secondaryText{0.70F, 0.76F, 0.80F, 1.0F};
     Color keyword{0.53F, 0.72F, 1.00F, 1.0F};

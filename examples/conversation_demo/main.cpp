@@ -171,11 +171,18 @@ int main(int argc, char** argv) {
         };
         input->setOnSubmitted([send](const std::string&) { send(); });
         composer->addChild(std::move(field), {1.0F});
+        lotui::TextStyle sendIconStyle;
+        sendIconStyle.fontFamilies = {"Noto Sans KR"};
+        sendIconStyle.fontSize = 25.0F;
         auto label = std::make_unique<lotui::Label>(
-            textEngine, "보내기", lotui::TextStyle{});
+            textEngine, "↑", sendIconStyle);
+        lotui::ButtonStyle sendStyle;
+        sendStyle.cornerRadius = 20.0F;
+        sendStyle.contentPadding = {0.0F, 0.0F, 0.0F, 0.0F};
         composer->addChild(std::make_unique<lotui::Button>(
-            std::move(label), lotui::Size{94.0F, 40.0F}, send),
-            {0.0F, {94.0F, 40.0F}, {94.0F, 40.0F}});
+            std::move(label), lotui::Size{40.0F, 40.0F}, send,
+            sendStyle),
+            {0.0F, {40.0F, 40.0F}, {40.0F, 40.0F}});
         root->addChild(std::move(composer),
             {0.0F, {0.0F, 40.0F}, {lotui::unboundedLayoutSize, 40.0F}});
 

@@ -165,6 +165,25 @@ std::vector<std::unique_ptr<TextLayout>> wrapMessageText(
     return lines;
 }
 
+void appendCopyIcon(Rect button, Rect clip, Color color,
+    std::vector<PaintCommand>& commands) {
+    const auto outline = [&commands, clip, color](Rect rect) {
+        constexpr float stroke = 1.0F;
+        commands.push_back({{rect.x, rect.y, rect.width, stroke}, clip,
+            color, invalidTextureId, 0.0F, {}, true});
+        commands.push_back({{rect.x, rect.y + rect.height - stroke,
+                rect.width, stroke}, clip, color, invalidTextureId,
+            0.0F, {}, true});
+        commands.push_back({{rect.x, rect.y, stroke, rect.height}, clip,
+            color, invalidTextureId, 0.0F, {}, true});
+        commands.push_back({{rect.x + rect.width - stroke, rect.y,
+                stroke, rect.height}, clip, color, invalidTextureId,
+            0.0F, {}, true});
+    };
+    outline({button.x + 9.0F, button.y + 5.0F, 10.0F, 11.0F});
+    outline({button.x + 12.0F, button.y + 8.0F, 11.0F, 11.0F});
+}
+
 void validateMessages(const std::vector<ConversationMessage>& messages) {
     std::unordered_set<std::string_view> ids;
     for (const auto& message : messages) {
@@ -368,10 +387,10 @@ Rect ConversationList::codeCopyBounds(
                 drawMessages_[i].time->size().height) + 10.0F;
         for (std::size_t j = 0; j < blockIndex; ++j)
             y += drawMessages_[i].blocks[j].height + 8.0F;
-        constexpr float buttonWidth = 62.0F;
+        constexpr float buttonWidth = 78.0F;
         return {bubble.x + bubble.width - style_.bubblePadding -
                 buttonWidth - 6.0F,
-            y + 3.0F, buttonWidth, 22.0F};
+            y + 3.0F, buttonWidth, 24.0F};
     }
     return {};
 }
@@ -450,19 +469,22 @@ void ConversationList::onPaint(std::vector<PaintCommand>& commands) const {
                     const auto key = std::make_pair(i, blockIndex);
                     const Rect button = codeCopyBounds(
                         message.id, blockIndex);
+                    const bool copied = copiedCode_ == key;
                     commands.push_back({button, codeClip,
-                        hoveredCopy_ == key ? style_.copyButtonHovered :
-                            style_.copyButton,
-                        invalidTextureId, 3.0F});
-                    const auto& buttonLabel = copiedCode_ == key ?
+                        copied ? style_.copyButtonCopied :
+                            hoveredCopy_ == key ? style_.copyButtonHovered :
+                                style_.copyButton,
+                        invalidTextureId, 5.0F});
+                    appendCopyIcon(button, codeClip, style_.text, commands);
+                    const auto& buttonLabel = copied ?
                         block.copiedLabel : block.copyLabel;
                     buttonLabel->appendPaintCommands(
-                        {button.x + (button.width -
-                                buttonLabel->size().width) * 0.5F,
-                            button.y + 3.0F}, codeClip,
+                        {button.x + 29.0F,
+                            button.y + (button.height -
+                                buttonLabel->size().height) * 0.5F}, codeClip,
                         style_.text, commands);
                 }
-                float lineY = y + 28.0F;
+                float lineY = y + 30.0F;
                 for (const auto& line : block.lines) {
                     float runX = x + 10.0F;
                     for (const auto& run : line) {
@@ -600,7 +622,7 @@ void ConversationList::rebuild() const {
                     if (end == std::string::npos) break;
                     start = end + 1;
                 }
-                out.height = 34.0F + style_.lineHeight *
+                out.height = 36.0F + style_.lineHeight *
                     static_cast<float>(out.lines.size());
             }
             height += out.height + 8.0F;
