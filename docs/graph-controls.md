@@ -42,8 +42,9 @@ be batched by clip/texture/material rather than submitted per point.
   number of visible extrema per screen pixel so spikes remain visible.
 - Show the same plot in a standalone example and `LotGUI_Sample` using only the
   public SDK. Validate keyboard focus and DPI on supported platforms.
-- Add a separate `LotCADLotGUI` example using simulated numeric results through
-  an adapter; leave the existing CAD executable and native graph logic intact.
+- Add a separate `LotCADLotGUI` example that reads actual object dimensions
+  through `CAD_GetBoundsWorld`, refreshes on scene revisions, and leaves the
+  existing CAD executable and native graph logic intact.
 
 ## GraphCanvas follow-up
 

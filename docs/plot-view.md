@@ -30,7 +30,8 @@ full data range. `setOnHoverChanged()` exposes the nearest sample to host UI.
 renderers consume it through the same paint batch planner and clip rectangles.
 Run `plot_view_demo --smoke` or `plot_view_demo --capture output.ppm` to verify
 the standalone path. In the engine checkout, `LotCADLotGUI --plot-test
-output.png` exercises the embedded path and verifies wheel zoom and drag pan.
+output.png` exercises the embedded path with actual CAD object bounds, checks
+refresh after an object is added, and verifies wheel zoom and drag pan.
 
 The current plot uses straight segments, numeric axes, and CPU-side
 per-column reduction. Time/date axes, legends inside the widget, line joins,
