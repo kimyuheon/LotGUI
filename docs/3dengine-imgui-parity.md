@@ -53,6 +53,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `Begin`/`End` tool windows | floating/dockable `Panel` | Modeless host and Z-order foundation complete |
 | `DockSpace` | `DockHost`, split nodes, drag/drop docking, persisted layout | Planned |
 | draw-list circles/lines | backend-neutral vector/overlay paint commands | Planned |
+| numeric plots and node graphs | stroke/path paint commands, `PlotView`, later `GraphCanvas` | Planned; see `graph-controls.md` |
 | image buttons and block thumbnails | image widget, image button, tile/grid view | Planned |
 
 ## Immediate-mode migration rules
