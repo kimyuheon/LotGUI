@@ -33,6 +33,14 @@ the standalone path. In the engine checkout, `LotCADLotGUI --plot-test
 output.png` exercises the embedded path with actual CAD object bounds, checks
 refresh after an object is added, and verifies wheel zoom and drag pan.
 
+`plot_view_demo --objects` pairs a `TreeView` object checklist with the plot.
+`--smoke-objects` checks that a checkbox changes the plotted series, and
+`--capture-objects output.ppm` saves this screen. The example supplies its own
+object dimensions through the public SDK, with no 3dEngine dependency.
+The engine's `LotCADLotGUI --plot` mode lists current project objects, uses
+checkboxes to include several of them, and reads their world bounds through
+the CAD API. The graph's X axis is the order in which objects were included.
+
 The current plot uses straight segments, numeric axes, and CPU-side
 per-column reduction. Time/date axes, legends inside the widget, line joins,
 Bezier links, and large streaming buffers are future work.

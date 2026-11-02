@@ -46,6 +46,10 @@ be batched by clip/texture/material rather than submitted per point.
   through `CAD_GetBoundsWorld`, refreshes on scene revisions, and leaves the
   existing CAD executable and native graph logic intact.
 
+The embedded sample now has a project object checklist and a `--plot` mode for
+existing projects. The standalone SDK example has a matching object checklist
+with local example data.
+
 ## GraphCanvas follow-up
 
 Build nodes, ports and links on the same stroke/path layer. Stable IDs,
