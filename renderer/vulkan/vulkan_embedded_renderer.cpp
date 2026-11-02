@@ -782,10 +782,28 @@ void VulkanEmbeddedRenderer::Impl::draw(
              command.color.blue, command.color.alpha},
             {command.cornerRadius * scale,
              command.texture == invalidTextureId ? 0.0F : 1.0F,
-             0.0F, 0.0F},
+             1.0F, 0.0F},
             {command.textureCoordinates.x, command.textureCoordinates.y,
              command.textureCoordinates.width,
              command.textureCoordinates.height}};
+        if (command.primitive == PaintPrimitive::Line) {
+            const float dx = command.lineEnd.x - command.lineStart.x;
+            const float dy = command.lineEnd.y - command.lineStart.y;
+            const float length = std::hypot(dx, dy);
+            const float cosine = length > 0.0F ? dx / length : 1.0F;
+            const float sine = length > 0.0F ? dy / length : 0.0F;
+            const float lineWidth = command.lineWidth * scale;
+            instances[i].bounds[0] = command.lineStart.x * scale +
+                sine * lineWidth * 0.5F;
+            instances[i].bounds[1] = command.lineStart.y * scale -
+                cosine * lineWidth * 0.5F;
+            instances[i].bounds[2] = std::max(length * scale, lineWidth);
+            instances[i].bounds[3] = lineWidth;
+            instances[i].parameters[0] = std::min(lineWidth * 0.5F,
+                instances[i].bounds[2] * 0.5F);
+            instances[i].parameters[2] = cosine;
+            instances[i].parameters[3] = sine;
+        }
     }
 
     const VkViewport viewport{

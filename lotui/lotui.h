@@ -20,6 +20,7 @@
 #include "widgets/button.h"
 #include "widgets/checkbox.h"
 #include "widgets/color_editor.h"
+#include "widgets/plot_view.h"
 #include "widgets/combo_box.h"
 #include "widgets/document_tab_view.h"
 #include "widgets/inline_text_editor.h"

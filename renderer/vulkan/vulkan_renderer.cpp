@@ -1075,6 +1075,25 @@ PaintBatchPlan VulkanRenderer::Impl::uploadInstances(
         instance.parameters[0] = command.cornerRadius * scale;
         instance.parameters[1] =
             command.texture == invalidTextureId ? 0.0F : 1.0F;
+        instance.parameters[2] = 1.0F;
+        if (command.primitive == PaintPrimitive::Line) {
+            const float dx = command.lineEnd.x - command.lineStart.x;
+            const float dy = command.lineEnd.y - command.lineStart.y;
+            const float length = std::hypot(dx, dy);
+            const float cosine = length > 0.0F ? dx / length : 1.0F;
+            const float sine = length > 0.0F ? dy / length : 0.0F;
+            const float lineWidth = command.lineWidth * scale;
+            instance.bounds[0] = command.lineStart.x * scale +
+                sine * lineWidth * 0.5F;
+            instance.bounds[1] = command.lineStart.y * scale -
+                cosine * lineWidth * 0.5F;
+            instance.bounds[2] = std::max(length * scale, lineWidth);
+            instance.bounds[3] = lineWidth;
+            instance.parameters[0] = std::min(lineWidth * 0.5F,
+                instance.bounds[2] * 0.5F);
+            instance.parameters[2] = cosine;
+            instance.parameters[3] = sine;
+        }
         instance.textureCoordinates[0] = command.textureCoordinates.x;
         instance.textureCoordinates[1] = command.textureCoordinates.y;
         instance.textureCoordinates[2] = command.textureCoordinates.width;

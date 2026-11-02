@@ -11,23 +11,23 @@ with ImGui draw lists. These needs suggest two distinct LotUI consumers:
    The 3dEngine adapter translates its existing graph view model into LotUI
    items. Engine graph algorithms and Undo state remain in 3dEngine.
 
-The first control should be PlotView. It gives users a useful chart and proves
-the drawing path before the more complex node editor is migrated.
+The first control is now `PlotView`. It gives users a useful chart and proves
+the line drawing path before the more complex node editor is migrated. See
+`plot-view.md` for the current public API and remaining limitations.
 
 ## Drawing foundation
 
-`PaintCommand` currently describes textured or solid rectangles. A chart made
-of thousands of small rectangles would produce too many commands and poor
-line joins. Introduce renderer-neutral stroke/path commands for straight
-segments and polylines, with explicit width, color and clip. Keep rectangle and
-text behavior stable. Both the standalone Vulkan renderer and the embedded
-renderer must consume the same commands; neither widget contains Vulkan types.
-Use the same logical-coordinate-to-physical-pixel transform as other widgets.
+`PaintCommand` now supports straight line segments with width, color and clip
+alongside the existing rectangles. Both the standalone Vulkan renderer and the
+embedded renderer consume the same command; widgets contain no Vulkan types.
+The remaining drawing foundation is a batched polyline/path command with
+shared joins. This should preserve the existing logical-coordinate-to-physical-
+pixel transform and rectangle/text behavior.
 
-The initial stroke renderer can tessellate segments into triangles. Later it
-can add round joins, dashed lines, Bezier links, and filled areas without
-changing the plot data model. Adjacent segments should share joins and be
-batched by clip/texture/material rather than submitted per point.
+The current line renderer rotates an instanced rectangle segment. A later path
+renderer can add round joins, dashed lines, Bezier links, and filled areas
+without changing the plot data model. Adjacent segments should share joins and
+be batched by clip/texture/material rather than submitted per point.
 
 ## PlotView first milestone
 

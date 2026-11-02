@@ -20,7 +20,11 @@ const vec2 vertices[6] = vec2[](
 
 void main() {
     vec2 local = vertices[gl_VertexIndex];
-    vec2 pixel = instanceBounds.xy + local * instanceBounds.zw;
+    vec2 localPixel = local * instanceBounds.zw;
+    vec2 direction = instanceParameters.zw;
+    vec2 pixel = instanceBounds.xy + vec2(
+        localPixel.x * direction.x - localPixel.y * direction.y,
+        localPixel.x * direction.y + localPixel.y * direction.x);
     gl_Position = vec4(
         pixel.x / viewport.size.x * 2.0 - 1.0,
         pixel.y / viewport.size.y * 2.0 - 1.0,
