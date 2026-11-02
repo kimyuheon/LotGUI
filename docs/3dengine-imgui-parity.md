@@ -40,7 +40,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `SliderFloat`, `SliderInt` | `Slider` with pointer drag and keyboard steps | Foundation complete; engine smoke in progress |
 | `RadioButton` | `RadioGroup` | Single-selection foundation complete |
 | `Combo`, `BeginCombo`, `Selectable` | `ComboBox`, `ListView`, selection model | Planned |
-| `ColorEdit3` | RGB/RGBA field and `ColorPicker` popup | Planned |
+| `ColorEdit3` | RGB field and `ColorPicker` popup | RGB slider/swatches complete; popup planned |
 | `BeginTabBar`, `BeginTabItem`, `TabItemButton` | `TabView` and closeable `DocumentTabView` | Controlled document tab strip foundation complete; content tabs planned |
 | Office-style application commands | `Ribbon`, `RibbonTab`, reusable `RibbonGroup` content | Foundation complete |
 | `CollapsingHeader`, `Indent` | `DisclosurePanel` and `TreeView` | Both foundations complete in standalone sample; tree drag planned |
@@ -106,6 +106,11 @@ tree while preserving viewport wheel input outside it. The remaining tree
 work is drag/drop, inline rename and keyboard input routing, plus
 replacement of other ImGui panels. The standalone demo alone is not evidence
 of integration.
+
+`ColorEditor` now covers the RGB swatch and channel editing used by
+`lot_properties_panel` and `lot_layer_panel`. It emits edit start/end callbacks
+so the engine can group continuous drag updates into one Undo transaction.
+The standalone sample uses the public SDK; palette popup and hex entry remain.
 
 LotUI remains an independent library. The parity examples may mirror 3dEngine
 workflows, but LotUI does not include or link CAD engine classes.

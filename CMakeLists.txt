@@ -198,6 +198,7 @@ add_library(lotui_widgets STATIC
     widgets/box.cpp
     widgets/button.cpp
     widgets/checkbox.cpp
+    widgets/color_editor.cpp
     widgets/combo_box.cpp
     widgets/conversation_list.cpp
     widgets/disclosure_panel.cpp
@@ -611,6 +612,10 @@ if(BUILD_TESTING)
     target_link_libraries(slider_tests PRIVATE lotui_widgets)
     add_test(NAME slider_tests COMMAND slider_tests)
 
+    add_executable(color_editor_tests tests/color_editor_tests.cpp)
+    target_link_libraries(color_editor_tests PRIVATE lotui_widgets)
+    add_test(NAME color_editor_tests COMMAND color_editor_tests)
+
     add_executable(text_field_tests
         tests/text_field_tests.cpp
     )
@@ -732,6 +737,8 @@ if(BUILD_TESTING)
         target_compile_options(text_widget_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(form_widget_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(slider_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_options(color_editor_tests PRIVATE
+            /W4 /permissive- /utf-8)
         target_compile_options(text_field_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(ribbon_tests PRIVATE /W4 /permissive- /utf-8)
         target_compile_options(document_tab_view_tests PRIVATE /W4 /permissive- /utf-8)
@@ -764,6 +771,8 @@ if(BUILD_TESTING)
         target_compile_options(text_widget_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(form_widget_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(slider_tests PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(color_editor_tests PRIVATE
+            -Wall -Wextra -Wpedantic)
         target_compile_options(text_field_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(ribbon_tests PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(document_tab_view_tests PRIVATE -Wall -Wextra -Wpedantic)
@@ -850,6 +859,22 @@ if(LOTUI_BUILD_EXAMPLES)
         target_compile_definitions(conversation_qa_demo PRIVATE
             LOTUI_CONVERSATION_QA_DEMO=1)
 
+        add_executable(color_editor_demo
+            examples/color_editor_demo/main.cpp
+            examples/platform_probe/platform_event_bridge.cpp)
+        target_link_libraries(color_editor_demo PRIVATE
+            lotui_vulkan lotui_widgets lotui_text_freetype)
+        lotui_copy_legal_notices(color_editor_demo)
+        add_custom_command(TARGET color_editor_demo POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "$<TARGET_FILE_DIR:color_editor_demo>/resources/fonts"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${LOTUI_EXAMPLE_FONT_FILE}"
+                "$<TARGET_FILE_DIR:color_editor_demo>/resources/fonts/NotoSansKR-Regular.ttf"
+            VERBATIM)
+        install(TARGETS color_editor_demo
+            RUNTIME DESTINATION bin COMPONENT Examples)
+
         if(WIN32)
             set(_lotui_demo_plugin_loader
                 examples/ribbon_demo/plugin_loader_win32.cpp)
@@ -918,6 +943,8 @@ if(LOTUI_BUILD_EXAMPLES)
                 /W4 /permissive- /utf-8)
             target_compile_options(conversation_qa_demo PRIVATE
                 /W4 /permissive- /utf-8)
+            target_compile_options(color_editor_demo PRIVATE
+                /W4 /permissive- /utf-8)
         endif()
         if(TARGET ribbon_demo)
             target_compile_options(ribbon_demo PRIVATE
@@ -935,6 +962,8 @@ if(LOTUI_BUILD_EXAMPLES)
             target_compile_options(conversation_demo PRIVATE
                 -Wall -Wextra -Wpedantic)
             target_compile_options(conversation_qa_demo PRIVATE
+                -Wall -Wextra -Wpedantic)
+            target_compile_options(color_editor_demo PRIVATE
                 -Wall -Wextra -Wpedantic)
         endif()
         if(TARGET ribbon_demo)
