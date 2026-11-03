@@ -35,5 +35,7 @@ Run `graph_canvas_demo`, `graph_canvas_demo --smoke`, or
 
 This first version draws cubic links as short straight strokes. Port dragging,
 link creation, box selection, and host Undo grouping remain follow-up work. The
-engine's existing node graph model must be adapted in the engine repository;
-this SDK control does not import it.
+engine's `LotCADLotGUI --graph-test` now validates an embedded scene-object
+adapter using real CAD object IDs, click selection and wheel input. The engine's
+separate node-editor model still needs its own adapter; this SDK control does
+not import it.
