@@ -11,9 +11,8 @@ with ImGui draw lists. These needs suggest two distinct LotUI consumers:
    The 3dEngine adapter translates its existing graph view model into LotUI
    items. Engine graph algorithms and Undo state remain in 3dEngine.
 
-The first control is now `PlotView`. It gives users a useful chart and proves
-the line drawing path before the more complex node editor is migrated. See
-`plot-view.md` for the current public API and remaining limitations.
+`PlotView` and the first `GraphCanvas` control are available. See `plot-view.md`
+and `graph-canvas.md` for their public APIs and remaining limitations.
 
 ## Drawing foundation
 
@@ -50,11 +49,11 @@ The embedded sample now has a project object checklist and a `--plot` mode for
 existing projects. The standalone SDK example has a matching object checklist
 with local example data.
 
-## GraphCanvas follow-up
+## GraphCanvas integration follow-up
 
-Build nodes, ports and links on the same stroke/path layer. Stable IDs,
-hit-testing, pointer capture, box selection, pan/zoom, link drag and keyboard
-navigation belong to LotUI. 3dEngine's `graph/lot_node_graph_view.*` remains
+The first canvas draws nodes, ports and links with stable IDs, hit testing,
+pointer capture, selection, node dragging, pan/zoom and keyboard navigation.
+Box selection and link dragging remain. 3dEngine's `graph/lot_node_graph_view.*` remains
 the source of geometry and graph semantics until a tested adapter proves the
 replacement. An engine-only callback maps LotUI interactions to CAD commands
 and Undo transactions. Plugins use the LotUI SDK model rather than linking

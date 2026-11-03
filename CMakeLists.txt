@@ -204,6 +204,7 @@ add_library(lotui_widgets STATIC
     widgets/disclosure_panel.cpp
     widgets/document_tab_view.cpp
     widgets/dialog.cpp
+    widgets/graph_canvas.cpp
     widgets/inline_text_editor.cpp
     widgets/label.cpp
     widgets/list_control.cpp
@@ -619,6 +620,9 @@ if(BUILD_TESTING)
     add_executable(plot_view_tests tests/plot_view_tests.cpp)
     target_link_libraries(plot_view_tests PRIVATE lotui_widgets)
     add_test(NAME plot_view_tests COMMAND plot_view_tests)
+    add_executable(graph_canvas_tests tests/graph_canvas_tests.cpp)
+    target_link_libraries(graph_canvas_tests PRIVATE lotui_widgets)
+    add_test(NAME graph_canvas_tests COMMAND graph_canvas_tests)
 
     add_executable(text_field_tests
         tests/text_field_tests.cpp
@@ -899,6 +903,22 @@ if(LOTUI_BUILD_EXAMPLES)
         install(TARGETS plot_view_demo
             RUNTIME DESTINATION bin COMPONENT Examples)
 
+        add_executable(graph_canvas_demo
+            examples/graph_canvas_demo/main.cpp
+            examples/platform_probe/platform_event_bridge.cpp)
+        target_link_libraries(graph_canvas_demo PRIVATE
+            lotui_vulkan lotui_widgets lotui_text_freetype)
+        lotui_copy_legal_notices(graph_canvas_demo)
+        add_custom_command(TARGET graph_canvas_demo POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "$<TARGET_FILE_DIR:graph_canvas_demo>/resources/fonts"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${LOTUI_EXAMPLE_FONT_FILE}"
+                "$<TARGET_FILE_DIR:graph_canvas_demo>/resources/fonts/NotoSansKR-Regular.ttf"
+            VERBATIM)
+        install(TARGETS graph_canvas_demo
+            RUNTIME DESTINATION bin COMPONENT Examples)
+
         if(WIN32)
             set(_lotui_demo_plugin_loader
                 examples/ribbon_demo/plugin_loader_win32.cpp)
@@ -958,6 +978,10 @@ if(LOTUI_BUILD_EXAMPLES)
 
     if(MSVC)
         target_compile_options(platform_probe PRIVATE /W4 /permissive- /utf-8)
+        if(TARGET graph_canvas_demo)
+            target_compile_options(graph_canvas_demo PRIVATE
+                /W4 /permissive- /utf-8)
+        endif()
         if(TARGET list_control_demo)
             target_compile_options(list_control_demo PRIVATE
                 /W4 /permissive- /utf-8)
@@ -980,6 +1004,10 @@ if(LOTUI_BUILD_EXAMPLES)
         endif()
     else()
         target_compile_options(platform_probe PRIVATE -Wall -Wextra -Wpedantic)
+        if(TARGET graph_canvas_demo)
+            target_compile_options(graph_canvas_demo PRIVATE
+                -Wall -Wextra -Wpedantic)
+        endif()
         if(TARGET list_control_demo)
             target_compile_options(list_control_demo PRIVATE
                 -Wall -Wextra -Wpedantic)
