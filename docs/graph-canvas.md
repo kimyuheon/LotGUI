@@ -34,8 +34,9 @@ Run `graph_canvas_demo`, `graph_canvas_demo --smoke`, or
 `LotGUI_Sample` repository with `find_package(LotUI CONFIG REQUIRED)`.
 
 This first version draws cubic links as short straight strokes. Port dragging,
-link creation, box selection, and host Undo grouping remain follow-up work. The
-engine's `LotCADLotGUI --graph-test` now validates an embedded scene-object
-adapter using real CAD object IDs, click selection and wheel input. The engine's
-separate node-editor model still needs its own adapter; this SDK control does
-not import it.
+link creation and box selection remain follow-up work. The engine's
+`LotCADLotGUI --graph-test` validates a scene-object adapter. Its separate
+`--node-graph-test` maps the actual CAD node model, kind metadata, ports and
+links into this widget through the public C API. A drag commits one CAD move
+on release; the engine test checks Undo and Redo. The adapter stays in the
+engine repository, so the LotUI SDK has no CAD dependency.

@@ -59,10 +59,12 @@ replacement. An engine-only callback maps LotUI interactions to CAD commands
 and Undo transactions. Plugins use the LotUI SDK model rather than linking
 against 3dEngine classes.
 
-`LotCADLotGUI --graph` currently visualizes recent scene objects via the CAD
-scene-tree API, and `--graph-test` exercises the embedded draw and selection
-path. This is a separate scene-object example, not an adapter for the engine's
-node editor model.
+`LotCADLotGUI --graph` visualizes recent scene objects via the CAD scene-tree
+API. The separate `--node-graph` mode now reads the engine's actual node model
+and kind metadata through the public CAD graph API. `--node-graph-test` creates
+a four-node geometry flow, checks rendering, a drag and one-step Undo/Redo,
+then captures the embedded view. Port linking, parameter editing and the
+engine editor's other interactions are still pending.
 
 Do not call the existing 3dEngine node editor an ImGui replacement milestone:
 its current drawing is already outside ImGui. The migration is complete only
