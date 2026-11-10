@@ -90,5 +90,62 @@ int main() {
     catch (const std::invalid_argument&) { rejected = true; }
     check(rejected && view->tracks().size() == 2,
         "invalid data must leave the previous model intact");
+
+    view->setView(0.0, 12.0);
+    view->setTracks({
+        {"position", "Position", {{"a", 1.0}, {"b", 7.0}}},
+        {"opacity", "Opacity", {{"c", 3.0}}}
+    });
+    int batchMoves = 0, batchDeletes = 0, batchInterpolations = 0;
+    double batchDelta = 0.0;
+    view->setOnKeysMoved([&](const auto& keys, double delta) {
+        check(keys.size() == 2, "group move must contain both selected keys");
+        ++batchMoves;
+        batchDelta = delta;
+    });
+    view->setOnKeysDeleted([&](const auto& keys) {
+        check(keys.size() == 2, "group delete must contain both keys");
+        ++batchDeletes;
+    });
+    view->setOnInterpolationChanged([&](const auto& keys, auto mode) {
+        check(keys.size() == 2 &&
+            mode == lotui::TimelineInterpolation::Linear,
+            "group interpolation must apply one mode");
+        ++batchInterpolations;
+    });
+    const auto first = view->keyBounds("position", "a");
+    const auto second = view->keyBounds("opacity", "c");
+    const lotui::Point p1{first.x + 6.0F, first.y + 6.0F};
+    const lotui::Point p2{second.x + 6.0F, second.y + 6.0F};
+    tree.pointerPressed(p1, lotui::PointerButton::Primary);
+    tree.pointerReleased(p1, lotui::PointerButton::Primary);
+    lotui::KeyModifiers additive;
+    additive.control = true;
+    tree.pointerPressed(p2, lotui::PointerButton::Primary, additive);
+    tree.pointerReleased(p2, lotui::PointerButton::Primary, additive);
+    check(view->selectedKeys().size() == 2,
+        "Ctrl click must add a key on another track");
+    tree.pointerPressed(p1, lotui::PointerButton::Primary);
+    tree.pointerMoved({p1.x + 36.0F, p1.y});
+    tree.pointerReleased({p1.x + 36.0F, p1.y},
+        lotui::PointerButton::Primary);
+    check(batchMoves == 1 && batchDelta > 0.0 &&
+        std::abs(view->tracks()[0].keys[0].time - 1.0 - batchDelta) < 1e-6 &&
+        std::abs(view->tracks()[1].keys[0].time - 3.0 - batchDelta) < 1e-6,
+        "group drag must preserve spacing and commit once");
+    tree.pointerPressed({60.0F, 15.0F}, lotui::PointerButton::Primary);
+    tree.pointerReleased({60.0F, 15.0F}, lotui::PointerButton::Primary);
+    check(batchInterpolations == 1 &&
+        view->tracks()[0].keys[0].interpolation ==
+            lotui::TimelineInterpolation::Linear &&
+        view->tracks()[1].keys[0].interpolation ==
+            lotui::TimelineInterpolation::Linear,
+        "interpolation button must update all selected keys");
+    tree.pointerPressed({120.0F, 15.0F}, lotui::PointerButton::Primary);
+    tree.pointerReleased({120.0F, 15.0F}, lotui::PointerButton::Primary);
+    check(batchDeletes == 1 && !view->selectedKey() &&
+        view->tracks()[0].keys.size() == 1 &&
+        view->tracks()[1].keys.empty(),
+        "delete button must remove selected keys once");
     std::cout << "timeline_view_tests passed\n";
 }

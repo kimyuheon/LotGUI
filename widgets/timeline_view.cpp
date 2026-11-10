@@ -18,6 +18,15 @@ constexpr float kRulerInset = 9.0F;
 
 bool valid(double value) noexcept { return std::isfinite(value) && value >= 0.0; }
 
+TimelineKey* findKey(std::vector<TimelineTrack>& tracks,
+    const TimelineKeyRef& ref) noexcept {
+    for (auto& track : tracks)
+        if (track.id == ref.trackId)
+            for (auto& key : track.keys)
+                if (key.id == ref.keyId) return &key;
+    return nullptr;
+}
+
 std::string tickText(double seconds) {
     std::ostringstream out;
     out << std::fixed << std::setprecision(seconds < 10.0 ? 1 : 0)
@@ -55,8 +64,14 @@ void TimelineView::setTracks(std::vector<TimelineTrack> tracks) {
     }
     tracks_ = std::move(tracks);
     drag_ = Drag::None;
-    if (selected_ && !hasArea(keyBounds(selected_->trackId,
-            selected_->keyId))) select(std::nullopt);
+    const auto previous = selection_;
+    selection_.erase(std::remove_if(selection_.begin(), selection_.end(),
+        [this](const TimelineKeyRef& ref) {
+            return findKey(tracks_, ref) == nullptr;
+        }), selection_.end());
+    selected_ = selection_.empty() ? std::nullopt :
+        std::optional<TimelineKeyRef>(selection_.back());
+    if (selection_ != previous) notifySelection();
 }
 
 const std::vector<TimelineTrack>& TimelineView::tracks() const noexcept {
@@ -93,6 +108,9 @@ void TimelineView::setView(double startSeconds, double visibleSeconds) {
 double TimelineView::viewStart() const noexcept { return viewStart_; }
 double TimelineView::viewDuration() const noexcept { return viewDuration_; }
 std::optional<TimelineKeyRef> TimelineView::selectedKey() const { return selected_; }
+const std::vector<TimelineKeyRef>& TimelineView::selectedKeys() const noexcept {
+    return selection_;
+}
 
 Rect TimelineView::rulerBounds() const noexcept {
     const Rect area = bounds();
@@ -143,6 +161,18 @@ void TimelineView::setOnKeySelected(KeyHandler callback) {
 void TimelineView::setOnKeyMoved(KeyMovedHandler callback) {
     onKeyMoved_ = std::move(callback);
 }
+void TimelineView::setOnSelectionChanged(SelectionHandler callback) {
+    onSelectionChanged_ = std::move(callback);
+}
+void TimelineView::setOnKeysMoved(KeysMovedHandler callback) {
+    onKeysMoved_ = std::move(callback);
+}
+void TimelineView::setOnKeysDeleted(KeysDeletedHandler callback) {
+    onKeysDeleted_ = std::move(callback);
+}
+void TimelineView::setOnInterpolationChanged(InterpolationHandler callback) {
+    onInterpolationChanged_ = std::move(callback);
+}
 
 void TimelineView::seek(double seconds) {
     const double next = std::clamp(seconds, 0.0, duration_);
@@ -152,9 +182,58 @@ void TimelineView::seek(double seconds) {
 }
 
 void TimelineView::select(std::optional<TimelineKeyRef> key) {
-    if (selected_ == key) return;
+    const std::vector<TimelineKeyRef> next = key ?
+        std::vector<TimelineKeyRef>{*key} : std::vector<TimelineKeyRef>{};
+    if (selection_ == next) return;
+    selection_ = next;
     selected_ = std::move(key);
+    notifySelection();
+}
+
+bool TimelineView::containsSelection(const TimelineKeyRef& key) const noexcept {
+    return std::find(selection_.begin(), selection_.end(), key) !=
+        selection_.end();
+}
+
+void TimelineView::toggleSelection(TimelineKeyRef key) {
+    const auto found = std::find(selection_.begin(), selection_.end(), key);
+    if (found == selection_.end()) selection_.push_back(std::move(key));
+    else selection_.erase(found);
+    selected_ = selection_.empty() ? std::nullopt :
+        std::optional<TimelineKeyRef>(selection_.back());
+    notifySelection();
+}
+
+void TimelineView::notifySelection() {
     if (onKeySelected_) onKeySelected_(selected_);
+    if (onSelectionChanged_) onSelectionChanged_(selection_);
+}
+
+void TimelineView::deleteSelection() {
+    if (selection_.empty()) return;
+    const auto removing = selection_;
+    for (auto& track : tracks_)
+        track.keys.erase(std::remove_if(track.keys.begin(), track.keys.end(),
+            [&](const TimelineKey& key) {
+                return containsSelection({track.id, key.id});
+            }), track.keys.end());
+    select(std::nullopt);
+    if (onKeysDeleted_) onKeysDeleted_(removing);
+}
+
+void TimelineView::cycleInterpolation() {
+    if (selection_.empty()) return;
+    const auto* current = findKey(tracks_, selection_.front());
+    if (!current) return;
+    const TimelineInterpolation next = current->interpolation ==
+        TimelineInterpolation::Smooth ? TimelineInterpolation::Linear :
+        current->interpolation == TimelineInterpolation::Linear ?
+            TimelineInterpolation::Step : TimelineInterpolation::Smooth;
+    const auto changing = selection_;
+    for (const auto& ref : changing)
+        if (auto* key = findKey(tracks_, ref)) key->interpolation = next;
+    if (onInterpolationChanged_)
+        onInterpolationChanged_(changing, next);
 }
 
 void TimelineView::label(std::vector<PaintCommand>& commands,
@@ -174,8 +253,18 @@ void TimelineView::onPaint(std::vector<PaintCommand>& commands) const {
     const Rect ruler = rulerBounds();
     const Rect timelineClip = intersect(visible, {ruler.x, area.y,
         ruler.width, area.height});
-    label(commands, playing_ ? "❚❚  일시정지" : "▶  재생",
-        {area.x + 13.0F, area.y + 9.0F}, visible, style_.text);
+    label(commands, playing_ ? "❚❚" : "▶",
+        {area.x + 14.0F, area.y + 9.0F}, visible, style_.text);
+    label(commands, "보간", {area.x + 48.0F, area.y + 9.0F},
+        visible, selection_.empty() ? style_.grid : style_.text);
+    label(commands, "삭제", {area.x + 103.0F, area.y + 9.0F},
+        visible, selection_.empty() ? style_.grid : style_.text);
+    commands.push_back(linePaintCommand({area.x + 42.0F, area.y + 4.0F},
+        {area.x + 42.0F, area.y + kRuler - 4.0F},
+        1.0F, visible, style_.grid));
+    commands.push_back(linePaintCommand({area.x + 98.0F, area.y + 4.0F},
+        {area.x + 98.0F, area.y + kRuler - 4.0F},
+        1.0F, visible, style_.grid));
     commands.push_back(linePaintCommand({ruler.x, area.y},
         {ruler.x, area.y + area.height}, 1.0F, visible, style_.grid));
 
@@ -208,12 +297,12 @@ void TimelineView::onPaint(std::vector<PaintCommand>& commands) const {
         for (const auto& key : tracks_[i].keys) {
             const Rect marker = keyBounds(tracks_[i].id, key.id);
             if (!hasArea(intersect(marker, timelineClip))) continue;
-            const bool chosen = selected_ &&
-                selected_->trackId == tracks_[i].id &&
-                selected_->keyId == key.id;
+            const bool chosen = containsSelection({tracks_[i].id, key.id});
             commands.push_back({marker, timelineClip,
                 chosen ? style_.selected : tracks_[i].color,
-                invalidTextureId, 3.0F});
+                invalidTextureId,
+                key.interpolation == TimelineInterpolation::Smooth ? 5.0F :
+                key.interpolation == TimelineInterpolation::Linear ? 2.0F : 0.0F});
         }
     }
     const float playX = xAt(time_);
@@ -232,8 +321,12 @@ bool TimelineView::onPointerEvent(const WidgetPointerEvent& event) {
         contains(bounds(), event.position)) {
         if (event.position.y < bounds().y + kRuler &&
             event.position.x < bounds().x + kNames) {
-            playing_ = !playing_;
-            if (onPlayChanged_) onPlayChanged_(playing_);
+            const float local = event.position.x - bounds().x;
+            if (local < 42.0F) {
+                playing_ = !playing_;
+                if (onPlayChanged_) onPlayChanged_(playing_);
+            } else if (local < 98.0F) cycleInterpolation();
+            else deleteSelection();
             return true;
         }
         if (event.position.x < bounds().x + kNames) return true;
@@ -241,9 +334,17 @@ bool TimelineView::onPointerEvent(const WidgetPointerEvent& event) {
             for (auto& key : tracks_[i - 1].keys)
                 if (contains(keyBounds(tracks_[i - 1].id, key.id),
                         event.position)) {
-                    select(TimelineKeyRef{tracks_[i - 1].id, key.id});
+                    const TimelineKeyRef ref{tracks_[i - 1].id, key.id};
+                    if (event.modifiers.control || event.modifiers.meta) {
+                        toggleSelection(ref);
+                        return true;
+                    }
+                    if (!containsSelection(ref)) select(ref);
                     drag_ = Drag::Key;
-                    dragStartTime_ = key.time;
+                    dragStartTimes_.clear();
+                    for (const auto& chosen : selection_)
+                        dragStartTimes_.push_back(
+                            findKey(tracks_, chosen)->time);
                     dragStartX_ = event.position.x;
                     return true;
                 }
@@ -257,37 +358,44 @@ bool TimelineView::onPointerEvent(const WidgetPointerEvent& event) {
             seek(timeAt(event.position.x));
             return true;
         }
-        if (drag_ == Drag::Key && selected_) {
+        if (drag_ == Drag::Key && !selection_.empty()) {
             const double delta = (event.position.x - dragStartX_) /
                 std::max(1.0F, rulerBounds().width -
                     2.0F * kRulerInset) * viewDuration_;
-            for (auto& track : tracks_)
-                if (track.id == selected_->trackId)
-                    for (auto& key : track.keys)
-                        if (key.id == selected_->keyId) {
-                            key.time = std::clamp(dragStartTime_ + delta,
-                                0.0, duration_);
-                            return true;
-                        }
-            drag_ = Drag::None;
+            const auto limits = std::minmax_element(
+                dragStartTimes_.begin(), dragStartTimes_.end());
+            const double bounded = std::clamp(delta, -*limits.first,
+                std::max(-*limits.first,
+                    duration_ - *limits.second));
+            for (std::size_t i = 0; i < selection_.size(); ++i)
+                if (auto* key = findKey(tracks_, selection_[i]))
+                    key->time = dragStartTimes_[i] + bounded;
+            return true;
         }
     }
     if (event.type == WidgetPointerEventType::Release ||
         event.type == WidgetPointerEventType::Cancel) {
         const Drag ending = drag_;
         drag_ = Drag::None;
-        if (ending == Drag::Key && selected_) {
-            for (auto& track : tracks_)
-                if (track.id == selected_->trackId)
-                    for (auto& key : track.keys)
-                        if (key.id == selected_->keyId) {
-                            if (event.type == WidgetPointerEventType::Cancel)
-                                key.time = dragStartTime_;
-                            else if (std::abs(key.time - dragStartTime_) > 1e-8 &&
-                                    onKeyMoved_)
-                                onKeyMoved_(*selected_, key.time);
-                            return true;
-                        }
+        if (ending == Drag::Key && !selection_.empty()) {
+            const auto chosen = selection_;
+            const auto origins = dragStartTimes_;
+            dragStartTimes_.clear();
+            if (event.type == WidgetPointerEventType::Cancel) {
+                for (std::size_t i = 0; i < chosen.size(); ++i)
+                    if (auto* key = findKey(tracks_, chosen[i]))
+                        key->time = origins[i];
+            } else if (auto* first = findKey(tracks_, chosen.front())) {
+                const double delta = first->time - origins.front();
+                if (std::abs(delta) > 1e-8) {
+                    if (onKeysMoved_) onKeysMoved_(chosen, delta);
+                    else if (onKeyMoved_)
+                        for (const auto& ref : chosen)
+                            if (auto* key = findKey(tracks_, ref))
+                                onKeyMoved_(ref, key->time);
+                }
+            }
+            return true;
         }
         return ending != Drag::None;
     }
@@ -316,6 +424,16 @@ bool TimelineView::onKeyEvent(const WidgetKeyEvent& event) {
     if (event.key == KeyCode::Space) {
         playing_ = !playing_;
         if (onPlayChanged_) onPlayChanged_(playing_);
+        return true;
+    }
+    if (event.key == KeyCode::Delete || event.key == KeyCode::Backspace) {
+        if (selection_.empty()) return false;
+        deleteSelection();
+        return true;
+    }
+    if (event.key == KeyCode::F2) {
+        if (selection_.empty()) return false;
+        cycleInterpolation();
         return true;
     }
     if (event.key == KeyCode::Home) { seek(0.0); return true; }

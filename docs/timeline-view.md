@@ -15,23 +15,36 @@ view->setOnPlayChanged([](bool playing) { /* control playback */ });
 view->setOnKeyMoved([](const lotui::TimelineKeyRef& key, double seconds) {
     // Commit one host Undo operation when the drag ends.
 });
+view->setOnKeysMoved([](const std::vector<lotui::TimelineKeyRef>& keys,
+        double deltaSeconds) {
+    // Commit a group drag as one host Undo operation.
+});
+view->setOnInterpolationChanged([](const auto& keys,
+        lotui::TimelineInterpolation mode) { /* update the host */ });
+view->setOnKeysDeleted([](const auto& keys) { /* delete in the host */ });
 ```
 
 The header is `widgets/timeline_view.h`. `setTracks()` validates IDs and finite,
 nonnegative key times before replacing the current model. The selected key is
-identified by track ID plus key ID. The ruler supports scrubbing, the wheel
-zooms around the pointer, keys can be dragged, and the transport control or
-Space toggles playback. Left/Right seek and Home returns to zero. Key dragging
-updates the display during the gesture and calls `setOnKeyMoved()` once on
-release. A cancelled drag restores the original time. The host owns playback,
-Undo and model persistence.
+identified by track ID plus key ID. Ctrl/Command click adds or removes keys
+from the selection; dragging any selected key moves the group without changing
+their spacing. The ruler supports scrubbing, the wheel zooms around the
+pointer, and the three compact header controls toggle playback, cycle the
+selected keys through smooth/linear/step interpolation, and delete them.
+Space toggles playback, F2 cycles interpolation, Delete removes selected keys,
+Left/Right seek and Home returns to zero. Key dragging previews locally and
+calls `setOnKeysMoved()` once on release when that callback is installed. A
+cancelled drag restores the original times. The host owns playback, Undo and
+model persistence.
 
 Run `timeline_view_demo`, `timeline_view_demo --smoke`, or
-`timeline_view_demo --capture output.ppm`. The same demo builds separately in
+`timeline_view_demo --capture output.ppm`, or
+`timeline_view_demo --capture-edits output.ppm` to capture a multi-key
+selection. The same demo builds separately in
 `LotGUI_Sample` against the static DesktopSDK through `find_package(LotUI)`.
 
 The 3dEngine adapter lives in its `samples/lotui_smoke` directory. It reads
-real timeline tracks through the engine C API and checks key drag, Undo/Redo,
-scrubbing and zoom with `LotCADLotGUI --timeline-test`. More advanced editor
-features such as interpolation controls, multi-key selection and clip lanes
-remain outside this first control.
+real timeline tracks through the engine C API and checks group drag,
+interpolation, deletion, Undo/Redo, scrubbing and zoom with
+`LotCADLotGUI --timeline-test`. Clip lanes and range selection remain outside
+this control.

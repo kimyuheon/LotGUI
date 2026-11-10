@@ -34,10 +34,12 @@ void savePpm(const lotui::VulkanRenderer::CapturedFrame& frame,
 int main(int argc, char** argv) {
     try {
         const bool smoke = argc == 2 && std::string_view(argv[1]) == "--smoke";
+        const bool captureEdits = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-edits";
         const bool capture = argc == 3 &&
-            std::string_view(argv[1]) == "--capture";
+            (std::string_view(argv[1]) == "--capture" || captureEdits);
         if (argc > 1 && !smoke && !capture) {
-            std::cerr << "usage: timeline_view_demo [--smoke|--capture output.ppm]\n";
+            std::cerr << "usage: timeline_view_demo [--smoke|--capture output.ppm|--capture-edits output.ppm]\n";
             return 2;
         }
         auto platform = lotui::createPlatformBackend();
@@ -63,7 +65,7 @@ int main(int argc, char** argv) {
             {0.0F, {0.0F, 30.0F}, {lotui::unboundedLayoutSize, 30.0F}});
         heading.fontSize = 13.0F;
         root->addChild(std::make_unique<lotui::Label>(text,
-            "재생 / 일시정지  |  시간 스크럽  |  키 이동  |  휠 확대",
+            "Ctrl+클릭 다중 선택  |  키 이동  |  보간·삭제  |  휠 확대",
             heading), {0.0F, {0.0F, 26.0F},
                 {lotui::unboundedLayoutSize, 26.0F}});
         auto timeline = std::make_unique<lotui::TimelineView>(text,
@@ -97,6 +99,24 @@ int main(int argc, char** argv) {
             statusLabel->setText("이동 완료: " + key.trackId +
                 " / " + key.keyId);
         });
+        view->setOnSelectionChanged([statusLabel](const auto& keys) {
+            if (keys.size() > 1)
+                statusLabel->setText("선택된 키 " +
+                    std::to_string(keys.size()) + "개");
+        });
+        view->setOnKeysMoved([statusLabel](const auto& keys, double) {
+            statusLabel->setText("키 " + std::to_string(keys.size()) +
+                "개 이동 완료");
+        });
+        view->setOnInterpolationChanged([statusLabel](const auto& keys,
+                lotui::TimelineInterpolation) {
+            statusLabel->setText("키 " + std::to_string(keys.size()) +
+                "개 보간 변경");
+        });
+        view->setOnKeysDeleted([statusLabel](const auto& keys) {
+            statusLabel->setText("키 " + std::to_string(keys.size()) +
+                "개 삭제");
+        });
         root->addChild(std::move(timeline),
             {1.0F, {400.0F, 210.0F},
                 {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
@@ -111,6 +131,24 @@ int main(int argc, char** argv) {
                 static_cast<float>(metrics.height)});
         };
         layout(tree, window->metrics());
+        if (captureEdits) {
+            const auto first = view->keyBounds("camera", "c1");
+            const auto second = view->keyBounds("visibility", "v1");
+            tree.pointerPressed({first.x + 6.0F, first.y + 6.0F},
+                lotui::PointerButton::Primary);
+            tree.pointerReleased({first.x + 6.0F, first.y + 6.0F},
+                lotui::PointerButton::Primary);
+            lotui::KeyModifiers additive;
+            additive.control = true;
+            tree.pointerPressed({second.x + 6.0F, second.y + 6.0F},
+                lotui::PointerButton::Primary, additive);
+            tree.pointerReleased({second.x + 6.0F, second.y + 6.0F},
+                lotui::PointerButton::Primary, additive);
+            tree.pointerPressed({60.0F + view->bounds().x,
+                15.0F + view->bounds().y}, lotui::PointerButton::Primary);
+            tree.pointerReleased({60.0F + view->bounds().x,
+                15.0F + view->bounds().y}, lotui::PointerButton::Primary);
+        }
         std::vector<lotui::PaintCommand> commands;
         if (smoke) {
             const auto marker = view->keyBounds("camera", "c1");
@@ -122,6 +160,24 @@ int main(int argc, char** argv) {
             if (!view->selectedKey() ||
                 view->tracks()[0].keys[1].time <= 3.0)
                 throw std::runtime_error("timeline interaction failed");
+            const auto other = view->keyBounds("visibility", "v1");
+            lotui::KeyModifiers additive;
+            additive.control = true;
+            tree.pointerPressed({other.x + 6.0F, other.y + 6.0F},
+                lotui::PointerButton::Primary, additive);
+            tree.pointerReleased({other.x + 6.0F, other.y + 6.0F},
+                lotui::PointerButton::Primary, additive);
+            if (view->selectedKeys().size() != 2)
+                throw std::runtime_error("timeline multi-selection failed");
+            tree.pointerPressed({60.0F + view->bounds().x,
+                15.0F + view->bounds().y}, lotui::PointerButton::Primary);
+            tree.pointerReleased({60.0F + view->bounds().x,
+                15.0F + view->bounds().y}, lotui::PointerButton::Primary);
+            if (view->tracks()[0].keys[1].interpolation !=
+                    lotui::TimelineInterpolation::Linear ||
+                view->tracks()[2].keys[1].interpolation !=
+                    lotui::TimelineInterpolation::Linear)
+                throw std::runtime_error("timeline interpolation failed");
             tree.paint(commands);
             renderer.drawFrame(commands);
             std::cout << "timeline-view-smoke: " << commands.size()

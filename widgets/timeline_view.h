@@ -12,9 +12,12 @@
 
 namespace lotui {
 
+enum class TimelineInterpolation { Smooth, Linear, Step };
+
 struct TimelineKey {
     std::string id;
     double time{0.0};
+    TimelineInterpolation interpolation{TimelineInterpolation::Smooth};
 };
 
 struct TimelineTrack {
@@ -48,6 +51,11 @@ public:
     using PlayHandler = std::function<void(bool)>;
     using KeyHandler = std::function<void(std::optional<TimelineKeyRef>)>;
     using KeyMovedHandler = std::function<void(const TimelineKeyRef&, double)>;
+    using SelectionHandler = std::function<void(const std::vector<TimelineKeyRef>&)>;
+    using KeysMovedHandler = std::function<void(const std::vector<TimelineKeyRef>&, double)>;
+    using KeysDeletedHandler = std::function<void(const std::vector<TimelineKeyRef>&)>;
+    using InterpolationHandler = std::function<void(const std::vector<TimelineKeyRef>&,
+        TimelineInterpolation)>;
 
     explicit TimelineView(std::shared_ptr<const TextEngine> textEngine,
         Size preferredSize = {800.0F, 320.0F},
@@ -65,12 +73,17 @@ public:
     double viewStart() const noexcept;
     double viewDuration() const noexcept;
     std::optional<TimelineKeyRef> selectedKey() const;
+    const std::vector<TimelineKeyRef>& selectedKeys() const noexcept;
     Rect keyBounds(std::string_view trackId, std::string_view keyId) const noexcept;
     Rect rulerBounds() const noexcept;
     void setOnTimeChanged(TimeHandler callback);
     void setOnPlayChanged(PlayHandler callback);
     void setOnKeySelected(KeyHandler callback);
     void setOnKeyMoved(KeyMovedHandler callback);
+    void setOnSelectionChanged(SelectionHandler callback);
+    void setOnKeysMoved(KeysMovedHandler callback);
+    void setOnKeysDeleted(KeysDeletedHandler callback);
+    void setOnInterpolationChanged(InterpolationHandler callback);
 
 protected:
     void onPaint(std::vector<PaintCommand>& commands) const override;
@@ -86,6 +99,11 @@ private:
     float xAt(double seconds) const noexcept;
     void seek(double seconds);
     void select(std::optional<TimelineKeyRef> key);
+    bool containsSelection(const TimelineKeyRef& key) const noexcept;
+    void toggleSelection(TimelineKeyRef key);
+    void notifySelection();
+    void deleteSelection();
+    void cycleInterpolation();
     void label(std::vector<PaintCommand>& commands, std::string_view text,
         Point origin, Rect clip, Color color) const;
 
@@ -100,13 +118,18 @@ private:
     double viewDuration_{10.0};
     bool playing_{false};
     std::optional<TimelineKeyRef> selected_;
+    std::vector<TimelineKeyRef> selection_;
     Drag drag_{Drag::None};
-    double dragStartTime_{0.0};
+    std::vector<double> dragStartTimes_;
     float dragStartX_{0.0F};
     PlayHandler onPlayChanged_;
     TimeHandler onTimeChanged_;
     KeyHandler onKeySelected_;
     KeyMovedHandler onKeyMoved_;
+    SelectionHandler onSelectionChanged_;
+    KeysMovedHandler onKeysMoved_;
+    KeysDeletedHandler onKeysDeleted_;
+    InterpolationHandler onInterpolationChanged_;
 };
 
 } // namespace lotui
