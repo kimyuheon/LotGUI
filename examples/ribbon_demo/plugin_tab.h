@@ -26,6 +26,7 @@ std::vector<Widget*> addPluginTab(
     const std::shared_ptr<const TextEngine>& textEngine,
     const LotuiDemoPluginV1& descriptor,
     const LotuiDemoPluginV2* textExtension,
+    const LotuiDemoPluginV3* fieldsExtension,
     PluginActions actions);
 
 } // namespace lotui::example

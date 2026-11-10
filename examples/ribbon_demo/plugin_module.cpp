@@ -20,6 +20,14 @@ void onName(void*, const char* value) {
     std::printf("ribbon plugin: name=%s\n", value);
 }
 
+void onMode(void*, double value) {
+    std::printf("ribbon plugin: mode=%.0f\n", value);
+}
+
+void onCount(void*, double value) {
+    std::printf("ribbon plugin: count=%.0f\n", value);
+}
+
 const LotuiDemoControlV1 controls[] = {
     {sizeof(LotuiDemoControlV1), LOTUI_DEMO_BUTTON,
         "run", "실행", 0.0, 0.0, 0.0, nullptr, &onRun},
@@ -50,6 +58,23 @@ const LotuiDemoPluginV2 textExtension{
     textControls,
 };
 
+const char* const modes[] = {"전체", "표시만", "검토"};
+const LotuiDemoChoiceControlV3 choices[] = {
+    {sizeof(LotuiDemoChoiceControlV3), "mode", "표시 모드", 3,
+        modes, 0, nullptr, &onMode},
+};
+const LotuiDemoNumberControlV3 numbers[] = {
+    {sizeof(LotuiDemoNumberControlV3), "count", "행 높이", 20.0,
+        40.0, 28.0, 2.0, nullptr, &onCount},
+};
+const LotuiDemoPluginV3 fieldsExtension{
+    LOTUI_DEMO_PLUGIN_FIELDS_ABI_VERSION,
+    sizeof(LotuiDemoPluginV3),
+    &textExtension,
+    1, choices,
+    1, numbers,
+};
+
 } // namespace
 
 #if defined(_WIN32)
@@ -66,4 +91,9 @@ lotui_demo_get_plugin_v1(void) {
 extern "C" LOTUI_DEMO_EXPORT const LotuiDemoPluginV2*
 lotui_demo_get_plugin_v2(void) {
     return &textExtension;
+}
+
+extern "C" LOTUI_DEMO_EXPORT const LotuiDemoPluginV3*
+lotui_demo_get_plugin_v3(void) {
+    return &fieldsExtension;
 }

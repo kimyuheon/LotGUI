@@ -24,6 +24,12 @@ link LotUI or own Vulkan objects. Plugin actions add a row, freeze the name
 columns, change row density, and receive text submitted with Enter. The text
 callback's UTF-8 pointer is valid only during the call. The plugin stays loaded
 until its widget tree is gone.
+The optional V3 entry point adds a combo box and numeric input. The DLL
+provides labels, options, ranges, initial values, and callbacks; the host
+creates LotUI controls inside the ribbon and routes changes to the object
+list. Older hosts can continue using V1. This demo loads a plugin DLL while
+linking LotUI through SDK static libraries; the plugin does not export the
+LotUI C++ ABI.
 This example ABI is intentionally local to the demo, not a stable public SDK.
 
 Build and run:
@@ -36,7 +42,7 @@ cmake --build build --config Release --target ribbon_demo
 Run `ribbon_demo` from the build output's `Release` directory on Windows, or
 from the matching build output directory on macOS/Linux. `--smoke` loads the
 plugin, renders a few frames, and exits. `--input-test` checks workspace
-commands, ribbon tab switching, and all four plugin controls' callbacks,
+commands, ribbon tab switching, and all six plugin controls' callbacks,
 including Korean text input. `--input-test-v1` verifies that the original
 three controls still work when the optional V2 entry point is ignored.
 `--capture-plugin output.ppm` writes a frame from the Vulkan renderer without

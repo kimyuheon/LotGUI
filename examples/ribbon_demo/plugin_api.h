@@ -4,6 +4,7 @@
 
 #define LOTUI_DEMO_PLUGIN_ABI_VERSION 1u
 #define LOTUI_DEMO_PLUGIN_TEXT_ABI_VERSION 2u
+#define LOTUI_DEMO_PLUGIN_FIELDS_ABI_VERSION 3u
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,6 +62,41 @@ typedef struct LotuiDemoPluginV2 {
 } LotuiDemoPluginV2;
 
 typedef const LotuiDemoPluginV2* (*LotuiDemoGetPluginV2)(void);
+
+typedef struct LotuiDemoChoiceControlV3 {
+    uint32_t structSize;
+    const char* id;
+    const char* label;
+    uint32_t optionCount;
+    const char* const* options;
+    uint32_t initialIndex;
+    void* context;
+    LotuiDemoControlAction onSelected;
+} LotuiDemoChoiceControlV3;
+
+typedef struct LotuiDemoNumberControlV3 {
+    uint32_t structSize;
+    const char* id;
+    const char* label;
+    double minimum;
+    double maximum;
+    double initialValue;
+    double step;
+    void* context;
+    LotuiDemoControlAction onChanged;
+} LotuiDemoNumberControlV3;
+
+typedef struct LotuiDemoPluginV3 {
+    uint32_t abiVersion;
+    uint32_t structSize;
+    const LotuiDemoPluginV2* base;
+    uint32_t choiceCount;
+    const LotuiDemoChoiceControlV3* choices;
+    uint32_t numberCount;
+    const LotuiDemoNumberControlV3* numbers;
+} LotuiDemoPluginV3;
+
+typedef const LotuiDemoPluginV3* (*LotuiDemoGetPluginV3)(void);
 
 #ifdef __cplusplus
 }

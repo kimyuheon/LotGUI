@@ -23,6 +23,8 @@ PluginLibrary::PluginLibrary(const std::filesystem::path& path) {
     entry_ = entry;
     textEntry_ = reinterpret_cast<LotuiDemoGetPluginV2>(
         GetProcAddress(module, "lotui_demo_get_plugin_v2"));
+    fieldsEntry_ = reinterpret_cast<LotuiDemoGetPluginV3>(
+        GetProcAddress(module, "lotui_demo_get_plugin_v3"));
 }
 
 PluginLibrary::~PluginLibrary() {
@@ -41,6 +43,10 @@ const LotuiDemoPluginV1& PluginLibrary::descriptor() const {
 
 const LotuiDemoPluginV2* PluginLibrary::textExtension() const {
     return textEntry_ ? textEntry_() : nullptr;
+}
+
+const LotuiDemoPluginV3* PluginLibrary::fieldsExtension() const {
+    return fieldsEntry_ ? fieldsEntry_() : nullptr;
 }
 
 } // namespace lotui::example

@@ -8,10 +8,13 @@
 #include "renderer/vulkan/vulkan_renderer.h"
 #include "text/freetype/freetype_text_engine.h"
 #include "widgets/button.h"
+#include "widgets/combo_box.h"
 #include "widgets/dialog.h"
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/list_control.h"
+#include "widgets/numeric_input.h"
+#include "widgets/popup.h"
 #include "widgets/ribbon.h"
 #include "widgets/text_field.h"
 
@@ -121,6 +124,7 @@ lotui::ListRow makeRow(std::string name, std::string type,
 struct DemoState {
     std::shared_ptr<const lotui::TextEngine> textEngine;
     lotui::DialogHost* dialogs{nullptr};
+    lotui::PopupHost* popups{nullptr};
     lotui::Ribbon* ribbon{nullptr};
     lotui::Label* status{nullptr};
     lotui::Label* count{nullptr};
@@ -401,7 +405,8 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     DemoState& state,
     lotui::PlatformWindow& window,
     const LotuiDemoPluginV1& pluginDescriptor,
-    const LotuiDemoPluginV2* textExtension) {
+    const LotuiDemoPluginV2* textExtension,
+    const LotuiDemoPluginV3* fieldsExtension) {
     auto root = std::make_unique<lotui::Column>();
     root->setDecoration(lotui::BoxDecoration{
         {0.10F, 0.12F, 0.14F, 1.0F}, 0.0F});
@@ -500,7 +505,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
 
     state.pluginControls = lotui::example::addPluginTab(
         *ribbon, state.textEngine,
-        pluginDescriptor, textExtension,
+        pluginDescriptor, textExtension, fieldsExtension,
         {[&state](std::string_view id, double value) {
             if (id == "run") {
                 state.addItem();
@@ -515,6 +520,15 @@ std::unique_ptr<lotui::WidgetTree> createUi(
                 state.status->setText("크기 " + std::to_string(
                     static_cast<int>(value)));
                 state.refreshPluginSettings();
+            } else if (id == "mode") {
+                state.visibleOnly = value == 1.0;
+                state.refreshList();
+                state.status->setText("표시 모드 변경");
+            } else if (id == "count") {
+                auto style = state.list->style();
+                style.rowHeight = static_cast<float>(value);
+                state.list->setStyle(style);
+                state.status->setText("행 높이 변경");
             }
         },
         [&state](std::string_view id, std::string_view value) {
@@ -603,7 +617,14 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         {1.0F, {}, {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
     state.refreshList();
 
-    auto host = std::make_unique<lotui::DialogHost>(std::move(root));
+    auto popup = std::make_unique<lotui::PopupHost>(std::move(root));
+    state.popups = popup.get();
+    for (auto* control : state.pluginControls) {
+        if (auto* combo = dynamic_cast<lotui::ComboBox*>(control)) {
+            combo->setPopupHost(popup.get());
+        }
+    }
+    auto host = std::make_unique<lotui::DialogHost>(std::move(popup));
     state.dialogs = host.get();
     return std::make_unique<lotui::WidgetTree>(std::move(host));
 }
@@ -621,7 +642,7 @@ void exercisePlugin(
     lotui::WidgetTree& tree,
     DemoState& state,
     bool expectText) {
-    if (state.pluginControls.size() != (expectText ? 4u : 3u)) {
+    if (state.pluginControls.size() != (expectText ? 6u : 3u)) {
         throw std::runtime_error("unexpected plugin control count");
     }
     const auto* pluginButton = dynamic_cast<const lotui::Button*>(
@@ -686,6 +707,34 @@ void exercisePlugin(
     if (field->text() != u8"한글" ||
         state.status->text() != u8"플러그인 이름: 한글") {
         throw std::runtime_error("plugin text callback was not routed");
+    }
+    auto* combo = dynamic_cast<lotui::ComboBox*>(state.pluginControls[4]);
+    auto* number = dynamic_cast<lotui::NumericInput*>(state.pluginControls[5]);
+    if (!combo || !number || combo->options().size() != 3 ||
+        number->value() != 28.0) {
+        throw std::runtime_error("plugin fields were not created");
+    }
+    const auto choice = combo->bounds();
+    click({choice.x + choice.width * 0.5F,
+        choice.y + choice.height * 0.5F});
+    const auto menu = state.popups->popupBounds();
+    click({menu.x + menu.width * 0.5F,
+        menu.y + combo->style().popupPadding.top +
+            combo->style().itemHeight * 1.5F});
+    if (combo->selectedIndex() != 1 || !state.visibleOnly ||
+        state.status->text() != "표시 모드 변경") {
+        throw std::runtime_error("plugin choice callback was not routed: selected=" +
+            std::to_string(combo->selectedIndex().value_or(99)) +
+            " open=" + std::to_string(combo->isPopupOpen()) +
+            " visible=" + std::to_string(state.visibleOnly) +
+            " x=" + std::to_string(choice.x));
+    }
+    const auto numeric = number->bounds();
+    click({numeric.x + 8.0F, numeric.y + numeric.height * 0.5F});
+    tree.keyPressed(lotui::KeyCode::Up);
+    if (number->value() != 30.0 ||
+        state.list->style().rowHeight != 30.0F) {
+        throw std::runtime_error("plugin number callback was not routed");
     }
 }
 
@@ -931,7 +980,8 @@ int main(int argc, char** argv) {
                     "resources" / "fonts" / "lucide-subset.ttf"}});
         auto tree = createUi(state, *window,
             plugin.descriptor(),
-            mode == "--input-test-v1" ? nullptr : plugin.textExtension());
+            mode == "--input-test-v1" ? nullptr : plugin.textExtension(),
+            mode == "--input-test-v1" ? nullptr : plugin.fieldsExtension());
         updateLayout(*tree, window->metrics());
         if (capturePlugin) state.ribbon->selectTab("plugin");
         if (mode == "--input-test" || mode == "--input-test-v1") {

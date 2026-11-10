@@ -28,6 +28,10 @@ PluginLibrary::PluginLibrary(const std::filesystem::path& path) {
     auto textEntry = reinterpret_cast<LotuiDemoGetPluginV2>(
         dlsym(module, "lotui_demo_get_plugin_v2"));
     textEntry_ = dlerror() == nullptr ? textEntry : nullptr;
+    dlerror();
+    auto fieldsEntry = reinterpret_cast<LotuiDemoGetPluginV3>(
+        dlsym(module, "lotui_demo_get_plugin_v3"));
+    fieldsEntry_ = dlerror() == nullptr ? fieldsEntry : nullptr;
 }
 
 PluginLibrary::~PluginLibrary() {
@@ -46,6 +50,10 @@ const LotuiDemoPluginV1& PluginLibrary::descriptor() const {
 
 const LotuiDemoPluginV2* PluginLibrary::textExtension() const {
     return textEntry_ ? textEntry_() : nullptr;
+}
+
+const LotuiDemoPluginV3* PluginLibrary::fieldsExtension() const {
+    return fieldsEntry_ ? fieldsEntry_() : nullptr;
 }
 
 } // namespace lotui::example

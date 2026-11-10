@@ -16,11 +16,13 @@ public:
 
     const LotuiDemoPluginV1& descriptor() const;
     const LotuiDemoPluginV2* textExtension() const;
+    const LotuiDemoPluginV3* fieldsExtension() const;
 
 private:
     void* handle_{nullptr};
     LotuiDemoGetPluginV1 entry_{nullptr};
     LotuiDemoGetPluginV2 textEntry_{nullptr};
+    LotuiDemoGetPluginV3 fieldsEntry_{nullptr};
 };
 
 } // namespace lotui::example

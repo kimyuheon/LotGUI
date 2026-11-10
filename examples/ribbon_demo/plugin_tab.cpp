@@ -2,8 +2,10 @@
 
 #include "widgets/button.h"
 #include "widgets/checkbox.h"
+#include "widgets/combo_box.h"
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
+#include "widgets/numeric_input.h"
 #include "widgets/slider.h"
 #include "widgets/text_field.h"
 
@@ -20,6 +22,7 @@ std::vector<Widget*> addPluginTab(
     const std::shared_ptr<const TextEngine>& textEngine,
     const LotuiDemoPluginV1& descriptor,
     const LotuiDemoPluginV2* textExtension,
+    const LotuiDemoPluginV3* fieldsExtension,
     PluginActions actions) {
     if (descriptor.abiVersion != LOTUI_DEMO_PLUGIN_ABI_VERSION ||
         descriptor.structSize < sizeof(LotuiDemoPluginV1) ||
@@ -36,6 +39,17 @@ std::vector<Widget*> addPluginTab(
          (textExtension->textControlCount > 0 &&
           textExtension->textControls == nullptr))) {
         throw std::runtime_error("ribbon plugin text extension is invalid");
+    }
+    if (fieldsExtension &&
+        (!textExtension ||
+         fieldsExtension->abiVersion != LOTUI_DEMO_PLUGIN_FIELDS_ABI_VERSION ||
+         fieldsExtension->structSize < sizeof(LotuiDemoPluginV3) ||
+         fieldsExtension->base != textExtension ||
+         fieldsExtension->choiceCount > 16 ||
+         fieldsExtension->numberCount > 16 ||
+         (fieldsExtension->choiceCount && !fieldsExtension->choices) ||
+         (fieldsExtension->numberCount && !fieldsExtension->numbers))) {
+        throw std::runtime_error("ribbon plugin fields extension is invalid");
     }
     TextStyle textStyle;
     textStyle.fontFamilies = {"Noto Sans KR"};
@@ -173,6 +187,72 @@ std::vector<Widget*> addPluginTab(
             }
             controlWidgets.push_back(field.get());
             column->addChild(std::move(field));
+            controls->addChild(std::move(column));
+        }
+    }
+
+    if (fieldsExtension) {
+        for (uint32_t index = 0; index < fieldsExtension->choiceCount; ++index) {
+            const auto& control = fieldsExtension->choices[index];
+            if (control.structSize < sizeof(LotuiDemoChoiceControlV3) ||
+                !control.id || !control.label || !control.options ||
+                !control.onSelected || control.optionCount == 0 ||
+                control.optionCount > 32 ||
+                control.initialIndex >= control.optionCount) {
+                throw std::runtime_error("ribbon plugin choice is invalid");
+            }
+            std::vector<std::string> options;
+            for (uint32_t choice = 0; choice < control.optionCount; ++choice) {
+                if (!control.options[choice]) {
+                    throw std::runtime_error("ribbon plugin choice label is invalid");
+                }
+                options.emplace_back(control.options[choice]);
+            }
+            auto column = std::make_unique<Column>();
+            column->setOptions(columnOptions);
+            column->addChild(std::make_unique<Label>(
+                textEngine, control.label, textStyle));
+            auto combo = std::make_unique<ComboBox>(textEngine,
+                std::move(options), control.initialIndex, Size{112.0F, 23.0F},
+                [control, onChanged = actions.onControlChanged](std::size_t selected) {
+                    const double value = static_cast<double>(selected);
+                    control.onSelected(control.context, value);
+                    if (onChanged) onChanged(control.id, value);
+                });
+            controlWidgets.push_back(combo.get());
+            column->addChild(std::move(combo));
+            controls->addChild(std::move(column));
+        }
+        for (uint32_t index = 0; index < fieldsExtension->numberCount; ++index) {
+            const auto& control = fieldsExtension->numbers[index];
+            if (control.structSize < sizeof(LotuiDemoNumberControlV3) ||
+                !control.id || !control.label || !control.onChanged ||
+                !std::isfinite(control.minimum) ||
+                !std::isfinite(control.maximum) ||
+                !std::isfinite(control.initialValue) ||
+                !std::isfinite(control.step) ||
+                control.minimum >= control.maximum || control.step <= 0.0 ||
+                control.initialValue < control.minimum ||
+                control.initialValue > control.maximum) {
+                throw std::runtime_error("ribbon plugin number is invalid");
+            }
+            auto column = std::make_unique<Column>();
+            column->setOptions(columnOptions);
+            column->addChild(std::make_unique<Label>(
+                textEngine, control.label, textStyle));
+            NumericInputOptions options;
+            options.minimum = control.minimum;
+            options.maximum = control.maximum;
+            options.value = control.initialValue;
+            options.step = control.step;
+            options.preferredSize = {98.0F, 23.0F};
+            auto number = std::make_unique<NumericInput>(textEngine,
+                options, [control, onChanged = actions.onControlChanged](double value) {
+                    control.onChanged(control.context, value);
+                    if (onChanged) onChanged(control.id, value);
+                });
+            controlWidgets.push_back(number.get());
+            column->addChild(std::move(number));
             controls->addChild(std::move(column));
         }
     }
