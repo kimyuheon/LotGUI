@@ -219,6 +219,7 @@ add_library(lotui_widgets STATIC
     widgets/single_child_widget.cpp
     widgets/slider.cpp
     widgets/text_field.cpp
+    widgets/timeline_view.cpp
     widgets/tree_view.cpp
 )
 add_library(LotUI::Widgets ALIAS lotui_widgets)
@@ -623,6 +624,9 @@ if(BUILD_TESTING)
     add_executable(graph_canvas_tests tests/graph_canvas_tests.cpp)
     target_link_libraries(graph_canvas_tests PRIVATE lotui_widgets)
     add_test(NAME graph_canvas_tests COMMAND graph_canvas_tests)
+    add_executable(timeline_view_tests tests/timeline_view_tests.cpp)
+    target_link_libraries(timeline_view_tests PRIVATE lotui_widgets)
+    add_test(NAME timeline_view_tests COMMAND timeline_view_tests)
 
     add_executable(text_field_tests
         tests/text_field_tests.cpp
@@ -919,6 +923,22 @@ if(LOTUI_BUILD_EXAMPLES)
         install(TARGETS graph_canvas_demo
             RUNTIME DESTINATION bin COMPONENT Examples)
 
+        add_executable(timeline_view_demo
+            examples/timeline_view_demo/main.cpp
+            examples/platform_probe/platform_event_bridge.cpp)
+        target_link_libraries(timeline_view_demo PRIVATE
+            lotui_vulkan lotui_widgets lotui_text_freetype)
+        lotui_copy_legal_notices(timeline_view_demo)
+        add_custom_command(TARGET timeline_view_demo POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "$<TARGET_FILE_DIR:timeline_view_demo>/resources/fonts"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${LOTUI_EXAMPLE_FONT_FILE}"
+                "$<TARGET_FILE_DIR:timeline_view_demo>/resources/fonts/NotoSansKR-Regular.ttf"
+            VERBATIM)
+        install(TARGETS timeline_view_demo
+            RUNTIME DESTINATION bin COMPONENT Examples)
+
         if(WIN32)
             set(_lotui_demo_plugin_loader
                 examples/ribbon_demo/plugin_loader_win32.cpp)
@@ -982,6 +1002,7 @@ if(LOTUI_BUILD_EXAMPLES)
             target_compile_options(graph_canvas_demo PRIVATE
                 /W4 /permissive- /utf-8)
         endif()
+        target_compile_options(timeline_view_demo PRIVATE /W4 /permissive- /utf-8)
         if(TARGET list_control_demo)
             target_compile_options(list_control_demo PRIVATE
                 /W4 /permissive- /utf-8)
@@ -1008,6 +1029,7 @@ if(LOTUI_BUILD_EXAMPLES)
             target_compile_options(graph_canvas_demo PRIVATE
                 -Wall -Wextra -Wpedantic)
         endif()
+        target_compile_options(timeline_view_demo PRIVATE -Wall -Wextra -Wpedantic)
         if(TARGET list_control_demo)
             target_compile_options(list_control_demo PRIVATE
                 -Wall -Wextra -Wpedantic)
