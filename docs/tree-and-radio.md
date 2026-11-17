@@ -45,6 +45,8 @@ tree->setOnDropped([&](std::string_view source, std::string_view target) {
 Run `platform_probe --capture-drag output.ppm` to exercise this path and save
 a rendered frame. The engine scene adapter still needs its own model update.
 
+![TreeView sample after moving a node](images/tree-view-sample.png)
+
 ```cpp
 tree->setCheckState("group", lotui::TreeCheckState::Mixed);
 tree->setOnCheckedChanged([](std::string_view id, bool checked) {

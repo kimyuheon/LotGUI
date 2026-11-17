@@ -14,6 +14,8 @@ Ribbon commands use a 20-glyph subset of the Lucide 1.55.0 icon font. The
 subset is stored in `resources/fonts/lucide-subset.ttf`; its ISC/MIT license
 notice is in `resources/LUCIDE-LICENSE.txt`. Icons are rendered through the
 same FreeType text engine on all supported platforms.
+Large commands show the icon in a restrained tile while smaller commands keep
+an unfilled, aligned icon and text row.
 
 `ribbon_demo_plugin` is a separate shared library loaded beside the executable.
 Its V1 entry point returns a versioned C descriptor from `plugin_api.h` for a
@@ -51,7 +53,9 @@ depending on desktop capture.
 specified in sRGB display colors and converted to linear renderer colors, so
 the dark desktop tone is consistent with the Vulkan sRGB swapchain. Ribbon and
 list text use 14-pixel Noto Sans KR with high-contrast foreground colors.
+`--capture-home output.ppm` captures the ribbon icon layout.
 
+![Ribbon home commands](../../docs/images/ribbon-demo-home.png)
 ![Ribbon plugin with desktop palette](../../docs/images/ribbon-demo-plugin.png)
 ![Desktop-style modal dialog](../../docs/images/ribbon-demo-dialog.png)
 

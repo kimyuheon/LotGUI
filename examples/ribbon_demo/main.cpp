@@ -83,11 +83,12 @@ std::unique_ptr<lotui::Button> commandButton(
     label->setVerticalAlignment(lotui::VerticalTextAlignment::Center);
     std::unique_ptr<lotui::Widget> content = std::move(label);
     if (!icon.empty()) {
-        auto iconStyle = textStyle(prominent ? 29.0F : 17.0F);
+        auto iconStyle = textStyle(prominent ? 24.0F : 18.0F);
         iconStyle.fontFamilies = {"Lucide"};
         auto symbol = std::make_unique<lotui::Label>(
             textEngine, std::string(icon), iconStyle);
-        symbol->setColor(desktopColor(0xa8c9eb));
+        symbol->setColor(desktopColor(
+            prominent ? 0xd2e8fa : 0xaed0ec));
         symbol->setHorizontalAlignment(
             lotui::HorizontalTextAlignment::Center);
         symbol->setVerticalAlignment(
@@ -98,19 +99,29 @@ std::unique_ptr<lotui::Button> commandButton(
             : lotui::MainAxisSize::Max;
         options.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
         if (prominent) {
-            options.spacing = 4.0F;
+            options.spacing = 5.0F;
+            auto iconTile = std::make_unique<lotui::Column>();
+            lotui::LinearLayoutOptions tileOptions;
+            tileOptions.mainAxisAlignment = lotui::MainAxisAlignment::Center;
+            tileOptions.crossAxisAlignment =
+                lotui::CrossAxisAlignment::Center;
+            iconTile->setOptions(tileOptions);
+            iconTile->setDecoration(lotui::BoxDecoration{
+                desktopColor(0x344558), 6.0F});
+            iconTile->addChild(std::move(symbol),
+                {0.0F, {28.0F, 28.0F}, {28.0F, 28.0F}});
             auto column = std::make_unique<lotui::Column>();
             column->setOptions(options);
-            column->addChild(std::move(symbol),
-                {0.0F, {32.0F, 34.0F}, {32.0F, 34.0F}});
+            column->addChild(std::move(iconTile),
+                {0.0F, {36.0F, 36.0F}, {36.0F, 36.0F}});
             column->addChild(std::move(content));
             content = std::move(column);
         } else {
-            options.spacing = 4.0F;
+            options.spacing = 5.0F;
             auto row = std::make_unique<lotui::Row>();
             row->setOptions(options);
             row->addChild(std::move(symbol),
-                {0.0F, {18.0F, 19.0F}, {18.0F, 19.0F}});
+                {0.0F, {20.0F, 20.0F}, {20.0F, 20.0F}});
             row->addChild(std::move(content));
             content = std::move(row);
         }
@@ -1014,15 +1025,18 @@ int main(int argc, char** argv) {
         const std::string mode = argc == 2 ? argv[1] : "";
         const bool capturePlugin = argc == 3 &&
             std::string_view(argv[1]) == "--capture-plugin";
+        const bool captureHome = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-home";
         const bool captureDialog = argc == 3 &&
             std::string_view(argv[1]) == "--capture-dialog";
-        const bool captureFrame = capturePlugin || captureDialog;
+        const bool captureFrame = capturePlugin || captureHome || captureDialog;
         if ((argc > 2 && !captureFrame) ||
             (argc == 2 && mode != "--smoke" &&
                 mode != "--input-test" && mode != "--input-test-v1")) {
             std::cerr << "usage: ribbon_demo "
                 "[--smoke|--input-test|--input-test-v1|"
                 "--capture-plugin output.ppm|"
+                "--capture-home output.ppm|"
                 "--capture-dialog output.ppm]\n";
             return 2;
         }
