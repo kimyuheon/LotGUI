@@ -16,6 +16,9 @@ notice is in `resources/LUCIDE-LICENSE.txt`. Icons are rendered through the
 same FreeType text engine on all supported platforms.
 Large commands show the icon in a restrained tile while smaller commands keep
 an unfilled, aligned icon and text row.
+The selected tab uses the same surface color as the command panels below it.
+Hover uses a slightly lighter neutral color; mouse and keyboard focus have a
+thin muted outline rather than a bright frame.
 
 The Assembly and Dialog commands also demonstrate **image-file icons**.
 `resources/icons/assembly.tga` and `dialog.tga` are 40 x 40, top-left-origin,
@@ -68,9 +71,12 @@ list text use 14-pixel Noto Sans KR with high-contrast foreground colors.
 `--capture-home output.ppm` captures the ribbon icon layout, including both
 image-file icons. `--input-test` also checks that both textures appear in the
 paint commands.
+`--capture-clicked-plugin output.ppm` clicks the Plugin tab through the widget
+input path and captures its selected and focused appearance.
 
 ![Ribbon home commands with image icons](../../docs/images/ribbon-demo-home.png)
 ![Ribbon plugin with desktop palette](../../docs/images/ribbon-demo-plugin.png)
+![Ribbon after clicking the Plugin tab](../../docs/images/ribbon-demo-clicked-plugin.png)
 ![Desktop-style modal dialog](../../docs/images/ribbon-demo-dialog.png)
 
 To stage a separate example distribution:

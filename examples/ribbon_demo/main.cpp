@@ -499,9 +499,11 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     ribbonStyle.background = desktopColor(0x282b30);
     ribbonStyle.tabBar = desktopColor(0x202328);
     ribbonStyle.tabNormal = desktopColor(0x202328);
-    ribbonStyle.tabHovered = desktopColor(0x383e46);
-    ribbonStyle.tabPressed = desktopColor(0x333b45);
-    ribbonStyle.tabSelected = desktopColor(0x303844);
+    ribbonStyle.tabHovered = desktopColor(0x30353b);
+    ribbonStyle.tabPressed = desktopColor(0x30353b);
+    ribbonStyle.tabSelected = ribbonStyle.background;
+    ribbonStyle.focusRing = desktopColor(0x414a55);
+    ribbonStyle.focusRingWidth = 1.0F;
     ribbonStyle.text = desktopColor(0xd5d9df);
     ribbonStyle.selectedText = desktopColor(0xf6f7f9);
     auto ribbon = std::make_unique<lotui::Ribbon>(
@@ -1045,17 +1047,21 @@ int main(int argc, char** argv) {
         const std::string mode = argc == 2 ? argv[1] : "";
         const bool capturePlugin = argc == 3 &&
             std::string_view(argv[1]) == "--capture-plugin";
+        const bool captureClickedPlugin = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-clicked-plugin";
         const bool captureHome = argc == 3 &&
             std::string_view(argv[1]) == "--capture-home";
         const bool captureDialog = argc == 3 &&
             std::string_view(argv[1]) == "--capture-dialog";
-        const bool captureFrame = capturePlugin || captureHome || captureDialog;
+        const bool captureFrame = capturePlugin || captureClickedPlugin ||
+            captureHome || captureDialog;
         if ((argc > 2 && !captureFrame) ||
             (argc == 2 && mode != "--smoke" &&
                 mode != "--input-test" && mode != "--input-test-v1")) {
             std::cerr << "usage: ribbon_demo "
                 "[--smoke|--input-test|--input-test-v1|"
                 "--capture-plugin output.ppm|"
+                "--capture-clicked-plugin output.ppm|"
                 "--capture-home output.ppm|"
                 "--capture-dialog output.ppm]\n";
             return 2;
@@ -1104,6 +1110,19 @@ int main(int argc, char** argv) {
             }
         }
         if (capturePlugin) state.ribbon->selectTab("plugin");
+        if (captureClickedPlugin) {
+            const auto header = state.ribbon->tabHeaderBounds(3);
+            const lotui::Point center{
+                header.x + header.width * 0.5F,
+                header.y + header.height * 0.5F};
+            tree->pointerMoved(center);
+            tree->pointerPressed(center, lotui::PointerButton::Primary);
+            tree->pointerReleased(center, lotui::PointerButton::Primary);
+            tree->pointerMoved({header.x, state.ribbon->bounds().height + 8.0F});
+            if (state.ribbon->selectedId() != "plugin") {
+                throw std::runtime_error("plugin tab click failed");
+            }
+        }
         if (captureDialog) state.showDialog();
         if (mode == "--input-test" || mode == "--input-test-v1") {
             exerciseWorkspace(*tree, state);
