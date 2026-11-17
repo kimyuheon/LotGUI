@@ -19,6 +19,7 @@
 #include "widgets/numeric_input.h"
 #include "widgets/popup.h"
 #include "widgets/ribbon.h"
+#include "widgets/single_child_widget.h"
 #include "widgets/text_field.h"
 
 #include <algorithm>
@@ -46,6 +47,41 @@ constexpr float ribbonHeight = 134.0F;
 struct RibbonImages {
     lotui::TextureId assembly{lotui::invalidTextureId};
     lotui::TextureId dialog{lotui::invalidTextureId};
+};
+
+class RibbonSelectionAccent final : public lotui::SingleChildWidget {
+public:
+    explicit RibbonSelectionAccent(std::unique_ptr<lotui::Ribbon> ribbon)
+        : SingleChildWidget(std::move(ribbon)) {
+    }
+
+    lotui::Size measure(const lotui::LayoutConstraints& constraints) const override {
+        return child()->measure(constraints);
+    }
+
+protected:
+    void onArrange() override {
+        child()->arrange(bounds(), clip());
+    }
+
+    void paintChildren(std::vector<lotui::PaintCommand>& commands) const override {
+        SingleChildWidget::paintChildren(commands);
+        const auto& ribbon = static_cast<const lotui::Ribbon&>(*child());
+        if (ribbon.selectedIndex() >= ribbon.tabCount()) {
+            return;
+        }
+        const auto tab = ribbon.tabHeaderBounds(ribbon.selectedIndex());
+        constexpr float inset = 12.0F;
+        constexpr float height = 2.0F;
+        if (tab.width <= inset * 2.0F || tab.height < height) {
+            return;
+        }
+        commands.push_back({
+            {tab.x + inset, tab.y + tab.height - height,
+                tab.width - inset * 2.0F, height},
+            clip(), desktopColor(0x86abc9), lotui::invalidTextureId, 0.0F,
+        });
+    }
 };
 
 lotui::ChildLayout fixedHeight(float height) {
@@ -183,6 +219,7 @@ struct DemoState {
     lotui::DialogHost* dialogs{nullptr};
     lotui::PopupHost* popups{nullptr};
     lotui::Ribbon* ribbon{nullptr};
+    lotui::Button* insertMenuButton{nullptr};
     lotui::Label* status{nullptr};
     lotui::Label* count{nullptr};
     lotui::ListControl* list{nullptr};
@@ -256,6 +293,41 @@ struct DemoState {
             std::move(type), std::move(layer), "Draft"));
         refreshList(items.size() - 1);
         status->setText("항목 추가");
+    }
+
+    void showInsertMenu() {
+        if (!popups || !insertMenuButton) {
+            throw std::runtime_error("insert menu is unavailable");
+        }
+        auto menu = std::make_unique<lotui::Column>();
+        lotui::LinearLayoutOptions options;
+        options.spacing = 2.0F;
+        options.padding = lotui::EdgeInsets::all(5.0F);
+        options.mainAxisSize = lotui::MainAxisSize::Min;
+        options.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
+        menu->setOptions(options);
+        menu->setDecoration(lotui::BoxDecoration{
+            desktopColor(0x30343a), 3.0F});
+        const auto addOption = [this, &menu](std::string title,
+                                   std::string_view icon, std::string name,
+                                   std::string type, std::string layer) {
+            auto button = commandButton(textEngine, std::move(title),
+                [this, name = std::move(name), type = std::move(type),
+                    layer = std::move(layer)] {
+                    insertItem(name, type, layer);
+                    popups->acceptPopup();
+                }, 144.0F, icon);
+            menu->addChild(std::move(button),
+                {0.0F, {144.0F, 26.0F}, {144.0F, 26.0F}});
+        };
+        addOption("표", u8"\uE2F9", "Table", "Table", "Architecture");
+        addOption("솔리드", u8"\uE2D0", "Solid", "Solid", "Structure");
+        addOption("새 뷰", u8"\uE0BA", "View", "View", "Drawings");
+        lotui::PopupOptions popupOptions;
+        popupOptions.placement = lotui::PopupPlacement::BelowStart;
+        popupOptions.matchAnchorWidth = false;
+        popups->showPopup(std::move(menu), insertMenuButton->bounds(),
+            popupOptions);
     }
 
     void setSelectedVisible(bool visible) {
@@ -430,6 +502,7 @@ struct RibbonAction {
     lotui::Button::ClickHandler action;
     bool prominent{false};
     lotui::TextureId image{lotui::invalidTextureId};
+    lotui::Button** outputButton{nullptr};
 };
 
 std::unique_ptr<lotui::Row> ribbonPanels() {
@@ -458,9 +531,13 @@ std::unique_ptr<lotui::RibbonGroup> commandGroup(
         column->setOptions(columnOptions);
         for (auto& action : columnActions) {
             const float commandWidth = action.prominent ? 68.0F : 88.0F;
-            column->addChild(commandButton(state.textEngine,
+            auto button = commandButton(state.textEngine,
                 std::move(action.title), std::move(action.action),
-                commandWidth, action.icon, action.prominent, action.image),
+                commandWidth, action.icon, action.prominent, action.image);
+            if (action.outputButton) {
+                *action.outputButton = button.get();
+            }
+            column->addChild(std::move(button),
                 {0.0F, {}, {commandWidth, lotui::unboundedLayoutSize}});
         }
         controls->addChild(std::move(column));
@@ -529,9 +606,9 @@ std::unique_ptr<lotui::WidgetTree> createUi(
          {"뷰", u8"\uE0BA", [&state] {
               state.insertItem("View", "View", "Drawings");
           }},
-         {"표", u8"\uE2F9", [&state] {
-              state.insertItem("Table", "Table", "Architecture");
-          }}}}));
+         {"더보기...", u8"\uE2F9", [&state] {
+              state.showInsertMenu();
+          }, false, lotui::invalidTextureId, &state.insertMenuButton}}}));
     groups->addChild(commandGroup(state, "창", {
         {{"대화상자", {},
             [&state] { state.showDialog(); }, true, images.dialog}}}));
@@ -624,7 +701,8 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         },
         [&window]() { return window.readClipboardText(); }});
     ribbon->selectTab("home");
-    root->addChild(std::move(ribbon), fixedHeight(ribbonHeight));
+    root->addChild(std::make_unique<RibbonSelectionAccent>(
+        std::move(ribbon)), fixedHeight(ribbonHeight));
 
     auto workspace = std::make_unique<lotui::Column>();
     lotui::LinearLayoutOptions workspaceOptions;
@@ -908,6 +986,20 @@ void exerciseWorkspace(lotui::WidgetTree& tree, DemoState& state) {
     if (state.ribbon->selectedId() != "view") {
         throw std::runtime_error("view ribbon tab did not activate");
     }
+    std::vector<lotui::PaintCommand> selectedCommands;
+    tree.paint(selectedCommands);
+    const auto indicatorColor = desktopColor(0x86abc9);
+    const auto indicator = std::find_if(selectedCommands.begin(),
+        selectedCommands.end(), [&indicatorColor](const auto& command) {
+            return command.color.red == indicatorColor.red &&
+                command.color.green == indicatorColor.green &&
+                command.color.blue == indicatorColor.blue &&
+                command.bounds.height == 2.0F;
+        });
+    if (indicator == selectedCommands.end() ||
+        std::abs(indicator->bounds.x - viewTab.x - 12.0F) > 0.5F) {
+        throw std::runtime_error("ribbon selection accent did not follow tab");
+    }
     state.ribbon->selectTab("home");
     const auto* homeGroups = dynamic_cast<const lotui::Row*>(
         state.ribbon->tabAt(0).content());
@@ -1038,6 +1130,24 @@ void exerciseWorkspace(lotui::WidgetTree& tree, DemoState& state) {
     }
     state.visibleOnly = false;
     state.refreshList();
+    state.ribbon->selectTab("home");
+    const auto moreBounds = state.insertMenuButton->bounds();
+    click({moreBounds.x + moreBounds.width * 0.5F,
+        moreBounds.y + moreBounds.height * 0.5F});
+    const auto* menu = dynamic_cast<const lotui::Column*>(
+        state.popups->popup());
+    if (!menu || menu->childCount() != 3) {
+        throw std::runtime_error("insert ribbon menu did not open");
+    }
+    const auto tableBounds = menu->childAt(0).bounds();
+    const auto countBeforeMenu = state.items.size();
+    click({tableBounds.x + tableBounds.width * 0.5F,
+        tableBounds.y + tableBounds.height * 0.5F});
+    if (state.popups->hasPopup() ||
+        state.items.size() != countBeforeMenu + 1 ||
+        state.items.back()[2].text != "Table") {
+        throw std::runtime_error("insert ribbon menu action failed");
+    }
 }
 
 } // namespace
@@ -1051,10 +1161,12 @@ int main(int argc, char** argv) {
             std::string_view(argv[1]) == "--capture-clicked-plugin";
         const bool captureHome = argc == 3 &&
             std::string_view(argv[1]) == "--capture-home";
+        const bool captureInsertMenu = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-insert-menu";
         const bool captureDialog = argc == 3 &&
             std::string_view(argv[1]) == "--capture-dialog";
         const bool captureFrame = capturePlugin || captureClickedPlugin ||
-            captureHome || captureDialog;
+            captureHome || captureInsertMenu || captureDialog;
         if ((argc > 2 && !captureFrame) ||
             (argc == 2 && mode != "--smoke" &&
                 mode != "--input-test" && mode != "--input-test-v1")) {
@@ -1063,6 +1175,7 @@ int main(int argc, char** argv) {
                 "--capture-plugin output.ppm|"
                 "--capture-clicked-plugin output.ppm|"
                 "--capture-home output.ppm|"
+                "--capture-insert-menu output.ppm|"
                 "--capture-dialog output.ppm]\n";
             return 2;
         }
@@ -1124,6 +1237,7 @@ int main(int argc, char** argv) {
             }
         }
         if (captureDialog) state.showDialog();
+        if (captureInsertMenu) state.showInsertMenu();
         if (mode == "--input-test" || mode == "--input-test-v1") {
             exerciseWorkspace(*tree, state);
             exercisePlugin(*tree, state, mode == "--input-test");

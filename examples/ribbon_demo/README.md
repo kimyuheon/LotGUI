@@ -5,10 +5,13 @@ link 3dEngine. Its 134-pixel ribbon and object list use the same public widget
 API as the engine integration sample. The four tabs are Home, View, Data, and
 Plugin. Home combines tall primary commands with two- or three-row secondary
 commands in equal-height ribbon panels. Home provides add, duplicate, delete,
-undo, redo, a modal dialog, and assembly/sketch/view/table insertion. View
+undo, redo, a modal dialog, and assembly/sketch/view insertion. View
 changes row density and frozen
 columns. Data sorts, filters, shows selected-row details, and changes
 visibility. The list itself supports row selection and visibility checkboxes.
+The compact **More** command in the Insert group opens a popup with Table,
+Solid, and View insertion choices. Selecting one adds an object to the list and
+closes the popup; the ribbon keeps its 134-pixel height.
 
 Ribbon commands use a 20-glyph subset of the Lucide 1.55.0 icon font. The
 subset is stored in `resources/fonts/lucide-subset.ttf`; its ISC/MIT license
@@ -18,7 +21,10 @@ Large commands show the icon in a restrained tile while smaller commands keep
 an unfilled, aligned icon and text row.
 The selected tab uses the same surface color as the command panels below it.
 Hover uses a slightly lighter neutral color; mouse and keyboard focus have a
-thin muted outline rather than a bright frame.
+thin muted outline rather than a bright frame. A 2-pixel inset underline marks
+the selected tab without adding height. The example-local
+`RibbonSelectionAccent` wraps the public `Ribbon` widget and paints this line
+after the active tab, so existing SDK builds can run the example unchanged.
 
 The Assembly and Dialog commands also demonstrate **image-file icons**.
 `resources/icons/assembly.tga` and `dialog.tga` are 40 x 40, top-left-origin,
@@ -73,11 +79,17 @@ image-file icons. `--input-test` also checks that both textures appear in the
 paint commands.
 `--capture-clicked-plugin output.ppm` clicks the Plugin tab through the widget
 input path and captures its selected and focused appearance.
+`--capture-insert-menu output.ppm` captures the Insert group's popup. The
+`--input-test` path opens this menu and selects Table through pointer input.
 
 ![Ribbon home commands with image icons](../../docs/images/ribbon-demo-home.png)
 ![Ribbon plugin with desktop palette](../../docs/images/ribbon-demo-plugin.png)
 ![Ribbon after clicking the Plugin tab](../../docs/images/ribbon-demo-clicked-plugin.png)
+![Ribbon Insert popup menu](../../docs/images/ribbon-demo-insert-menu.png)
 ![Desktop-style modal dialog](../../docs/images/ribbon-demo-dialog.png)
+
+Design references: [AutoCAD ribbon tabs and panels](https://help.autodesk.com/cloudhelp/2026/ENU/AutoCAD-Core/files/GUID-D20EF1D7-4135-48A7-B68E-65BF3BFF3D70.htm)
+and [Windows Ribbon size definitions](https://learn.microsoft.com/en-us/windows/win32/windowsribbon/windowsribbon-templates).
 
 To stage a separate example distribution:
 
