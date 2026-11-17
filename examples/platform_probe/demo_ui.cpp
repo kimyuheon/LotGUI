@@ -1,4 +1,5 @@
 #include "examples/platform_probe/demo_ui.h"
+#include "examples/common/desktop_palette.h"
 
 #include "widgets/box.h"
 #include "widgets/button.h"
@@ -158,7 +159,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
 
     auto leftPanel = std::make_unique<lotui::Column>();
     leftPanel->setDecoration(lotui::BoxDecoration{
-        {0.11F, 0.15F, 0.22F, 1.0F}, 4.0F});
+        desktopColor(0x25292f), 4.0F});
     lotui::LinearLayoutOptions leftOptions;
     leftOptions.padding = {14.0F, 14.0F, 14.0F, 14.0F};
     leftOptions.spacing = 14.0F;
@@ -168,7 +169,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
     if (textEngine) {
         auto heading = std::make_unique<lotui::Row>();
         heading->setDecoration(lotui::BoxDecoration{
-            {0.18F, 0.23F, 0.34F, 1.0F}, 4.0F});
+            desktopColor(0x353a42), 4.0F});
         lotui::LinearLayoutOptions headingOptions;
         headingOptions.padding = {10.0F, 4.0F, 10.0F, 4.0F};
         headingOptions.crossAxisAlignment =
@@ -194,17 +195,21 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         leftPanel->addChild(
             std::make_unique<lotui::Box>(
                 lotui::Size{0.0F, 32.0F},
-                lotui::Color{0.18F, 0.23F, 0.34F, 1.0F}, 4.0F),
+                desktopColor(0x353a42), 4.0F),
             fixedHeight(32.0F));
     }
 
     auto status = std::make_unique<lotui::Box>(
         lotui::Size{0.0F, 6.0F},
-        lotui::Color{0.25F, 0.62F, 0.92F, 1.0F}, 2.0F);
+        desktopColor(0x7097bc), 2.0F);
     lotui::Box* statusIndicator = status.get();
 
     auto buttonRow = std::make_unique<lotui::Row>();
     lotui::ButtonStyle formButtonStyle;
+    formButtonStyle.normal = desktopColor(0x3b526b);
+    formButtonStyle.hovered = desktopColor(0x496883);
+    formButtonStyle.pressed = desktopColor(0x30455b);
+    formButtonStyle.focusRing = desktopColor(0x9bc9f1);
     formButtonStyle.cornerRadius = 4.0F;
     formButtonStyle.contentPadding = {8.0F, 4.0F, 8.0F, 4.0F};
     lotui::LinearLayoutOptions buttonOptions;
@@ -229,22 +234,23 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
                 lotui::Size{96.0F, 34.0F},
                 [statusIndicator]() {
                     statusIndicator->setColor(
-                        {0.98F, 0.80F, 0.24F, 1.0F});
+                        desktopColor(0xb8a66b));
                     std::cout << "button-clicked: primary\n";
                 }, formButtonStyle)
             : std::make_unique<lotui::Button>(
                 lotui::Size{96.0F, 34.0F},
             [statusIndicator]() {
                 statusIndicator->setColor(
-                    {0.98F, 0.80F, 0.24F, 1.0F});
+                    desktopColor(0xb8a66b));
                 std::cout << "button-clicked: primary\n";
             }, formButtonStyle),
         {0.0F, {96.0F, 34.0F}, {96.0F, 34.0F}});
 
     lotui::ButtonStyle secondaryStyle;
-    secondaryStyle.normal = {0.22F, 0.28F, 0.39F, 1.0F};
-    secondaryStyle.hovered = {0.30F, 0.37F, 0.50F, 1.0F};
-    secondaryStyle.pressed = {0.15F, 0.20F, 0.30F, 1.0F};
+    secondaryStyle.normal = desktopColor(0x383e46);
+    secondaryStyle.hovered = desktopColor(0x474f59);
+    secondaryStyle.pressed = desktopColor(0x303741);
+    secondaryStyle.focusRing = desktopColor(0x9bc9f1);
     secondaryStyle.cornerRadius = 4.0F;
     secondaryStyle.contentPadding = {8.0F, 4.0F, 8.0F, 4.0F};
     std::unique_ptr<lotui::Widget> secondaryContent;
@@ -265,7 +271,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
                 lotui::Size{96.0F, 34.0F},
                 [statusIndicator]() {
                     statusIndicator->setColor(
-                        {0.72F, 0.42F, 0.94F, 1.0F});
+                        desktopColor(0x8b7ead));
                     std::cout << "button-clicked: secondary\n";
                 },
                 secondaryStyle)
@@ -273,7 +279,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
                 lotui::Size{96.0F, 34.0F},
             [statusIndicator]() {
                 statusIndicator->setColor(
-                    {0.72F, 0.42F, 0.94F, 1.0F});
+                    desktopColor(0x8b7ead));
                 std::cout << "button-clicked: secondary\n";
             },
             secondaryStyle),
@@ -291,6 +297,19 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         leftPanel->addChild(std::move(treeHeading), fixedHeight(20.0F));
 
         lotui::TreeViewStyle treeStyle;
+        treeStyle.background = desktopColor(0x25292f);
+        treeStyle.hovered = desktopColor(0x343c46);
+        treeStyle.selected = desktopColor(0x36516b);
+        treeStyle.text = desktopColor(0xf0f3f6);
+        treeStyle.disabledText = desktopColor(0xa5adb7);
+        treeStyle.disclosure = desktopColor(0xb8c4d0);
+        treeStyle.connector = desktopColor(0x5b6875, 0.85F);
+        treeStyle.checkboxOutline = desktopColor(0x8c9ba9);
+        treeStyle.checkboxBackground = desktopColor(0x303841);
+        treeStyle.checkboxChecked = desktopColor(0x6494bf);
+        treeStyle.checkboxMark = desktopColor(0xf7f9fa);
+        treeStyle.focusLine = desktopColor(0x95c0e7);
+        treeStyle.dropTarget = desktopColor(0x40566b);
         treeStyle.rowHeight = 24.0F;
         auto sceneTree = std::make_unique<lotui::TreeView>(
             textEngine,
@@ -385,7 +404,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
 
     auto rightPanel = std::make_unique<lotui::Column>();
     rightPanel->setDecoration(lotui::BoxDecoration{
-        {0.11F, 0.15F, 0.22F, 1.0F}, 4.0F});
+        desktopColor(0x25292f), 4.0F});
     lotui::LinearLayoutOptions rightOptions;
     rightOptions.padding = {12.0F, 14.0F, 12.0F, 14.0F};
     rightOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
@@ -398,7 +417,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
     rightContent->setOptions(contentOptions);
     auto texturedBox = std::make_unique<lotui::Box>(
         lotui::Size{0.0F, 40.0F},
-        lotui::Color{0.62F, 0.38F, 0.92F, 1.0F}, 4.0F);
+        desktopColor(0x7289a1), 4.0F);
     texturedBox->setTexture(demoMaskTexture);
     rightContent->addChild(std::move(texturedBox), fixedHeight(40.0F));
     if (textEngine) {
@@ -413,8 +432,10 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         controlTextStyle.fontFamilies = {"Noto Sans KR"};
         controlTextStyle.fontSize = 14.0F;
         lotui::TextFieldStyle fieldStyle;
-        fieldStyle.normal = {0.07F, 0.09F, 0.13F, 1.0F};
-        fieldStyle.hovered = {0.11F, 0.14F, 0.19F, 1.0F};
+        fieldStyle.normal = desktopColor(0x343a42);
+        fieldStyle.hovered = desktopColor(0x414954);
+        fieldStyle.text = desktopColor(0xf3f5f7);
+        fieldStyle.selection = desktopColor(0x446c95, 0.85F);
         fieldStyle.contentPadding = {8.0F, 4.0F, 8.0F, 4.0F};
         fieldStyle.cornerRadius = 4.0F;
         auto textField = std::make_unique<lotui::TextField>(
@@ -441,6 +462,10 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         checkboxLabel->setVerticalAlignment(
             lotui::VerticalTextAlignment::Center);
         lotui::CheckboxStyle checkboxStyle;
+        checkboxStyle.unchecked = desktopColor(0x343a43);
+        checkboxStyle.hovered = desktopColor(0x444d59);
+        checkboxStyle.checked = desktopColor(0x6494bf);
+        checkboxStyle.checkmark = desktopColor(0xf5f7fa);
         checkboxStyle.boxSize = 18.0F;
         checkboxStyle.spacing = 7.0F;
         checkboxStyle.cornerRadius = 3.0F;
@@ -464,6 +489,9 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         lotui::NumericInputStyle numberStyle;
         numberStyle.normal = fieldStyle.normal;
         numberStyle.hovered = fieldStyle.hovered;
+        numberStyle.stepButton = desktopColor(0x46505b);
+        numberStyle.stepButtonPressed = desktopColor(0x3e6388);
+        numberStyle.text = desktopColor(0xf3f5f7);
         numberStyle.contentPadding = {8.0F, 4.0F, 4.0F, 4.0F};
         numberStyle.stepButtonWidth = 24.0F;
         numberStyle.cornerRadius = 4.0F;
@@ -480,6 +508,12 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
             fixedHeight(34.0F));
 #ifdef LOTUI_DEMO_HAS_TREE_AND_RADIO
         lotui::RadioGroupStyle radioStyle;
+        radioStyle.background = desktopColor(0x292e35);
+        radioStyle.hovered = desktopColor(0x3a444f);
+        radioStyle.selected = desktopColor(0x3b526b);
+        radioStyle.indicator = desktopColor(0x9bc9f1);
+        radioStyle.outline = desktopColor(0x788795);
+        radioStyle.text = desktopColor(0xf0f3f6);
         radioStyle.rowHeight = 23.0F;
         radioStyle.indicatorSize = 13.0F;
         form->addChild(
@@ -497,9 +531,10 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
             fixedHeight(69.0F));
 #endif
         lotui::DisclosurePanelStyle sectionStyle;
-        sectionStyle.normal = {0.18F, 0.23F, 0.28F, 1.0F};
-        sectionStyle.hovered = {0.23F, 0.29F, 0.34F, 1.0F};
-        sectionStyle.pressed = {0.13F, 0.18F, 0.22F, 1.0F};
+        sectionStyle.normal = desktopColor(0x353b43);
+        sectionStyle.hovered = desktopColor(0x424b55);
+        sectionStyle.pressed = desktopColor(0x2d343c);
+        sectionStyle.indicator = desktopColor(0xb9c7d4);
         lotui::TextStyle sectionTextStyle = controlTextStyle;
         sectionTextStyle.weight = lotui::FontWeight::Medium;
         rightContent->addChild(
@@ -516,7 +551,7 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         rightContent->addChild(
             std::make_unique<lotui::Box>(
                 lotui::Size{0.0F, 40.0F},
-                lotui::Color{0.96F, 0.55F, 0.24F, 1.0F}, 4.0F),
+                desktopColor(0x8e7868), 4.0F),
             fixedHeight(40.0F));
     }
     rightPanel->addChild(
@@ -540,6 +575,14 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
     ribbonTextStyle.fontFamilies = {"Noto Sans KR"};
     ribbonTextStyle.fontSize = 14.0F;
     lotui::RibbonStyle ribbonStyle;
+    ribbonStyle.background = desktopColor(0x282b30);
+    ribbonStyle.tabBar = desktopColor(0x202328);
+    ribbonStyle.tabNormal = desktopColor(0x202328);
+    ribbonStyle.tabHovered = desktopColor(0x383e46);
+    ribbonStyle.tabPressed = desktopColor(0x333b45);
+    ribbonStyle.tabSelected = desktopColor(0x303844);
+    ribbonStyle.text = desktopColor(0xd5d9df);
+    ribbonStyle.selectedText = desktopColor(0xf6f7f9);
     ribbonStyle.tabBarHeight = 29.0F;
     ribbonStyle.tabHorizontalPadding = 12.0F;
     ribbonStyle.minimumTabWidth = 64.0F;
@@ -547,10 +590,17 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
     ribbonStyle.contentPadding = {6.0F, 4.0F, 6.0F, 4.0F};
     ribbonStyle.tabCornerRadius = 4.0F;
     lotui::RibbonGroupStyle groupStyle;
+    groupStyle.background = desktopColor(0x282b30);
+    groupStyle.titleColor = desktopColor(0xb9c0c9);
+    groupStyle.separator = desktopColor(0x4a5058);
     groupStyle.titleHeight = 18.0F;
     groupStyle.contentPadding = {6.0F, 4.0F, 6.0F, 3.0F};
     groupStyle.cornerRadius = 3.0F;
     lotui::ButtonStyle ribbonButtonStyle;
+    ribbonButtonStyle.normal = desktopColor(0x343b44);
+    ribbonButtonStyle.hovered = desktopColor(0x44505d);
+    ribbonButtonStyle.pressed = desktopColor(0x303b47);
+    ribbonButtonStyle.focusRing = desktopColor(0x9bc9f1);
     ribbonButtonStyle.cornerRadius = 4.0F;
     ribbonButtonStyle.contentPadding = {6.0F, 3.0F, 6.0F, 3.0F};
     auto ribbon = std::make_unique<lotui::Ribbon>(
@@ -646,6 +696,9 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
     gridLabel->setVerticalAlignment(
         lotui::VerticalTextAlignment::Center);
     lotui::CheckboxStyle ribbonCheckboxStyle;
+    ribbonCheckboxStyle.unchecked = desktopColor(0x343a43);
+    ribbonCheckboxStyle.hovered = desktopColor(0x444d59);
+    ribbonCheckboxStyle.checked = desktopColor(0x6494bf);
     ribbonCheckboxStyle.boxSize = 18.0F;
     ribbonCheckboxStyle.spacing = 7.0F;
     ribbonCheckboxStyle.cornerRadius = 3.0F;
@@ -666,11 +719,20 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
         "view", "보기", std::move(viewGroups)));
 
     auto shell = std::make_unique<lotui::Column>();
+    shell->setDecoration(lotui::BoxDecoration{
+        desktopColor(0x1b1d21), 0.0F});
     lotui::LinearLayoutOptions shellOptions;
     shellOptions.spacing = 4.0F;
     shellOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
     shell->setOptions(shellOptions);
     lotui::MenuBarStyle menuStyle;
+    menuStyle.background = desktopColor(0x202328);
+    menuStyle.popupBackground = desktopColor(0x292d33);
+    menuStyle.hovered = desktopColor(0x383f48);
+    menuStyle.selected = desktopColor(0x3d4956);
+    menuStyle.text = desktopColor(0xf0f3f6);
+    menuStyle.muted = desktopColor(0xb9c0c9);
+    menuStyle.separator = desktopColor(0x4a5058);
     menuStyle.barHeight = 28.0F;
     menuStyle.popupWidth = 210.0F;
     auto menuBar = std::make_unique<lotui::MenuBar>(
@@ -710,6 +772,13 @@ std::unique_ptr<lotui::WidgetTree> createDemoUi(
     shell->addChild(std::move(menuBar), fixedHeight(28.0F));
     shell->addChild(std::move(ribbon), fixedHeight(100.0F));
     lotui::DocumentTabStyle documentTabStyle;
+    documentTabStyle.background = desktopColor(0x202328);
+    documentTabStyle.normal = desktopColor(0x282c32);
+    documentTabStyle.hovered = desktopColor(0x363e48);
+    documentTabStyle.selected = desktopColor(0x343d48);
+    documentTabStyle.accent = desktopColor(0x8bb9e2);
+    documentTabStyle.text = desktopColor(0xf0f3f6);
+    documentTabStyle.muted = desktopColor(0xb9c0c9);
     documentTabStyle.height = 30.0F;
     documentTabStyle.controlWidth = 26.0F;
     documentTabStyle.minimumTabWidth = 72.0F;

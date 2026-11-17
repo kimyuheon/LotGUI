@@ -1,4 +1,5 @@
 #include "examples/platform_probe/demo_ui.h"
+#include "examples/common/desktop_palette.h"
 #include "examples/platform_probe/platform_event_bridge.h"
 
 #include "platform/platform_backend.h"
@@ -96,7 +97,18 @@ int main(int argc, char** argv) {
                   << initial.dpiScale << '\n';
 
         std::vector<lotui::PaintCommand> commands;
+        const auto paintBackground = [&] {
+            const auto metrics = window->metrics();
+            const float scale = metrics.dpiScale > 0.0F
+                ? metrics.dpiScale : 1.0F;
+            const lotui::Rect frame{0.0F, 0.0F,
+                static_cast<float>(metrics.framebufferWidth) / scale,
+                static_cast<float>(metrics.framebufferHeight) / scale};
+            commands.push_back({frame, frame,
+                lotui::example::desktopColor(0x1b1d21)});
+        };
         if (smoke) {
+            paintBackground();
             tree->paint(commands);
             renderer.drawFrame(commands);
             std::cout << "platform-probe-smoke: " << commands.size()
@@ -121,6 +133,7 @@ int main(int argc, char** argv) {
 
             if (running) {
                 commands.clear();
+                paintBackground();
                 tree->paint(commands);
                 window->setTextInputState(tree->textInputState());
                 if (capture && frames == 7) {
