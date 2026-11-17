@@ -1,4 +1,5 @@
 #include "examples/platform_probe/platform_event_bridge.h"
+#include "examples/ribbon_demo/desktop_palette.h"
 #include "examples/ribbon_demo/plugin_loader.h"
 #include "examples/ribbon_demo/plugin_tab.h"
 
@@ -36,6 +37,8 @@
 
 namespace {
 
+using lotui::example::desktopColor;
+
 constexpr float ribbonHeight = 134.0F;
 
 lotui::ChildLayout fixedHeight(float height) {
@@ -50,6 +53,14 @@ lotui::TextStyle textStyle(float size) {
     return style;
 }
 
+lotui::DialogStyle desktopDialogStyle() {
+    lotui::DialogStyle style;
+    style.background = desktopColor(0x292c31);
+    style.titleDivider = desktopColor(0x474b52);
+    style.cornerRadius = 8.0F;
+    return style;
+}
+
 std::unique_ptr<lotui::Button> commandButton(
     const std::shared_ptr<const lotui::TextEngine>& textEngine,
     std::string title,
@@ -59,13 +70,13 @@ std::unique_ptr<lotui::Button> commandButton(
     bool prominent = false) {
     lotui::ButtonStyle style;
     style.normal = {0.0F, 0.0F, 0.0F, 0.0F};
-    style.hovered = {0.22F, 0.29F, 0.36F, 0.6F};
-    style.pressed = {0.18F, 0.26F, 0.34F, 0.8F};
+    style.hovered = desktopColor(0x3b4149, 0.85F);
+    style.pressed = desktopColor(0x465363);
     style.disabled = {0.0F, 0.0F, 0.0F, 0.0F};
     style.cornerRadius = 2.0F;
     style.contentPadding = lotui::EdgeInsets::all(2.0F);
     auto label = std::make_unique<lotui::Label>(
-        textEngine, std::move(title), textStyle(prominent ? 13.0F : 14.0F));
+        textEngine, std::move(title), textStyle(14.0F));
     label->setHorizontalAlignment(prominent
         ? lotui::HorizontalTextAlignment::Center
         : lotui::HorizontalTextAlignment::Start);
@@ -76,7 +87,7 @@ std::unique_ptr<lotui::Button> commandButton(
         iconStyle.fontFamilies = {"Lucide"};
         auto symbol = std::make_unique<lotui::Label>(
             textEngine, std::string(icon), iconStyle);
-        symbol->setColor({0.55F, 0.75F, 0.95F, 1.0F});
+        symbol->setColor(desktopColor(0xa8c9eb));
         symbol->setHorizontalAlignment(
             lotui::HorizontalTextAlignment::Center);
         symbol->setVerticalAlignment(
@@ -106,6 +117,23 @@ std::unique_ptr<lotui::Button> commandButton(
     }
     return std::make_unique<lotui::Button>(
         std::move(content), lotui::Size{width, prominent ? 76.0F : 24.0F},
+        std::move(action), style);
+}
+
+std::unique_ptr<lotui::Button> dialogButton(
+    const std::shared_ptr<const lotui::TextEngine>& textEngine,
+    lotui::Button::ClickHandler action) {
+    lotui::ButtonStyle style;
+    style.normal = desktopColor(0x3b526b);
+    style.hovered = desktopColor(0x496883);
+    style.pressed = desktopColor(0x30455b);
+    style.focusRing = desktopColor(0x9bc9f1);
+    style.cornerRadius = 4.0F;
+    style.contentPadding = lotui::EdgeInsets::all(4.0F);
+    auto label = std::make_unique<lotui::Label>(
+        textEngine, "닫기", textStyle(14.0F));
+    return std::make_unique<lotui::Button>(
+        std::move(label), lotui::Size{78.0F, 30.0F},
         std::move(action), style);
 }
 
@@ -310,10 +338,19 @@ struct DemoState {
     }
 
     void showDialog() {
-        auto close = commandButton(textEngine, "닫기",
-            [this] { dialogs->dismissModal(); }, 76.0F);
+        auto content = std::make_unique<lotui::Row>();
+        lotui::LinearLayoutOptions options;
+        options.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
+        content->setOptions(options);
+        content->addChild(std::make_unique<lotui::Label>(
+            textEngine, "LotUI 데스크톱 대화상자", textStyle(14.0F)),
+            {1.0F, {}, {lotui::unboundedLayoutSize, 30.0F}});
+        content->addChild(dialogButton(textEngine,
+            [this] { dialogs->dismissModal(); }),
+            {0.0F, {78.0F, 30.0F}, {78.0F, 30.0F}});
         auto dialog = std::make_unique<lotui::Dialog>(
-            std::move(close), lotui::Size{260.0F, 142.0F});
+            std::move(content), lotui::Size{380.0F, 162.0F},
+            desktopDialogStyle());
         dialog->setTitle(std::make_unique<lotui::Label>(
             textEngine, "LotUI 대화상자", textStyle(14.0F)));
         dialogs->showModal(std::move(dialog));
@@ -340,11 +377,18 @@ struct DemoState {
         content->addChild(std::make_unique<lotui::Label>(
             textEngine, "상태: " + row[4].text, textStyle(14.0F)),
             fixedHeight(23.0F));
-        content->addChild(commandButton(textEngine, "닫기",
-            [this] { dialogs->dismissModal(); }, 70.0F),
-            fixedHeight(28.0F));
+        auto actions = std::make_unique<lotui::Row>();
+        lotui::LinearLayoutOptions actionOptions;
+        actionOptions.mainAxisAlignment = lotui::MainAxisAlignment::End;
+        actionOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
+        actions->setOptions(actionOptions);
+        actions->addChild(dialogButton(textEngine,
+            [this] { dialogs->dismissModal(); }),
+            {0.0F, {78.0F, 30.0F}, {78.0F, 30.0F}});
+        content->addChild(std::move(actions), fixedHeight(30.0F));
         auto dialog = std::make_unique<lotui::Dialog>(
-            std::move(content), lotui::Size{300.0F, 220.0F});
+            std::move(content), lotui::Size{300.0F, 220.0F},
+            desktopDialogStyle());
         dialog->setTitle(std::make_unique<lotui::Label>(
             textEngine, row[1].text, textStyle(15.0F)));
         dialogs->showModal(std::move(dialog));
@@ -396,9 +440,9 @@ std::unique_ptr<lotui::RibbonGroup> commandGroup(
     style.background = {0.0F, 0.0F, 0.0F, 0.0F};
     style.titleHeight = 18.0F;
     style.contentPadding = lotui::EdgeInsets::all(2.0F);
-    style.titleColor = {0.85F, 0.89F, 0.88F, 1.0F};
+    style.titleColor = desktopColor(0xb9c0c9);
     return std::make_unique<lotui::RibbonGroup>(state.textEngine,
-        std::move(title), std::move(controls), style, textStyle(13.0F));
+        std::move(title), std::move(controls), style, textStyle(14.0F));
 }
 
 std::unique_ptr<lotui::WidgetTree> createUi(
@@ -409,7 +453,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     const LotuiDemoPluginV3* fieldsExtension) {
     auto root = std::make_unique<lotui::Column>();
     root->setDecoration(lotui::BoxDecoration{
-        {0.10F, 0.12F, 0.14F, 1.0F}, 0.0F});
+        desktopColor(0x1b1d21), 0.0F});
     lotui::LinearLayoutOptions rootOptions;
     rootOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
     root->setOptions(rootOptions);
@@ -421,10 +465,16 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     ribbonStyle.tabHorizontalPadding = 11.0F;
     ribbonStyle.minimumTabWidth = 82.0F;
     ribbonStyle.tabCornerRadius = 2.0F;
-    ribbonStyle.tabSelected = {0.14F, 0.20F, 0.27F, 1.0F};
-    ribbonStyle.text = {0.91F, 0.94F, 0.95F, 1.0F};
+    ribbonStyle.background = desktopColor(0x282b30);
+    ribbonStyle.tabBar = desktopColor(0x202328);
+    ribbonStyle.tabNormal = desktopColor(0x202328);
+    ribbonStyle.tabHovered = desktopColor(0x383e46);
+    ribbonStyle.tabPressed = desktopColor(0x333b45);
+    ribbonStyle.tabSelected = desktopColor(0x303844);
+    ribbonStyle.text = desktopColor(0xd5d9df);
+    ribbonStyle.selectedText = desktopColor(0xf6f7f9);
     auto ribbon = std::make_unique<lotui::Ribbon>(
-        state.textEngine, ribbonStyle, textStyle(13.0F));
+        state.textEngine, ribbonStyle, textStyle(14.0F));
     state.ribbon = ribbon.get();
 
     // Lucide 1.55.0 glyphs are bundled in the small example font subset.
@@ -557,7 +607,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         state.textEngine, "Objects", textStyle(17.0F)),
         {1.0F, {}, {lotui::unboundedLayoutSize, 26.0F}});
     auto count = std::make_unique<lotui::Label>(
-        state.textEngine, "", textStyle(12.0F));
+        state.textEngine, "", textStyle(14.0F));
     state.count = count.get();
     heading->addChild(std::move(count));
     workspace->addChild(std::move(heading), fixedHeight(27.0F));
@@ -569,12 +619,22 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         {"layer", "레이어", 185.0F},
         {"state", "상태", 125.0F}};
     lotui::ListControlStyle listStyle;
-    listStyle.background = {0.13F, 0.15F, 0.17F, 1.0F};
-    listStyle.headerBackground = {0.20F, 0.23F, 0.25F, 1.0F};
-    listStyle.alternateRow = {0.16F, 0.18F, 0.20F, 1.0F};
-    listStyle.selectedCell = {0.10F, 0.22F, 0.30F, 1.0F};
-    listStyle.selectedCellFocused = {0.12F, 0.26F, 0.34F, 1.0F};
-    listStyle.controlAccent = {0.32F, 0.63F, 0.88F, 1.0F};
+    listStyle.background = desktopColor(0x202328);
+    listStyle.headerBackground = desktopColor(0x30343b);
+    listStyle.alternateRow = desktopColor(0x25292f);
+    listStyle.hoveredCell = desktopColor(0x35404c);
+    listStyle.selectedCell = desktopColor(0x2e4964);
+    listStyle.selectedCellFocused = desktopColor(0x365e83);
+    listStyle.gridLine = desktopColor(0x343a43);
+    listStyle.text = desktopColor(0xf2f4f7);
+    listStyle.secondaryText = desktopColor(0xc4cbd3);
+    listStyle.controlBackground = desktopColor(0x313841);
+    listStyle.controlAccent = desktopColor(0x85b9eb);
+    listStyle.headerHovered = desktopColor(0x3a424c);
+    listStyle.headerPressed = desktopColor(0x46525e);
+    listStyle.sortIndicator = desktopColor(0xa8c9eb);
+    listStyle.scrollBarTrack = desktopColor(0x25292f);
+    listStyle.scrollBarThumb = desktopColor(0x505964);
     listStyle.rowHeight = 28.0F;
     listStyle.headerHeight = 29.0F;
     listStyle.cornerRadius = 2.0F;
@@ -598,7 +658,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
                 state.list->cell(event.address)->checked;
             state.refreshList(index);
             state.status->setText("표시 상태 변경");
-        }, listStyle, textStyle(13.0F));
+        }, listStyle, textStyle(14.0F));
     state.list = list.get();
     list->setSelectionMode(lotui::ListSelectionMode::Row);
     list->setOnSortChanged([&state](auto descriptor) {
@@ -610,7 +670,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     workspace->addChild(std::move(list),
         {1.0F, {}, {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
     auto status = std::make_unique<lotui::Label>(
-        state.textEngine, "준비", textStyle(12.0F));
+        state.textEngine, "준비", textStyle(14.0F));
     state.status = status.get();
     workspace->addChild(std::move(status), fixedHeight(20.0F));
     root->addChild(std::move(workspace),
@@ -954,15 +1014,19 @@ int main(int argc, char** argv) {
         const std::string mode = argc == 2 ? argv[1] : "";
         const bool capturePlugin = argc == 3 &&
             std::string_view(argv[1]) == "--capture-plugin";
-        if ((argc > 2 && !capturePlugin) ||
+        const bool captureDialog = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-dialog";
+        const bool captureFrame = capturePlugin || captureDialog;
+        if ((argc > 2 && !captureFrame) ||
             (argc == 2 && mode != "--smoke" &&
                 mode != "--input-test" && mode != "--input-test-v1")) {
             std::cerr << "usage: ribbon_demo "
                 "[--smoke|--input-test|--input-test-v1|"
-                "--capture-plugin output.ppm]\n";
+                "--capture-plugin output.ppm|"
+                "--capture-dialog output.ppm]\n";
             return 2;
         }
-        const bool smoke = !mode.empty() || capturePlugin;
+        const bool smoke = !mode.empty() || captureFrame;
         auto platform = lotui::createPlatformBackend();
         auto window = platform->createWindow(
             {"LotUI Ribbon Demo", 960, 540, true});
@@ -984,6 +1048,7 @@ int main(int argc, char** argv) {
             mode == "--input-test-v1" ? nullptr : plugin.fieldsExtension());
         updateLayout(*tree, window->metrics());
         if (capturePlugin) state.ribbon->selectTab("plugin");
+        if (captureDialog) state.showDialog();
         if (mode == "--input-test" || mode == "--input-test-v1") {
             exerciseWorkspace(*tree, state);
             exercisePlugin(*tree, state, mode == "--input-test");
@@ -1003,11 +1068,11 @@ int main(int argc, char** argv) {
             if (running) {
                 commands.clear();
                 tree->paint(commands);
-                if (capturePlugin && frames == 7) {
+                if (captureFrame && frames == 7) {
                     const auto captured = renderer.drawFrameCaptured(commands);
                     std::ofstream output(argv[2], std::ios::binary);
                     if (!output || captured.rgba.empty()) {
-                        throw std::runtime_error("plugin capture failed");
+                        throw std::runtime_error("ribbon capture failed");
                     }
                     output << "P6\n" << captured.width << ' ' <<
                         captured.height << "\n255\n";
@@ -1017,7 +1082,7 @@ int main(int argc, char** argv) {
                             captured.rgba.data() + pixel), 3);
                     }
                     if (!output) {
-                        throw std::runtime_error("plugin capture write failed");
+                        throw std::runtime_error("ribbon capture write failed");
                     }
                 } else {
                     renderer.drawFrame(commands);

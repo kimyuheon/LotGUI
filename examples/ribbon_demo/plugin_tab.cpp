@@ -1,4 +1,5 @@
 #include "examples/ribbon_demo/plugin_tab.h"
+#include "examples/ribbon_demo/desktop_palette.h"
 
 #include "widgets/button.h"
 #include "widgets/checkbox.h"
@@ -53,7 +54,7 @@ std::vector<Widget*> addPluginTab(
     }
     TextStyle textStyle;
     textStyle.fontFamilies = {"Noto Sans KR"};
-    textStyle.fontSize = 15.0F;
+    textStyle.fontSize = 14.0F;
 
     auto controls = std::make_unique<Row>();
     LinearLayoutOptions controlsOptions;
@@ -68,8 +69,8 @@ std::vector<Widget*> addPluginTab(
 
     ButtonStyle buttonStyle;
     buttonStyle.normal = {0.0F, 0.0F, 0.0F, 0.0F};
-    buttonStyle.hovered = {0.22F, 0.29F, 0.36F, 0.6F};
-    buttonStyle.pressed = {0.18F, 0.26F, 0.34F, 0.8F};
+    buttonStyle.hovered = desktopColor(0x3b4149, 0.85F);
+    buttonStyle.pressed = desktopColor(0x465363);
     buttonStyle.disabled = {0.0F, 0.0F, 0.0F, 0.0F};
     buttonStyle.cornerRadius = 3.0F;
     buttonStyle.contentPadding = EdgeInsets::all(2.0F);
@@ -77,6 +78,16 @@ std::vector<Widget*> addPluginTab(
     checkboxStyle.boxSize = 16.0F;
     checkboxStyle.spacing = 5.0F;
     checkboxStyle.cornerRadius = 2.0F;
+    checkboxStyle.unchecked = desktopColor(0x343a43);
+    checkboxStyle.hovered = desktopColor(0x444d59);
+    checkboxStyle.checked = desktopColor(0x4778a8);
+    checkboxStyle.checkmark = desktopColor(0xf5f7fa);
+
+    SliderStyle sliderStyle;
+    sliderStyle.track = desktopColor(0x4a515a);
+    sliderStyle.filled = desktopColor(0x79aee1);
+    sliderStyle.thumb = desktopColor(0xe9edf1);
+    sliderStyle.thumbHovered = desktopColor(0xffffff);
 
     std::vector<Widget*> controlWidgets;
     controlWidgets.reserve(descriptor.controlCount +
@@ -144,7 +155,8 @@ std::vector<Widget*> addPluginTab(
             options.maximum = control.maximum;
             options.value = control.initialValue;
             options.preferredSize = {116.0F, 18.0F};
-            auto slider = std::make_unique<Slider>(options, dispatch);
+            auto slider = std::make_unique<Slider>(
+                options, dispatch, sliderStyle);
             controlWidgets.push_back(slider.get());
             sliderRow->addChild(std::move(slider));
             currentColumn->addChild(std::move(sliderRow));
@@ -169,10 +181,13 @@ std::vector<Widget*> addPluginTab(
             column->addChild(std::move(label));
 
             TextFieldStyle fieldStyle;
+            fieldStyle.normal = desktopColor(0x353a42);
+            fieldStyle.hovered = desktopColor(0x404751);
+            fieldStyle.text = desktopColor(0xf3f5f7);
+            fieldStyle.selection = desktopColor(0x446c95, 0.85F);
             fieldStyle.contentPadding = {6.0F, 2.0F, 6.0F, 2.0F};
             fieldStyle.cornerRadius = 2.0F;
             TextStyle fieldTextStyle = textStyle;
-            fieldTextStyle.fontSize = 13.0F;
             auto field = std::make_unique<TextField>(
                 textEngine, control.initialText, Size{130.0F, 23.0F},
                 TextField::ChangedHandler{},
@@ -212,13 +227,23 @@ std::vector<Widget*> addPluginTab(
             column->setOptions(columnOptions);
             column->addChild(std::make_unique<Label>(
                 textEngine, control.label, textStyle));
+            ComboBoxStyle comboStyle;
+            comboStyle.normal = desktopColor(0x353a42);
+            comboStyle.hovered = desktopColor(0x414954);
+            comboStyle.pressed = desktopColor(0x303741);
+            comboStyle.popupBackground = desktopColor(0x292d33);
+            comboStyle.popupHovered = desktopColor(0x3c4652);
+            comboStyle.popupSelected = desktopColor(0x3e6388);
+            comboStyle.text = desktopColor(0xf3f5f7);
+            comboStyle.arrow = desktopColor(0xa8c9eb);
+            comboStyle.cornerRadius = 2.0F;
             auto combo = std::make_unique<ComboBox>(textEngine,
                 std::move(options), control.initialIndex, Size{112.0F, 23.0F},
                 [control, onChanged = actions.onControlChanged](std::size_t selected) {
                     const double value = static_cast<double>(selected);
                     control.onSelected(control.context, value);
                     if (onChanged) onChanged(control.id, value);
-                });
+                }, comboStyle, textStyle);
             controlWidgets.push_back(combo.get());
             column->addChild(std::move(combo));
             controls->addChild(std::move(column));
@@ -246,11 +271,19 @@ std::vector<Widget*> addPluginTab(
             options.value = control.initialValue;
             options.step = control.step;
             options.preferredSize = {98.0F, 23.0F};
+            NumericInputStyle numberStyle;
+            numberStyle.normal = desktopColor(0x353a42);
+            numberStyle.hovered = desktopColor(0x414954);
+            numberStyle.stepButton = desktopColor(0x464d57);
+            numberStyle.stepButtonPressed = desktopColor(0x3e6388);
+            numberStyle.text = desktopColor(0xf3f5f7);
+            numberStyle.indicator = desktopColor(0xe9edf1);
+            numberStyle.cornerRadius = 2.0F;
             auto number = std::make_unique<NumericInput>(textEngine,
                 options, [control, onChanged = actions.onControlChanged](double value) {
                     control.onChanged(control.context, value);
                     if (onChanged) onChanged(control.id, value);
-                });
+                }, numberStyle, textStyle);
             controlWidgets.push_back(number.get());
             column->addChild(std::move(number));
             controls->addChild(std::move(column));
@@ -262,9 +295,8 @@ std::vector<Widget*> addPluginTab(
     groupStyle.background = {0.0F, 0.0F, 0.0F, 0.0F};
     groupStyle.titleHeight = 18.0F;
     groupStyle.contentPadding = EdgeInsets::all(2.0F);
-    groupStyle.titleColor = {0.87F, 0.91F, 0.96F, 1.0F};
+    groupStyle.titleColor = desktopColor(0xb9c0c9);
     TextStyle titleStyle = textStyle;
-    titleStyle.fontSize = 13.0F;
     auto groups = std::make_unique<Row>();
     LinearLayoutOptions groupsOptions;
     groupsOptions.crossAxisAlignment = CrossAxisAlignment::Stretch;
