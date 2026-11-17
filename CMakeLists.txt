@@ -954,6 +954,7 @@ if(LOTUI_BUILD_EXAMPLES)
         add_executable(ribbon_demo
             examples/ribbon_demo/main.cpp
             examples/ribbon_demo/plugin_tab.cpp
+            examples/ribbon_demo/tga_image.cpp
             ${_lotui_demo_plugin_loader}
             examples/platform_probe/platform_event_bridge.cpp
         )
@@ -973,6 +974,9 @@ if(LOTUI_BUILD_EXAMPLES)
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                 "${CMAKE_CURRENT_SOURCE_DIR}/examples/ribbon_demo/resources/fonts/lucide-subset.ttf"
                 "$<TARGET_FILE_DIR:ribbon_demo>/resources/fonts/lucide-subset.ttf"
+            COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/examples/ribbon_demo/resources/icons"
+                "$<TARGET_FILE_DIR:ribbon_demo>/resources/icons"
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                 "${CMAKE_CURRENT_SOURCE_DIR}/examples/ribbon_demo/resources/LUCIDE-LICENSE.txt"
                 "$<TARGET_FILE_DIR:ribbon_demo>/legal/licenses/LUCIDE-LICENSE.txt"
@@ -986,6 +990,8 @@ if(LOTUI_BUILD_EXAMPLES)
             RENAME NotoSansKR-Regular.ttf COMPONENT Examples)
         install(FILES examples/ribbon_demo/resources/fonts/lucide-subset.ttf
             DESTINATION bin/resources/fonts COMPONENT Examples)
+        install(DIRECTORY examples/ribbon_demo/resources/icons/
+            DESTINATION bin/resources/icons COMPONENT Examples)
         install(FILES LICENSE THIRD_PARTY_NOTICES.md
             DESTINATION bin/legal COMPONENT Examples)
         install(FILES examples/ribbon_demo/resources/LUCIDE-LICENSE.txt

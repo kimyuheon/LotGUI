@@ -17,6 +17,18 @@ same FreeType text engine on all supported platforms.
 Large commands show the icon in a restrained tile while smaller commands keep
 an unfilled, aligned icon and text row.
 
+The Assembly and Dialog commands also demonstrate **image-file icons**.
+`resources/icons/assembly.tga` and `dialog.tga` are 40 x 40, top-left-origin,
+uncompressed 32-bit TGA images. At startup, the example resolves them relative
+to `executableDirectory()`, decodes them with the example-local `tga_image.cpp`,
+uploads each `TextureImage` with `VulkanRenderer::createTexture`, and assigns
+its `TextureId` to the icon `Box` with `setTexture`. The returned `Texture`
+objects stay alive until the widget tree is destroyed. Replace the two TGA
+files to try your own icons; CMake copies them next to the executable and
+installs them with the example. For PNG or JPEG, decode the file with your
+application's image library into RGBA pixels and use the same texture API.
+This small TGA reader is demonstration code, not part of the LotUI SDK.
+
 `ribbon_demo_plugin` is a separate shared library loaded beside the executable.
 Its V1 entry point returns a versioned C descriptor from `plugin_api.h` for a
 button, checkbox, and slider. An optional V2 entry point adds a UTF-8 text
@@ -53,9 +65,11 @@ depending on desktop capture.
 specified in sRGB display colors and converted to linear renderer colors, so
 the dark desktop tone is consistent with the Vulkan sRGB swapchain. Ribbon and
 list text use 14-pixel Noto Sans KR with high-contrast foreground colors.
-`--capture-home output.ppm` captures the ribbon icon layout.
+`--capture-home output.ppm` captures the ribbon icon layout, including both
+image-file icons. `--input-test` also checks that both textures appear in the
+paint commands.
 
-![Ribbon home commands](../../docs/images/ribbon-demo-home.png)
+![Ribbon home commands with image icons](../../docs/images/ribbon-demo-home.png)
 ![Ribbon plugin with desktop palette](../../docs/images/ribbon-demo-plugin.png)
 ![Desktop-style modal dialog](../../docs/images/ribbon-demo-dialog.png)
 
@@ -68,7 +82,8 @@ cmake --install build --config Release --component Examples --prefix build/ribbo
 The `Examples` component contains `bin/ribbon_demo` (or
 `bin/ribbon_demo.exe`), the adjacent `ribbon_demo_plugin` shared library,
 `bin/resources/fonts/NotoSansKR-Regular.ttf`,
-`bin/resources/fonts/lucide-subset.ttf`, and `bin/legal`. Keep the
+`bin/resources/fonts/lucide-subset.ttf`, `bin/resources/icons/*.tga`, and
+`bin/legal`. Keep the
 executable and plugin together. Configure `LOTUI_EXAMPLE_FONT_FILE` with a
 licensed Noto Sans KR font if the default sibling font is unavailable. Verify
 the font's provenance and matching OFL notice before distributing the package.

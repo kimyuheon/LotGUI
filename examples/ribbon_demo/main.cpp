@@ -1,5 +1,6 @@
 #include "examples/platform_probe/platform_event_bridge.h"
 #include "examples/ribbon_demo/desktop_palette.h"
+#include "examples/ribbon_demo/tga_image.h"
 #include "examples/ribbon_demo/plugin_loader.h"
 #include "examples/ribbon_demo/plugin_tab.h"
 
@@ -9,6 +10,7 @@
 #include "renderer/vulkan/vulkan_renderer.h"
 #include "text/freetype/freetype_text_engine.h"
 #include "widgets/button.h"
+#include "widgets/box.h"
 #include "widgets/combo_box.h"
 #include "widgets/dialog.h"
 #include "widgets/label.h"
@@ -41,6 +43,11 @@ using lotui::example::desktopColor;
 
 constexpr float ribbonHeight = 134.0F;
 
+struct RibbonImages {
+    lotui::TextureId assembly{lotui::invalidTextureId};
+    lotui::TextureId dialog{lotui::invalidTextureId};
+};
+
 lotui::ChildLayout fixedHeight(float height) {
     return {0.0F, {0.0F, height},
         {lotui::unboundedLayoutSize, height}};
@@ -67,7 +74,8 @@ std::unique_ptr<lotui::Button> commandButton(
     lotui::Button::ClickHandler action,
     float width,
     std::string_view icon = {},
-    bool prominent = false) {
+    bool prominent = false,
+    lotui::TextureId image = lotui::invalidTextureId) {
     lotui::ButtonStyle style;
     style.normal = {0.0F, 0.0F, 0.0F, 0.0F};
     style.hovered = desktopColor(0x3b4149, 0.85F);
@@ -82,17 +90,27 @@ std::unique_ptr<lotui::Button> commandButton(
         : lotui::HorizontalTextAlignment::Start);
     label->setVerticalAlignment(lotui::VerticalTextAlignment::Center);
     std::unique_ptr<lotui::Widget> content = std::move(label);
-    if (!icon.empty()) {
-        auto iconStyle = textStyle(prominent ? 24.0F : 18.0F);
-        iconStyle.fontFamilies = {"Lucide"};
-        auto symbol = std::make_unique<lotui::Label>(
-            textEngine, std::string(icon), iconStyle);
-        symbol->setColor(desktopColor(
-            prominent ? 0xd2e8fa : 0xaed0ec));
-        symbol->setHorizontalAlignment(
-            lotui::HorizontalTextAlignment::Center);
-        symbol->setVerticalAlignment(
-            lotui::VerticalTextAlignment::Center);
+    if (image != lotui::invalidTextureId || !icon.empty()) {
+        std::unique_ptr<lotui::Widget> symbol;
+        if (image != lotui::invalidTextureId) {
+            auto bitmap = std::make_unique<lotui::Box>(
+                lotui::Size{28.0F, 28.0F},
+                lotui::Color{1.0F, 1.0F, 1.0F, 1.0F});
+            bitmap->setTexture(image);
+            symbol = std::move(bitmap);
+        } else {
+            auto iconStyle = textStyle(prominent ? 24.0F : 18.0F);
+            iconStyle.fontFamilies = {"Lucide"};
+            auto glyph = std::make_unique<lotui::Label>(
+                textEngine, std::string(icon), iconStyle);
+            glyph->setColor(desktopColor(
+                prominent ? 0xd2e8fa : 0xaed0ec));
+            glyph->setHorizontalAlignment(
+                lotui::HorizontalTextAlignment::Center);
+            glyph->setVerticalAlignment(
+                lotui::VerticalTextAlignment::Center);
+            symbol = std::move(glyph);
+        }
         lotui::LinearLayoutOptions options;
         options.mainAxisSize = prominent
             ? lotui::MainAxisSize::Min
@@ -411,6 +429,7 @@ struct RibbonAction {
     std::string_view icon;
     lotui::Button::ClickHandler action;
     bool prominent{false};
+    lotui::TextureId image{lotui::invalidTextureId};
 };
 
 std::unique_ptr<lotui::Row> ribbonPanels() {
@@ -441,7 +460,7 @@ std::unique_ptr<lotui::RibbonGroup> commandGroup(
             const float commandWidth = action.prominent ? 68.0F : 88.0F;
             column->addChild(commandButton(state.textEngine,
                 std::move(action.title), std::move(action.action),
-                commandWidth, action.icon, action.prominent),
+                commandWidth, action.icon, action.prominent, action.image),
                 {0.0F, {}, {commandWidth, lotui::unboundedLayoutSize}});
         }
         controls->addChild(std::move(column));
@@ -461,7 +480,8 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     lotui::PlatformWindow& window,
     const LotuiDemoPluginV1& pluginDescriptor,
     const LotuiDemoPluginV2* textExtension,
-    const LotuiDemoPluginV3* fieldsExtension) {
+    const LotuiDemoPluginV3* fieldsExtension,
+    RibbonImages images) {
     auto root = std::make_unique<lotui::Column>();
     root->setDecoration(lotui::BoxDecoration{
         desktopColor(0x1b1d21), 0.0F});
@@ -498,9 +518,9 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         {{"복제", u8"\uE09E", [&state] { state.duplicateItem(); }},
          {"삭제", u8"\uE18E", [&state] { state.removeItem(); }}}}));
     groups->addChild(commandGroup(state, "삽입", {
-        {{"조립품", u8"\uE2D0", [&state] {
+        {{"조립품", {}, [&state] {
               state.insertItem("Assembly", "Assembly", "Architecture");
-          }, true}},
+          }, true, images.assembly}},
         {{"스케치", u8"\uE4F1", [&state] {
               state.insertItem("Sketch", "Sketch", "Structure");
           }},
@@ -511,8 +531,8 @@ std::unique_ptr<lotui::WidgetTree> createUi(
               state.insertItem("Table", "Table", "Architecture");
           }}}}));
     groups->addChild(commandGroup(state, "창", {
-        {{"대화상자", u8"\uE172",
-            [&state] { state.showDialog(); }, true}}}));
+        {{"대화상자", {},
+            [&state] { state.showDialog(); }, true, images.dialog}}}));
     ribbon->addTab(std::make_unique<lotui::RibbonTab>(
         "home", "홈", std::move(groups)));
 
@@ -1046,6 +1066,12 @@ int main(int argc, char** argv) {
             {"LotUI Ribbon Demo", 960, 540, true});
         window->show();
         lotui::VulkanRenderer renderer(*window);
+        const auto iconRoot = lotui::executableDirectory() /
+            "resources" / "icons";
+        auto assemblyImage = renderer.createTexture(
+            lotui::example::loadRibbonTga(iconRoot / "assembly.tga"));
+        auto dialogImage = renderer.createTexture(
+            lotui::example::loadRibbonTga(iconRoot / "dialog.tga"));
         const auto fontFile = lotui::executableDirectory() /
             "resources" / "fonts" / "NotoSansKR-Regular.ttf";
         lotui::example::PluginLibrary plugin(
@@ -1059,8 +1085,24 @@ int main(int argc, char** argv) {
         auto tree = createUi(state, *window,
             plugin.descriptor(),
             mode == "--input-test-v1" ? nullptr : plugin.textExtension(),
-            mode == "--input-test-v1" ? nullptr : plugin.fieldsExtension());
+            mode == "--input-test-v1" ? nullptr : plugin.fieldsExtension(),
+            {assemblyImage.id(), dialogImage.id()});
         updateLayout(*tree, window->metrics());
+        if (mode == "--input-test") {
+            std::vector<lotui::PaintCommand> visible;
+            tree->paint(visible);
+            const auto usesTexture = [&visible](lotui::TextureId id) {
+                return std::any_of(visible.begin(), visible.end(),
+                    [id](const auto& command) {
+                        return command.texture == id;
+                    });
+            };
+            if (!usesTexture(assemblyImage.id()) ||
+                !usesTexture(dialogImage.id())) {
+                throw std::runtime_error(
+                    "ribbon image assets were not painted");
+            }
+        }
         if (capturePlugin) state.ribbon->selectTab("plugin");
         if (captureDialog) state.showDialog();
         if (mode == "--input-test" || mode == "--input-test-v1") {
