@@ -33,7 +33,9 @@ def main() -> int:
     source = Path(__file__).resolve().parent.parent
     destination = args.destination.resolve()
     build_dir = args.build_dir.resolve()
-    if not re.fullmatch(r"[a-z0-9]+-[a-z0-9]+-[a-z0-9]+", args.triplet):
+    if not re.fullmatch(
+            r"[a-z0-9]+-[a-z0-9]+-[a-z0-9]+(?:-[a-z0-9]+)?",
+            args.triplet):
         parser.error("triplet must be an OS-architecture-toolchain name")
     if not (destination / "CMakeLists.txt").is_file() or not (
         destination / "sdk" / "README.md").is_file():
