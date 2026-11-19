@@ -386,6 +386,34 @@ void isolatesImeCompositionAndProgrammaticUpdates() {
         "programmatic text updates must clear history without notification");
 }
 
+void keepsReadOnlyTextSelectableButImmutable() {
+    auto engine = std::make_shared<TestTextEngine>();
+    std::optional<std::string> clipboard;
+    auto field = std::make_unique<lotui::TextField>(engine, "object:42");
+    auto* input = field.get();
+    input->setClipboardHandlers(
+        [&clipboard](std::string value) {
+            clipboard = std::move(value);
+            return true;
+        }, [] { return std::optional<std::string>{"replacement"}; });
+    lotui::WidgetTree tree(std::move(field));
+    tree.layout({0.0F, 0.0F, 220.0F, 40.0F});
+    tree.keyPressed(lotui::KeyCode::Tab);
+    input->setReadOnly(true);
+    const lotui::KeyModifiers control{false, true};
+    tree.keyPressed(lotui::KeyCode::A, control);
+    tree.keyPressed(lotui::KeyCode::C, control);
+    require(input->isFocused() && input->selectedText() == "object:42" &&
+            clipboard == "object:42" && !tree.textInputState().enabled,
+        "read-only field must allow selection and copy without opening IME");
+    tree.keyPressed(lotui::KeyCode::X, control);
+    tree.keyPressed(lotui::KeyCode::V, control);
+    tree.keyPressed(lotui::KeyCode::Backspace);
+    tree.textInput({lotui::TextInputEventType::Commit, "changed"});
+    require(input->text() == "object:42" && !input->undo(),
+        "read-only field must reject cut, paste, delete, typing and undo");
+}
+
 } // namespace
 
 int main() {
@@ -397,6 +425,7 @@ int main() {
     groupsTypingAndSupportsHistoryShortcuts();
     restoresSelectionAndClipboardEdits();
     isolatesImeCompositionAndProgrammaticUpdates();
+    keepsReadOnlyTextSelectableButImmutable();
     std::cout << "text_field_tests passed\n";
     return EXIT_SUCCESS;
 }

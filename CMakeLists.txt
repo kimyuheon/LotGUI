@@ -215,6 +215,7 @@ add_library(lotui_widgets STATIC
     widgets/numeric_input.cpp
     widgets/popup.cpp
     widgets/plot_view.cpp
+    widgets/property_field.cpp
     widgets/radio_group.cpp
     widgets/ribbon.cpp
     widgets/single_child_widget.cpp

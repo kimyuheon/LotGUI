@@ -128,6 +128,7 @@ bool TextField::canRedo() const noexcept {
 }
 
 bool TextField::undo() {
+    if (readOnly_) return false;
     if (!composition_.empty() || !canUndo()) return false;
     redoStack_.push_back({text_, cursorByteOffset_,
         selectionAnchorByteOffset_});
@@ -138,6 +139,7 @@ bool TextField::undo() {
 }
 
 bool TextField::redo() {
+    if (readOnly_) return false;
     if (!composition_.empty() || !canRedo()) return false;
     undoStack_.push_back({text_, cursorByteOffset_,
         selectionAnchorByteOffset_});
@@ -173,6 +175,16 @@ void TextField::setEnabled(bool enabled) noexcept {
 bool TextField::isEnabled() const noexcept {
     return enabled_;
 }
+
+void TextField::setReadOnly(bool readOnly) noexcept {
+    readOnly_ = readOnly;
+    if (readOnly_) {
+        clearComposition();
+        endTypingGroup();
+    }
+}
+
+bool TextField::isReadOnly() const noexcept { return readOnly_; }
 
 bool TextField::isFocused() const noexcept {
     return focused_;
@@ -425,7 +437,7 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         if (!selection.empty()) {
             ClipboardWriteHandler write = clipboardWrite_;
             const bool copied = write(std::move(selection));
-            if (cutKey && copied) {
+            if (cutKey && copied && !readOnly_) {
                 recordEdit(false);
                 eraseSelection();
                 notifyChanged();
@@ -437,7 +449,7 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         endTypingGroup();
         ClipboardReadHandler read = clipboardRead_;
         const std::optional<std::string> text = read();
-        if (text && (!text->empty() || hasSelection())) {
+        if (!readOnly_ && text && (!text->empty() || hasSelection())) {
             insertCommitted(*text);
         }
         return true;
@@ -445,12 +457,12 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
 
     switch (event.key) {
     case KeyCode::Backspace:
-        if (composition_.empty()) {
+        if (composition_.empty() && !readOnly_) {
             erasePrevious();
         }
         return true;
     case KeyCode::Delete:
-        if (composition_.empty()) {
+        if (composition_.empty() && !readOnly_) {
             eraseNext();
         }
         return true;
@@ -504,7 +516,7 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
         return true;
     case KeyCode::Enter:
         endTypingGroup();
-        if (composition_.empty() && onSubmitted_) {
+        if (composition_.empty() && !readOnly_ && onSubmitted_) {
             SubmittedHandler callback = onSubmitted_;
             callback(text_);
         }
@@ -515,7 +527,7 @@ bool TextField::onKeyEvent(const WidgetKeyEvent& event) {
 }
 
 bool TextField::acceptsTextInput() const noexcept {
-    return enabled_ && focused_;
+    return enabled_ && !readOnly_ && focused_;
 }
 
 Rect TextField::textInputRect() const {
@@ -533,7 +545,7 @@ Rect TextField::textInputRect() const {
 }
 
 bool TextField::onTextInputEvent(const TextInputEvent& event) {
-    if (!enabled_ || !focused_) {
+    if (!enabled_ || readOnly_ || !focused_) {
         return false;
     }
     switch (event.type) {

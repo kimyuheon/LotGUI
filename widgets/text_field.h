@@ -57,6 +57,8 @@ public:
 
     void setEnabled(bool enabled) noexcept;
     bool isEnabled() const noexcept;
+    void setReadOnly(bool readOnly) noexcept;
+    bool isReadOnly() const noexcept;
     bool isFocused() const noexcept;
     void setPreferredSize(Size preferredSize) noexcept;
     Size preferredSize() const noexcept;
@@ -129,6 +131,7 @@ private:
     TextFieldStyle style_{};
     TextStyle textStyle_{};
     bool enabled_{true};
+    bool readOnly_{false};
     bool focused_{false};
     bool hovered_{false};
     bool draggingSelection_{false};

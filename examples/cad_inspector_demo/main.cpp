@@ -11,16 +11,22 @@
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/numeric_input.h"
+#include "widgets/property_field.h"
 #include "widgets/text_field.h"
 #include "widgets/tree_view.h"
 
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <exception>
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <locale>
 #include <memory>
+#include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -39,6 +45,62 @@ struct CadObject {
     std::array<double, 3> position{};
     lotui::Color color{};
     bool visible{true};
+    double length{12.0};
+    std::string lastCommand;
+};
+
+// The standalone demo's small scene surface. An engine supplies the picked
+// world point through PropertyField::acceptPoint instead of using this widget.
+class PointPad final : public lotui::Widget {
+public:
+    using PickHandler = std::function<void(lotui::PropertyPoint)>;
+    explicit PointPad(PickHandler onPick) : onPick_(std::move(onPick)) {}
+    lotui::Size measure(const lotui::LayoutConstraints& constraints) const override {
+        return constraints.constrain({270.0F, 120.0F});
+    }
+    void setArmed(bool armed) noexcept { armed_ = armed; }
+    bool armed() const noexcept { return armed_; }
+    lotui::PropertyPoint pointAt(lotui::Point point) const noexcept {
+        const auto area = bounds();
+        return {(point.x - area.x) / area.width * 100.0 - 50.0,
+            50.0 - (point.y - area.y) / area.height * 100.0, 0.0};
+    }
+protected:
+    void onPaint(std::vector<lotui::PaintCommand>& commands) const override {
+        const auto area = bounds();
+        const auto visible = clip();
+        commands.push_back({area, visible,
+            desktopColor(armed_ ? 0x263b47 : 0x1d252b),
+            lotui::invalidTextureId, 3.0F});
+        for (int i = 1; i < 4; ++i) {
+            const float x = area.x + area.width * i / 4.0F;
+            commands.push_back({{x, area.y, 1.0F, area.height}, visible,
+                desktopColor(0x35414a), lotui::invalidTextureId, 0.0F});
+        }
+        for (int i = 1; i < 3; ++i) {
+            const float y = area.y + area.height * i / 3.0F;
+            commands.push_back({{area.x, y, area.width, 1.0F}, visible,
+                desktopColor(0x35414a), lotui::invalidTextureId, 0.0F});
+        }
+        if (picked_) {
+            commands.push_back({{picked_->x - 3.0F, picked_->y - 3.0F,
+                6.0F, 6.0F}, visible, desktopColor(0xe6b974),
+                lotui::invalidTextureId, 3.0F});
+        }
+    }
+    bool acceptsPointerEvents() const noexcept override { return true; }
+    bool onPointerEvent(const lotui::WidgetPointerEvent& event) override {
+        if (!armed_ || event.type != lotui::WidgetPointerEventType::Press ||
+                event.button != lotui::PointerButton::Primary) return false;
+        picked_ = event.position;
+        armed_ = false;
+        if (onPick_) onPick_(pointAt(event.position));
+        return true;
+    }
+private:
+    PickHandler onPick_;
+    std::optional<lotui::Point> picked_;
+    bool armed_{false};
 };
 
 lotui::TextStyle textStyle(float size = 14.0F) {
@@ -82,6 +144,11 @@ struct InspectorState {
     lotui::Checkbox* visibleField{nullptr};
     std::array<lotui::NumericInput*, 3> positionFields{};
     lotui::ColorEditor* colorField{nullptr};
+    lotui::PropertyField* idField{nullptr};
+    lotui::PropertyField* commandField{nullptr};
+    lotui::PropertyField* lengthField{nullptr};
+    lotui::PropertyField* pointField{nullptr};
+    PointPad* pointPad{nullptr};
 
     CadObject* current() {
         for (auto& object : objects) {
@@ -101,6 +168,12 @@ struct InspectorState {
         for (std::size_t axis = 0; axis < positionFields.size(); ++axis)
             positionFields[axis]->setValue(object->position[axis]);
         colorField->setColor(object->color);
+        idField->setValue(object->id);
+        lengthField->setValue(std::to_string(object->length));
+        pointField->setValue(std::to_string(object->position[0]) + ", " +
+            std::to_string(object->position[1]) + ", " +
+            std::to_string(object->position[2]));
+        pointPad->setArmed(false);
         status->setText("선택: " + object->name);
     }
 
@@ -125,6 +198,9 @@ struct InspectorState {
         auto* object = current();
         if (!object) return;
         object->position[axis] = value;
+        pointField->setValue(std::to_string(object->position[0]) + ", " +
+            std::to_string(object->position[1]) + ", " +
+            std::to_string(object->position[2]));
         status->setText("위치 변경: " + object->name);
     }
 
@@ -133,6 +209,7 @@ struct InspectorState {
         if (!object) return;
         object->position = {0.0, 0.0, 0.0};
         for (auto* input : positionFields) input->setValue(0.0);
+        pointField->setValue("0, 0, 0");
         status->setText("위치 초기화: " + object->name);
     }
 };
@@ -210,11 +287,18 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
         }
     });
     treePanel->addChild(std::move(tree),
-        {1.0F, {280.0F, 200.0F},
-            {280.0F, lotui::unboundedLayoutSize}});
+        {0.0F, {200.0F, 240.0F}, {200.0F, 240.0F}});
+    treePanel->addChild(label(state.text,
+        "좌표 선택 버튼 → 아래 장면 클릭", 12.0F), height(22.0F));
+    auto pointPad = std::make_unique<PointPad>([&state](lotui::PropertyPoint p) {
+        state.pointField->acceptPoint(p);
+    });
+    state.pointPad = pointPad.get();
+    treePanel->addChild(std::move(pointPad),
+        {0.0F, {200.0F, 120.0F}, {200.0F, 120.0F}});
     body->addChild(std::move(treePanel),
-        {0.0F, {300.0F, 300.0F},
-            {300.0F, lotui::unboundedLayoutSize}});
+        {0.0F, {220.0F, 300.0F},
+            {220.0F, lotui::unboundedLayoutSize}});
 
     auto inspector = std::make_unique<lotui::Column>();
     inspector->setDecoration(lotui::BoxDecoration{
@@ -228,6 +312,13 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
     state.kindValue = kind.get();
     inspector->addChild(fieldRow(state.text, "종류", std::move(kind)),
         height(32.0F));
+    auto id = std::make_unique<lotui::PropertyField>(state.text,
+        lotui::PropertyFieldOptions{"객체 ID", lotui::PropertyAccess::ReadOnly},
+        "", lotui::PropertyField::ValueHandler{},
+        lotui::PropertyField::PickHandler{},
+        lotui::PropertyField::ErrorHandler{}, textStyle());
+    state.idField = id.get();
+    inspector->addChild(std::move(id), height(32.0F));
     auto name = std::make_unique<lotui::TextField>(
         state.text, "", lotui::Size{260.0F, 30.0F},
         lotui::TextField::ChangedHandler{},
@@ -246,6 +337,15 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
     state.nameField = name.get();
     inspector->addChild(fieldRow(state.text, "이름", std::move(name)),
         height(32.0F));
+    auto command = std::make_unique<lotui::PropertyField>(state.text,
+        lotui::PropertyFieldOptions{"명령 입력", lotui::PropertyAccess::WriteOnly},
+        "", [&state](std::string_view value) {
+            if (auto* object = state.current()) object->lastCommand = value;
+            state.status->setText("명령 값을 전달했습니다");
+        }, lotui::PropertyField::PickHandler{},
+        lotui::PropertyField::ErrorHandler{}, textStyle());
+    state.commandField = command.get();
+    inspector->addChild(std::move(command), height(32.0F));
     lotui::CheckboxStyle checkboxStyle;
     checkboxStyle.boxSize = 16.0F;
     checkboxStyle.checked = desktopColor(0x79acd4);
@@ -258,6 +358,18 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
     state.visibleField = visible.get();
     inspector->addChild(fieldRow(state.text, "표시", std::move(visible)),
         height(32.0F));
+    auto length = std::make_unique<lotui::PropertyField>(state.text,
+        lotui::PropertyFieldOptions{"길이 계산", lotui::PropertyAccess::ReadWrite,
+            false, true}, "12", [&state](std::string_view value) {
+            if (auto* object = state.current())
+                object->length = std::stod(std::string(value));
+            state.status->setText("계산 결과를 속성에 적용했습니다");
+        }, lotui::PropertyField::PickHandler{},
+        [&state](std::string_view) {
+            state.status->setText("수식을 확인하세요");
+        }, textStyle());
+    state.lengthField = length.get();
+    inspector->addChild(std::move(length), height(32.0F));
     inspector->addChild(label(state.text, "위치 (월드 좌표)", 14.0F),
         height(25.0F));
     lotui::NumericInputStyle numericStyle;
@@ -287,6 +399,31 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
         inspector->addChild(fieldRow(state.text,
             std::string(1, "XYZ"[axis]), std::move(input)), height(32.0F));
     }
+    auto point = std::make_unique<lotui::PropertyField>(state.text,
+        lotui::PropertyFieldOptions{"클릭 좌표", lotui::PropertyAccess::ReadWrite,
+            true, false}, "", [&state](std::string_view value) {
+            double x = 0.0, y = 0.0, z = 0.0;
+            char first = 0, second = 0, trailing = 0;
+            std::istringstream input(std::string{value});
+            input.imbue(std::locale::classic());
+            if (!(input >> x >> first >> y >> second >> z) ||
+                    first != ',' || second != ',' || input >> trailing ||
+                    !std::isfinite(x) || !std::isfinite(y) ||
+                    !std::isfinite(z)) {
+                state.status->setText("좌표 형식: x, y, z");
+                return;
+            }
+            if (auto* object = state.current()) object->position = {x, y, z};
+            for (std::size_t axis = 0; axis < 3; ++axis)
+                state.positionFields[axis]->setValue(
+                    state.current()->position[axis]);
+            state.status->setText("장면 클릭 좌표를 적용했습니다");
+        }, [&state] {
+            state.pointPad->setArmed(true);
+            state.status->setText("왼쪽 장면에서 좌표를 클릭하세요");
+        }, lotui::PropertyField::ErrorHandler{}, textStyle());
+    state.pointField = point.get();
+    inspector->addChild(std::move(point), height(32.0F));
     lotui::ButtonStyle resetStyle;
     resetStyle.normal = desktopColor(0x343c45);
     resetStyle.hovered = desktopColor(0x45515d);
@@ -319,7 +456,7 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
         {1.0F, {360.0F, 300.0F},
             {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
     root->addChild(std::move(body),
-        {1.0F, {660.0F, 340.0F},
+        {1.0F, {600.0F, 340.0F},
             {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
     auto status = label(state.text, "", 13.0F);
     state.status = status.get();
@@ -330,11 +467,18 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
     return widgets;
 }
 
-void selfTest(lotui::WidgetTree& widgets, InspectorState& state) {
+void selfTest(lotui::WidgetTree& widgets, InspectorState& state,
+        lotui::Size viewport) {
     if (state.nameField->bounds().x +
-            state.nameField->bounds().width > 828.5F ||
+            state.nameField->bounds().width > viewport.width - 10.0F ||
         state.colorField->bounds().y +
-            state.colorField->bounds().height > 682.5F)
+            state.colorField->bounds().height > viewport.height - 20.0F ||
+        state.pointPad->bounds().y + state.pointPad->bounds().height >
+            viewport.height - 20.0F ||
+        state.lengthField->childAt(2).bounds().x +
+            state.lengthField->childAt(2).bounds().width > viewport.width - 10.0F ||
+        state.pointField->childAt(2).bounds().x +
+            state.pointField->childAt(2).bounds().width > viewport.width - 10.0F)
         throw std::runtime_error("inspector controls overflow the panel");
     const auto row = state.tree->rowBounds("object:wall");
     const lotui::Point center{row.x + row.width * 0.5F,
@@ -360,6 +504,31 @@ void selfTest(lotui::WidgetTree& widgets, InspectorState& state) {
     if (state.objects[1].position[0] != 0.0 ||
         state.positionFields[0]->value() != 0.0)
         throw std::runtime_error("reset did not update model and controls");
+    if (state.idField->value() != "object:wall" ||
+            !state.idField->input().isReadOnly() || state.idField->submit())
+        throw std::runtime_error("read-only property must stay readable");
+    state.commandField->input().setText("build wall");
+    if (!state.commandField->submit() ||
+            state.objects[1].lastCommand != "build wall" ||
+            state.commandField->value() || !state.commandField->input().text().empty())
+        throw std::runtime_error("write-only property must clear after submit");
+    state.lengthField->input().setText("(10 + 2) * 3");
+    if (!state.lengthField->submit() || state.objects[1].length != 36.0)
+        throw std::runtime_error("calculator result must reach the model");
+    state.lengthField->input().setText("1 / 0");
+    if (state.lengthField->submit() || state.objects[1].length != 36.0)
+        throw std::runtime_error("invalid expression must not change the model");
+    state.pointField->requestPick();
+    if (!state.pointPad->armed())
+        throw std::runtime_error("point field must request a scene pick");
+    const auto area = state.pointPad->bounds();
+    const lotui::Point pick{area.x + area.width * 0.75F,
+        area.y + area.height * 0.25F};
+    widgets.pointerPressed(pick, lotui::PointerButton::Primary);
+    widgets.pointerReleased(pick, lotui::PointerButton::Primary);
+    if (state.pointPad->armed() || state.objects[1].position[0] != 25.0 ||
+            state.objects[1].position[1] != 25.0)
+        throw std::runtime_error("scene click must update world coordinates");
 }
 
 void saveCapture(const lotui::VulkanRenderer::CapturedFrame& frame,
@@ -391,7 +560,7 @@ int main(int argc, char** argv) {
         }
         auto platform = lotui::createPlatformBackend();
         auto window = platform->createWindow(
-            {"LotUI CAD Inspector", 840, 710, true});
+            {"LotUI CAD Inspector", 840, 1000, true});
         window->show();
         lotui::VulkanRenderer renderer(*window);
         const auto font = lotui::executableDirectory() /
@@ -402,12 +571,21 @@ int main(int argc, char** argv) {
         auto widgets = buildUi(state);
         const auto updateLayout = [](lotui::WidgetTree& tree,
                 const lotui::WindowMetrics& metrics) {
+            const float scale = metrics.dpiScale > 0.0F ?
+                metrics.dpiScale : 1.0F;
             tree.layout({0.0F, 0.0F,
-                static_cast<float>(metrics.width),
-                static_cast<float>(metrics.height)});
+                static_cast<float>(metrics.framebufferWidth) / scale,
+                static_cast<float>(metrics.framebufferHeight) / scale});
         };
         updateLayout(*widgets, window->metrics());
-        if (test) selfTest(*widgets, state);
+        if (test) {
+            const auto metrics = window->metrics();
+            const float scale = metrics.dpiScale > 0.0F ?
+                metrics.dpiScale : 1.0F;
+            selfTest(*widgets, state,
+                {static_cast<float>(metrics.framebufferWidth) / scale,
+                 static_cast<float>(metrics.framebufferHeight) / scale});
+        }
         std::vector<lotui::PaintCommand> commands;
         if (smoke || test) {
             widgets->paint(commands);
