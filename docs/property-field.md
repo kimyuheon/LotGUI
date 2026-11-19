@@ -7,6 +7,8 @@ edits through callbacks.
 `PropertyFieldStyle` exposes the input, read-only input, label, and action
 button colors. The host can call `setStyle()` when its application theme
 changes; the standalone inspector demonstrates one quiet desktop palette.
+Rows without an action reserve the same button space, so adjacent value fields
+start and end at the same positions.
 
 - `ReadWrite`: shows a value and submits edits.
 - `ReadOnly`: shows a selectable value and rejects typing, paste, cut, and

@@ -188,6 +188,9 @@ PropertyField::PropertyField(std::shared_ptr<const TextEngine> textEngine,
         addChild(std::move(button),
             {0.0F, {32.0F, 30.0F}, {32.0F, 30.0F}});
     }
+    if (!options_.pointPicker && !options_.calculator)
+        addChild(makeLabel(textEngine, "", textStyle),
+            {0.0F, {32.0F, 30.0F}, {32.0F, 30.0F}});
     const auto access = options_.access;
     options_.access = PropertyAccess::ReadWrite;
     setAccess(access);

@@ -284,18 +284,19 @@ struct InspectorState {
 
 std::unique_ptr<lotui::Row> fieldRow(
     const std::shared_ptr<const lotui::TextEngine>& text,
-    std::string title, std::unique_ptr<lotui::Widget> control,
-    float rowHeight = 32.0F) {
+    std::string title, std::unique_ptr<lotui::Widget> control) {
     auto row = std::make_unique<lotui::Row>();
     lotui::LinearLayoutOptions options;
-    options.spacing = 8.0F;
+    options.spacing = 5.0F;
     options.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
     row->setOptions(options);
     row->addChild(label(text, std::move(title)),
-        {0.0F, {78.0F, rowHeight}, {78.0F, rowHeight}});
+        {0.0F, {96.0F, 30.0F}, {96.0F, 30.0F}});
     row->addChild(std::move(control),
-        {1.0F, {180.0F, rowHeight},
-            {lotui::unboundedLayoutSize, rowHeight}});
+        {1.0F, {180.0F, 30.0F},
+            {lotui::unboundedLayoutSize, 30.0F}});
+    row->addChild(label(text, ""),
+        {0.0F, {32.0F, 30.0F}, {32.0F, 30.0F}});
     return row;
 }
 
@@ -548,6 +549,20 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
 
 void selfTest(lotui::WidgetTree& widgets, InspectorState& state,
         lotui::Size viewport) {
+    const auto reference = state.lengthField->input().bounds();
+    const auto aligned = [&](lotui::Rect rect) {
+        return std::abs(rect.x - reference.x) < 0.1F &&
+            std::abs(rect.width - reference.width) < 0.1F &&
+            std::abs(rect.height - reference.height) < 0.1F;
+    };
+    if (!aligned(state.idField->input().bounds()) ||
+        !aligned(state.commandField->input().bounds()) ||
+        !aligned(state.nameField->bounds()) ||
+        !aligned(state.pointField->input().bounds()) ||
+        !aligned(state.positionFields[0]->bounds()) ||
+        !aligned(state.positionFields[1]->bounds()) ||
+        !aligned(state.positionFields[2]->bounds()))
+        throw std::runtime_error("property inputs must share x, width and height");
     if (state.nameField->bounds().x +
             state.nameField->bounds().width > viewport.width - 10.0F ||
         state.colorField->bounds().y +
