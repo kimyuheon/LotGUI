@@ -58,9 +58,9 @@ def main() -> int:
         "cmake", "--install", str(build_dir), "--config", args.config,
         "--component", "DesktopSDK", "--prefix", str(prefix),
     ], check=True)
-    windows = args.triplet.startswith("windows-")
-    library_prefix = "" if windows else "lib"
-    library_suffix = ".lib" if windows else ".a"
+    msvc = args.triplet.endswith("-msvc")
+    library_prefix = "" if msvc else "lib"
+    library_suffix = ".lib" if msvc else ".a"
     expected = (
         prefix / "lib" / args.config / (
             library_prefix + "lotui_widgets" + library_suffix),
