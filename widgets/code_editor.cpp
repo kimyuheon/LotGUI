@@ -295,7 +295,27 @@ bool CodeEditor::onKeyEvent(const WidgetKeyEvent& event) {
     }
     const bool shortcut = (event.modifiers.control || event.modifiers.meta) &&
         !event.modifiers.alt;
-    if (event.type != WidgetKeyEventType::Press) return true;
+    if (event.type != WidgetKeyEventType::Press) {
+        if (shortcut && (event.key == KeyCode::A || event.key == KeyCode::C ||
+            event.key == KeyCode::V || event.key == KeyCode::X ||
+            event.key == KeyCode::Y || event.key == KeyCode::Z)) return true;
+        switch (event.key) {
+        case KeyCode::Tab:
+        case KeyCode::Enter:
+        case KeyCode::Backspace:
+        case KeyCode::Delete:
+        case KeyCode::Left:
+        case KeyCode::Right:
+        case KeyCode::Up:
+        case KeyCode::Down:
+        case KeyCode::Home:
+        case KeyCode::End:
+        case KeyCode::PageUp:
+        case KeyCode::PageDown: return true;
+        default: return false;
+        }
+    }
+    if (event.key == KeyCode::Tab && shortcut) return false;
     if (shortcut) {
         switch (event.key) {
         case KeyCode::A: selectAll(); revealCursor(); return true;

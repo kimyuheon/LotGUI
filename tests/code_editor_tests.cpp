@@ -59,6 +59,10 @@ void editsUtf8AndHistory() {
     tree.keyPressed(lotui::KeyCode::Tab);
     require(editor->isFocused() && tree.textInputState().enabled,
         "editor should accept native text input");
+    require(!tree.keyPressed(lotui::KeyCode::F2).handled &&
+            !tree.keyReleased(lotui::KeyCode::F2).handled &&
+            !tree.keyPressed(lotui::KeyCode::Tab, {false, true}).handled,
+        "unhandled keys should remain available to the host application");
     tree.keyPressed(lotui::KeyCode::End);
     tree.keyPressed(lotui::KeyCode::Enter);
     require(editor->text().find("1;\n    \nreturn") != std::string::npos &&
