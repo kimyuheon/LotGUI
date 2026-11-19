@@ -109,6 +109,11 @@ host-owned text field beside the existing controls.
 See [`examples/ribbon_demo/README.md`](examples/ribbon_demo/README.md) for
 build and separate example-package instructions.
 
+`cad_inspector_demo` combines the tree, text field, checkbox, numeric inputs,
+and color editor into a CAD object inspector. It follows the 3dEngine scene
+tree and properties workflow while keeping engine APIs in an adapter outside
+LotUI. See [the example and capture](examples/cad_inspector_demo/README.md).
+
 `ListControl` provides a virtualized, spreadsheet-style table foundation with
 cell selection and keyboard navigation. Cells can expose check boxes, combo
 selectors, lookup buttons, or right-edge action buttons through one generic

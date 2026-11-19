@@ -891,6 +891,26 @@ if(LOTUI_BUILD_EXAMPLES)
         install(TARGETS color_editor_demo
             RUNTIME DESTINATION bin COMPONENT Examples)
 
+        add_executable(cad_inspector_demo
+            examples/cad_inspector_demo/main.cpp
+            examples/platform_probe/platform_event_bridge.cpp)
+        target_link_libraries(cad_inspector_demo PRIVATE
+            lotui_vulkan lotui_widgets lotui_text_freetype)
+        lotui_copy_legal_notices(cad_inspector_demo)
+        add_custom_command(TARGET cad_inspector_demo POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "$<TARGET_FILE_DIR:cad_inspector_demo>/resources/fonts"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${LOTUI_EXAMPLE_FONT_FILE}"
+                "$<TARGET_FILE_DIR:cad_inspector_demo>/resources/fonts/NotoSansKR-Regular.ttf"
+            VERBATIM)
+        install(TARGETS cad_inspector_demo
+            RUNTIME DESTINATION bin COMPONENT Examples)
+        if(BUILD_TESTING)
+            add_test(NAME cad_inspector_demo_state_tests
+                COMMAND cad_inspector_demo --self-test)
+        endif()
+
         add_executable(plot_view_demo
             examples/plot_view_demo/main.cpp
             examples/platform_probe/platform_event_bridge.cpp)
@@ -1029,6 +1049,8 @@ if(LOTUI_BUILD_EXAMPLES)
             target_compile_options(ribbon_demo_plugin PRIVATE
                 /W4 /permissive- /utf-8)
         endif()
+        target_compile_options(cad_inspector_demo PRIVATE
+            /W4 /permissive- /utf-8)
     else()
         target_compile_options(platform_probe PRIVATE -Wall -Wextra -Wpedantic)
         if(TARGET graph_canvas_demo)
