@@ -35,6 +35,12 @@ foreach(_lotui_dependency freetype harfbuzz tinyxml2)
     endforeach()
 endforeach()
 
+if(MINGW)
+    # Static HarfBuzz uses pthread mutexes with the LLVM-MinGW toolchain.
+    set_property(TARGET LotUI::harfbuzz APPEND PROPERTY
+        INTERFACE_LINK_LIBRARIES winpthread)
+endif()
+
 add_library(LotUI::FreeTypeBinary ALIAS LotUI::freetype)
 add_library(LotUI::HarfBuzzBinary ALIAS LotUI::harfbuzz)
 add_library(LotUI::TinyXmlBinary ALIAS LotUI::tinyxml2)
