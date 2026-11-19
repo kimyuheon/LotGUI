@@ -42,11 +42,16 @@ int main(int argc, char** argv) {
             std::string_view(argv[1]) == "--capture-compact";
         const bool captureExpanded = argc == 3 &&
             std::string_view(argv[1]) == "--capture-expanded";
+        const bool captureRange = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-range";
+        const bool captureMarquee = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-marquee";
         const bool capture = argc == 3 &&
             (std::string_view(argv[1]) == "--capture" || captureEdits ||
-                captureCompact || captureExpanded);
+                captureCompact || captureExpanded || captureRange ||
+                captureMarquee);
         if (argc > 1 && !smoke && !capture) {
-            std::cerr << "usage: timeline_view_demo [--smoke|--capture output.ppm|--capture-edits output.ppm|--capture-compact output.ppm|--capture-expanded output.ppm]\n";
+            std::cerr << "usage: timeline_view_demo [--smoke|--capture output.ppm|--capture-edits output.ppm|--capture-compact output.ppm|--capture-expanded output.ppm|--capture-range output.ppm|--capture-marquee output.ppm]\n";
             return 2;
         }
         auto platform = lotui::createPlatformBackend();
@@ -78,7 +83,7 @@ int main(int argc, char** argv) {
             {0.0F, {0.0F, 30.0F}, {lotui::unboundedLayoutSize, 30.0F}});
         heading.fontSize = 13.0F;
         root->addChild(std::make_unique<lotui::Label>(text,
-            "Ctrl+클릭 다중 선택  |  키 이동  |  보간·삭제  |  휠 확대",
+            "Shift 범위  |  드래그 영역  |  Ctrl 추가  |  휠 확대",
             heading), {0.0F, {0.0F, 26.0F},
                 {lotui::unboundedLayoutSize, 26.0F}});
         auto timeline = std::make_unique<lotui::TimelineView>(text,
@@ -163,6 +168,28 @@ int main(int argc, char** argv) {
             tree.pointerReleased({60.0F + view->bounds().x,
                 15.0F + view->bounds().y}, lotui::PointerButton::Primary);
         }
+        if (captureRange || captureMarquee) {
+            const auto first = view->keyBounds("camera", "c1");
+            const auto last = view->keyBounds("visibility", "v1");
+            const lotui::Point a{first.x + first.width * 0.5F,
+                first.y + first.height * 0.5F};
+            const lotui::Point b{last.x + last.width * 0.5F,
+                last.y + last.height * 0.5F};
+            if (captureRange) {
+                tree.pointerPressed(a, lotui::PointerButton::Primary);
+                tree.pointerReleased(a, lotui::PointerButton::Primary);
+                lotui::KeyModifiers shift;
+                shift.shift = true;
+                tree.pointerPressed(b, lotui::PointerButton::Primary, shift);
+                tree.pointerReleased(b, lotui::PointerButton::Primary, shift);
+            } else {
+                tree.pointerPressed({a.x - 15.0F, a.y - 9.0F},
+                    lotui::PointerButton::Primary);
+                tree.pointerMoved({b.x + 15.0F, b.y + 9.0F});
+            }
+            if (view->selectedKeys().size() != 3)
+                throw std::runtime_error("timeline range selection failed");
+        }
         std::vector<lotui::PaintCommand> commands;
         if (smoke) {
             for (const auto [width, height] : {
@@ -205,6 +232,30 @@ int main(int argc, char** argv) {
                 view->tracks()[2].keys[1].interpolation !=
                     lotui::TimelineInterpolation::Linear)
                 throw std::runtime_error("timeline interpolation failed");
+            const auto moved = view->keyBounds("camera", "c1");
+            const lotui::Point movedPoint{moved.x + 6.0F,
+                moved.y + 6.0F};
+            tree.pointerPressed(movedPoint, lotui::PointerButton::Primary);
+            tree.pointerReleased(movedPoint, lotui::PointerButton::Primary);
+            lotui::KeyModifiers shift;
+            shift.shift = true;
+            const auto rangeEnd = view->keyBounds("visibility", "v1");
+            const lotui::Point end{rangeEnd.x + 6.0F,
+                rangeEnd.y + 6.0F};
+            tree.pointerPressed(end, lotui::PointerButton::Primary, shift);
+            tree.pointerReleased(end, lotui::PointerButton::Primary, shift);
+            if (view->selectedKeys().size() != 3)
+                throw std::runtime_error("timeline Shift range failed");
+            const auto rangeStart = view->keyBounds("camera", "c1");
+            tree.pointerPressed({rangeStart.x - 10.0F,
+                    rangeStart.y - 4.0F}, lotui::PointerButton::Primary);
+            tree.pointerMoved({rangeEnd.x + rangeEnd.width + 10.0F,
+                rangeEnd.y + rangeEnd.height + 4.0F});
+            tree.pointerReleased({rangeEnd.x + rangeEnd.width + 10.0F,
+                rangeEnd.y + rangeEnd.height + 4.0F},
+                lotui::PointerButton::Primary);
+            if (view->selectedKeys().size() != 3)
+                throw std::runtime_error("timeline marquee failed");
             tree.paint(commands);
             renderer.drawFrame(commands);
             std::cout << "timeline-view-smoke: " << commands.size()

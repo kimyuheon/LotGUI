@@ -31,6 +31,12 @@ from the selection; dragging any selected key moves the group without changing
 their spacing. The ruler supports scrubbing, the wheel zooms around the
 pointer, and the three compact header controls toggle playback, cycle the
 selected keys through smooth/linear/step interpolation, and delete them.
+Shift click selects keys in the time range between the anchor and clicked key;
+when the keys are on different tracks, it includes the tracks between them.
+Ctrl/Command+Shift adds that range. Dragging from empty track space draws a
+selection rectangle; Ctrl/Command adds its keys to the current selection.
+Cancelling the pointer drag restores the previous selection. Clicking empty
+track space without dragging still seeks and clears the selection.
 The track-name column narrows with the widget, while the ruler recomputes its
 tick spacing and keeps tick labels inside the visible edge. In compact panels,
 the interpolation and delete controls show symbols; all three remain clickable.
@@ -52,12 +58,18 @@ selection. `--capture-compact output.ppm` and
 `--capture-expanded output.ppm` capture the narrow and wide layouts. The same
 demo builds separately in
 `LotGUI_Sample` against the static DesktopSDK through `find_package(LotUI)`.
+`--capture-range output.ppm` and `--capture-marquee output.ppm` show the two
+multi-selection gestures.
 
 | Compact window | Expanded window |
 | --- | --- |
 | ![Compact timeline](images/timeline-compact.png) | ![Expanded timeline](images/timeline-expanded.png) |
 
 ![Selected keyframes with linear interpolation](images/timeline-edits.png)
+
+| Shift range | Drag selection rectangle |
+| --- | --- |
+| ![Shift range selection](images/timeline-range.png) | ![Marquee selection](images/timeline-marquee.png) |
 
 The 3dEngine adapter lives in its `samples/lotui_smoke` directory. It reads
 real timeline tracks through the engine C API and checks group drag,

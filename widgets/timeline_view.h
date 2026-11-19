@@ -97,7 +97,7 @@ protected:
     bool onKeyEvent(const WidgetKeyEvent& event) override;
 
 private:
-    enum class Drag { None, Scrub, Key };
+    enum class Drag { None, Scrub, Key, Marquee };
     float nameWidth() const noexcept;
     double timeAt(float x) const noexcept;
     float xAt(double seconds) const noexcept;
@@ -105,6 +105,9 @@ private:
     void select(std::optional<TimelineKeyRef> key);
     bool containsSelection(const TimelineKeyRef& key) const noexcept;
     void toggleSelection(TimelineKeyRef key);
+    void selectRange(const TimelineKeyRef& key, bool additive);
+    void updateMarquee(Point position);
+    Rect marqueeBounds() const noexcept;
     void notifySelection();
     void deleteSelection();
     void cycleInterpolation();
@@ -122,8 +125,16 @@ private:
     double viewDuration_{10.0};
     bool playing_{false};
     std::optional<TimelineKeyRef> selected_;
+    std::optional<TimelineKeyRef> anchor_;
     std::vector<TimelineKeyRef> selection_;
+    std::vector<TimelineKeyRef> marqueeBaseSelection_;
+    std::vector<TimelineKeyRef> marqueeOriginalSelection_;
+    std::optional<TimelineKeyRef> marqueeOriginalSelected_;
+    std::optional<TimelineKeyRef> marqueeOriginalAnchor_;
     Drag drag_{Drag::None};
+    Point marqueeStart_{};
+    Point marqueeEnd_{};
+    bool marqueeActive_{false};
     std::vector<double> dragStartTimes_;
     float dragStartX_{0.0F};
     PlayHandler onPlayChanged_;

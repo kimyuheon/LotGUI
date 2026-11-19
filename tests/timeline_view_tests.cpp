@@ -1,6 +1,7 @@
 #include "core/widget_tree.h"
 #include "widgets/timeline_view.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -70,10 +71,103 @@ void resizeKeepsKeysAndControlsUsable() {
             "name column wheel must not zoom the timeline");
     }
 }
+
+void selectsRangesAndMarqueeAcrossTracks() {
+    auto timeline = std::make_unique<lotui::TimelineView>(
+        std::make_shared<StubText>(), lotui::Size{800.0F, 280.0F});
+    auto* view = timeline.get();
+    view->setDuration(10.0);
+    view->setTracks({
+        {"position", "Position", {{"a", 1.0}, {"b", 3.0}, {"c", 5.0}}},
+        {"rotation", "Rotation", {{"d", 2.0}, {"e", 4.0}, {"f", 7.0}}}
+    });
+    lotui::WidgetTree tree(std::move(timeline));
+    tree.layout({0.0F, 0.0F, 800.0F, 280.0F});
+    const auto center = [view](const char* track, const char* key) {
+        const auto rect = view->keyBounds(track, key);
+        return lotui::Point{rect.x + rect.width * 0.5F,
+            rect.y + rect.height * 0.5F};
+    };
+    const auto click = [&tree](lotui::Point point,
+            lotui::KeyModifiers modifiers = {}) {
+        tree.pointerPressed(point, lotui::PointerButton::Primary, modifiers);
+        tree.pointerReleased(point, lotui::PointerButton::Primary, modifiers);
+    };
+    int selections = 0;
+    view->setOnSelectionChanged([&](const auto&) { ++selections; });
+    click(center("position", "a"));
+    lotui::KeyModifiers range;
+    range.shift = true;
+    click(center("position", "c"), range);
+    check(view->selectedKeys().size() == 3 &&
+            view->selectedKey() == lotui::TimelineKeyRef{"position", "c"},
+        "Shift click must select the chronological range in one track");
+
+    click(center("position", "a"));
+    click(center("rotation", "e"), range);
+    check(view->selectedKeys().size() == 4 &&
+            view->selectedKey() == lotui::TimelineKeyRef{"rotation", "e"},
+        "Shift click across tracks must select keys in the time and lane range");
+    lotui::KeyModifiers addRange;
+    addRange.shift = true;
+    addRange.control = true;
+    click(center("position", "c"), addRange);
+    check(view->selectedKeys().size() == 5,
+        "Ctrl Shift range must add keys without clearing the selection");
+
+    const auto a = center("position", "a");
+    const auto e = center("rotation", "e");
+    const lotui::Point start{a.x - 12.0F, a.y - 8.0F};
+    const lotui::Point end{e.x + 12.0F, e.y + 8.0F};
+    tree.pointerPressed(start, lotui::PointerButton::Primary);
+    tree.pointerMoved(end);
+    check(view->selectedKeys().size() == 4,
+        "marquee must select all keys enclosed across tracks");
+    std::vector<lotui::PaintCommand> commands;
+    tree.paint(commands);
+    check(std::any_of(commands.begin(), commands.end(),
+            [](const auto& command) {
+                return command.color.alpha == 0.075F;
+            }), "active marquee must be visible");
+    tree.pointerReleased(end, lotui::PointerButton::Primary);
+    check(view->selectedKeys().size() == 4,
+        "marquee release must preserve the selected keys");
+
+    lotui::KeyModifiers additive;
+    additive.control = true;
+    const auto f = center("rotation", "f");
+    tree.pointerPressed({f.x - 12.0F, f.y - 8.0F},
+        lotui::PointerButton::Primary, additive);
+    tree.pointerMoved({f.x + 12.0F, f.y + 8.0F});
+    tree.pointerReleased({f.x + 12.0F, f.y + 8.0F},
+        lotui::PointerButton::Primary, additive);
+    check(view->selectedKeys().size() == 5,
+        "Ctrl marquee must add to the existing selection");
+
+    tree.pointerPressed({f.x - 12.0F, f.y - 8.0F},
+        lotui::PointerButton::Primary);
+    tree.pointerMoved({a.x - 20.0F, a.y - 8.0F});
+    tree.cancelPointer();
+    check(view->selectedKeys().size() == 5,
+        "cancelled marquee must restore the previous selection");
+    check(selections >= 4,
+        "selection changes must notify the host");
+
+    const double before = view->tracks()[0].keys[0].time;
+    const auto key = center("position", "a");
+    tree.pointerPressed(key, lotui::PointerButton::Primary);
+    tree.pointerMoved({key.x + 20.0F, key.y});
+    tree.pointerReleased({key.x + 20.0F, key.y},
+        lotui::PointerButton::Primary);
+    check(view->selectedKeys().size() == 5 &&
+            view->tracks()[0].keys[0].time > before,
+        "marquee-selected keys must still drag as one group");
+}
 }
 
 int main() {
     resizeKeepsKeysAndControlsUsable();
+    selectsRangesAndMarqueeAcrossTracks();
     auto timeline = std::make_unique<lotui::TimelineView>(
         std::make_shared<StubText>(), lotui::Size{800.0F, 280.0F});
     auto* view = timeline.get();
