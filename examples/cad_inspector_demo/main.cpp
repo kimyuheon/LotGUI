@@ -507,6 +507,7 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
     resetStyle.normal = desktopColor(0x343c45);
     resetStyle.hovered = desktopColor(0x45515d);
     resetStyle.pressed = desktopColor(0x2e3945);
+    resetStyle.contentPadding = {8.0F, 3.0F, 8.0F, 3.0F};
     auto reset = std::make_unique<lotui::Button>(
         label(state.text, "위치 초기화"), lotui::Size{116.0F, 29.0F},
         [&state] { state.resetPosition(); }, resetStyle);
@@ -549,6 +550,21 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
 
 void selfTest(lotui::WidgetTree& widgets, InspectorState& state,
         lotui::Size viewport) {
+    const auto diagnose = [&](const auto& visit, const lotui::Widget& widget) -> void {
+        if (const auto* text = dynamic_cast<const lotui::Label*>(&widget)) {
+            const auto layout = state.text->createLayout(
+                text->text(), text->textStyle(), {});
+            if (layout && (layout->size().width > text->clip().width + 0.5F ||
+                    layout->size().height > text->clip().height + 0.5F))
+                throw std::runtime_error("clipped label: " + text->text());
+        }
+        if (const auto* group = dynamic_cast<const lotui::LinearLayout*>(&widget))
+            for (std::size_t i = 0; i < group->childCount(); ++i)
+                visit(visit, group->childAt(i));
+        if (const auto* single = dynamic_cast<const lotui::SingleChildWidget*>(&widget))
+            if (const auto* child = single->child()) visit(visit, *child);
+    };
+    diagnose(diagnose, widgets.root());
     const auto reference = state.lengthField->input().bounds();
     const auto aligned = [&](lotui::Rect rect) {
         return std::abs(rect.x - reference.x) < 0.1F &&
