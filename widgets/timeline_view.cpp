@@ -33,6 +33,39 @@ std::string tickText(double seconds) {
         << seconds << "s";
     return out.str();
 }
+
+void drawKey(std::vector<PaintCommand>& commands, Rect marker, Rect clip,
+    Color color, TimelineInterpolation interpolation, bool selected,
+    Color halo) {
+    if (selected) {
+        Color tint = halo;
+        tint.alpha = 0.22F;
+        commands.push_back({{marker.x - 4.0F, marker.y - 4.0F,
+            marker.width + 8.0F, marker.height + 8.0F}, clip,
+            tint, invalidTextureId, 6.0F});
+    }
+    if (interpolation == TimelineInterpolation::Smooth) {
+        const Point top{marker.x + marker.width * 0.5F, marker.y};
+        const Point right{marker.x + marker.width, marker.y + marker.height * 0.5F};
+        const Point bottom{top.x, marker.y + marker.height};
+        const Point left{marker.x, right.y};
+        for (const auto& edge : {std::pair{top, right},
+                std::pair{right, bottom}, std::pair{bottom, left},
+                std::pair{left, top}})
+            commands.push_back(linePaintCommand(edge.first, edge.second,
+                selected ? 2.3F : 1.8F, clip, color));
+        commands.push_back({{top.x - 2.0F, right.y - 2.0F, 4.0F, 4.0F},
+            clip, color, invalidTextureId, 1.0F});
+    } else {
+        const float inset = interpolation == TimelineInterpolation::Step
+            ? 1.0F : 0.0F;
+        commands.push_back({{marker.x + inset, marker.y + inset,
+            marker.width - 2.0F * inset,
+            marker.height - 2.0F * inset}, clip, color,
+            invalidTextureId,
+            interpolation == TimelineInterpolation::Linear ? 3.0F : 1.0F});
+    }
+}
 } // namespace
 
 TimelineView::TimelineView(std::shared_ptr<const TextEngine> textEngine,
@@ -255,12 +288,31 @@ void TimelineView::onPaint(std::vector<PaintCommand>& commands) const {
     if (!hasArea(visible)) return;
     commands.push_back({area, visible, style_.background,
         invalidTextureId, 3.0F});
-    commands.push_back({{area.x, area.y, area.width, kRuler}, visible,
+    commands.push_back({{area.x, area.y, area.width,
+        std::min(kRuler, area.height)}, visible,
         style_.header, invalidTextureId, 2.0F});
     const Rect ruler = rulerBounds();
     const float names = nameWidth();
     const Rect timelineClip = intersect(visible, {ruler.x, area.y,
         ruler.width, area.height});
+    commands.push_back({{area.x, area.y, names, ruler.height}, visible,
+        style_.namePanel, invalidTextureId, 2.0F});
+    for (std::size_t i = 0; i < tracks_.size(); ++i) {
+        const float y = area.y + kRuler + static_cast<float>(i) * kRow;
+        if (y >= area.y + area.height) break;
+        const Rect row{area.x, y, area.width, kRow};
+        const bool active = std::any_of(selection_.begin(), selection_.end(),
+            [&](const TimelineKeyRef& key) {
+                return key.trackId == tracks_[i].id;
+            });
+        if (active || i % 2 != 0)
+            commands.push_back({row, intersect(visible, row),
+                active ? style_.selectedRow : style_.alternateRow,
+                invalidTextureId, 0.0F});
+        commands.push_back({{area.x, y, names, kRow},
+            intersect(visible, row), style_.namePanel,
+            invalidTextureId, 0.0F});
+    }
     const float buttonWidth = names / 3.0F;
     const Rect headerClip = intersect(visible,
         {area.x, area.y, names, std::min(kRuler, area.height)});
@@ -287,6 +339,9 @@ void TimelineView::onPaint(std::vector<PaintCommand>& commands) const {
             {area.x + index * buttonWidth,
                 area.y + std::min(kRuler, area.height) - 4.0F},
             1.0F, headerClip, style_.grid));
+    commands.push_back(linePaintCommand({area.x, area.y + kRuler},
+        {area.x + area.width, area.y + kRuler},
+        1.0F, visible, style_.grid));
     commands.push_back(linePaintCommand({ruler.x, area.y},
         {ruler.x, area.y + area.height}, 1.0F, visible, style_.grid));
 
@@ -295,12 +350,24 @@ void TimelineView::onPaint(std::vector<PaintCommand>& commands) const {
     const double magnitude = std::pow(10.0, std::floor(std::log10(rawStep)));
     const double step = rawStep / magnitude <= 2.0 ? 2.0 * magnitude :
         rawStep / magnitude <= 5.0 ? 5.0 * magnitude : 10.0 * magnitude;
+    const double minor = step / 5.0;
+    const double firstMinor = std::ceil(viewStart_ / minor) * minor;
+    for (double t = firstMinor; t <= viewStart_ + viewDuration_;
+            t += minor) {
+        if (std::abs(t / step - std::round(t / step)) < 0.001)
+            continue;
+        const float x = xAt(t);
+        if (x < ruler.x || x > ruler.x + ruler.width) continue;
+        commands.push_back(linePaintCommand({x, area.y + kRuler - 9.0F},
+            {x, area.y + kRuler - 3.0F}, 1.0F,
+            timelineClip, style_.minorGrid));
+    }
     const double first = std::ceil(viewStart_ / step) * step;
     for (double t = first; t <= viewStart_ + viewDuration_ + step * 0.001;
             t += step) {
         const float x = xAt(t);
         if (x < ruler.x || x > ruler.x + ruler.width) continue;
-        commands.push_back(linePaintCommand({x, area.y + 24.0F},
+        commands.push_back(linePaintCommand({x, area.y + kRuler - 10.0F},
             {x, area.y + area.height}, 1.0F, timelineClip, style_.grid));
         auto tick = textEngine_->createLayout(tickText(t), textStyle_, {});
         if (tick && x + 4.0F + tick->size().width <=
@@ -311,32 +378,31 @@ void TimelineView::onPaint(std::vector<PaintCommand>& commands) const {
     for (std::size_t i = 0; i < tracks_.size(); ++i) {
         const float y = area.y + kRuler + static_cast<float>(i) * kRow;
         if (y >= area.y + area.height) break;
-        const Rect row{area.x, y, area.width, kRow};
-        if (i % 2 != 0)
-            commands.push_back({row, intersect(visible, row),
-                style_.alternateRow, invalidTextureId, 0.0F});
         commands.push_back(linePaintCommand({area.x, y + kRow},
-            {area.x + area.width, y + kRow}, 1.0F, visible, style_.grid));
+            {area.x + area.width, y + kRow}, 1.0F,
+            visible, style_.minorGrid));
+        commands.push_back({{area.x + 8.0F, y + 11.0F, 2.0F, 14.0F},
+            intersect(visible, {area.x, y, names, kRow}),
+            tracks_[i].color, invalidTextureId, 1.0F});
         label(commands, tracks_[i].label,
-            {area.x + 12.0F, y + 9.0F},
+            {area.x + 16.0F, y + 9.0F},
             intersect(visible, {area.x, y, names, kRow}), style_.text);
         for (const auto& key : tracks_[i].keys) {
             const Rect marker = keyBounds(tracks_[i].id, key.id);
             if (!hasArea(intersect(marker, timelineClip))) continue;
             const bool chosen = containsSelection({tracks_[i].id, key.id});
-            commands.push_back({marker, timelineClip,
+            drawKey(commands, marker, timelineClip,
                 chosen ? style_.selected : tracks_[i].color,
-                invalidTextureId,
-                key.interpolation == TimelineInterpolation::Smooth ? 5.0F :
-                key.interpolation == TimelineInterpolation::Linear ? 2.0F : 0.0F});
+                key.interpolation, chosen, style_.selected);
         }
     }
     const float playX = xAt(time_);
-    commands.push_back(linePaintCommand({playX, area.y + 24.0F},
-        {playX, area.y + area.height}, 2.0F,
+    commands.push_back(linePaintCommand({playX, area.y + kRuler - 11.0F},
+        {playX, area.y + area.height}, 1.5F,
         timelineClip, style_.playhead));
-    commands.push_back({{playX - 5.0F, area.y + 24.0F, 10.0F, 9.0F},
-        timelineClip, style_.playhead, invalidTextureId, 2.0F});
+    commands.push_back({{playX - 4.5F, area.y + kRuler - 13.0F,
+        9.0F, 9.0F}, timelineClip, style_.playhead,
+        invalidTextureId, 4.0F});
 }
 
 bool TimelineView::acceptsPointerEvents() const noexcept { return true; }

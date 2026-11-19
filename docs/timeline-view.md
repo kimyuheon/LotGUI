@@ -35,6 +35,10 @@ The track-name column narrows with the widget, while the ruler recomputes its
 tick spacing and keeps tick labels inside the visible edge. In compact panels,
 the interpolation and delete controls show symbols; all three remain clickable.
 Resize does not change key times or selection.
+The ruler has subdued minor ticks, each track carries a narrow color accent,
+and smooth/linear/step keys use diamond/rounded/square marks. Selected keys
+receive a soft halo and their track row gains a subtle highlight. The painted
+mark stays within the same hit area used for pointer selection and dragging.
 Space toggles playback, F2 cycles interpolation, Delete removes selected keys,
 Left/Right seek and Home returns to zero. Key dragging previews locally and
 calls `setOnKeysMoved()` once on release when that callback is installed. A
@@ -52,6 +56,8 @@ demo builds separately in
 | Compact window | Expanded window |
 | --- | --- |
 | ![Compact timeline](images/timeline-compact.png) | ![Expanded timeline](images/timeline-expanded.png) |
+
+![Selected keyframes with linear interpolation](images/timeline-edits.png)
 
 The 3dEngine adapter lives in its `samples/lotui_smoke` directory. It reads
 real timeline tracks through the engine C API and checks group drag,

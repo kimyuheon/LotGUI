@@ -38,11 +38,14 @@ struct TimelineKeyRef {
 struct TimelineViewStyle {
     Color background{0.025F, 0.032F, 0.045F, 1.0F};
     Color header{0.09F, 0.12F, 0.16F, 1.0F};
-    Color alternateRow{0.045F, 0.06F, 0.08F, 1.0F};
-    Color grid{0.16F, 0.21F, 0.27F, 1.0F};
+    Color alternateRow{0.052F, 0.069F, 0.087F, 1.0F};
+    Color grid{0.15F, 0.20F, 0.25F, 1.0F};
     Color text{0.88F, 0.91F, 0.95F, 1.0F};
     Color playhead{0.98F, 0.64F, 0.32F, 1.0F};
     Color selected{1.0F, 0.9F, 0.57F, 1.0F};
+    Color namePanel{0.065F, 0.084F, 0.106F, 1.0F};
+    Color minorGrid{0.115F, 0.15F, 0.19F, 1.0F};
+    Color selectedRow{0.075F, 0.105F, 0.13F, 1.0F};
 };
 
 class TimelineView final : public Widget {
