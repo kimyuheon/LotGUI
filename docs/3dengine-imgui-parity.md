@@ -50,7 +50,7 @@ acceptance checklist for removing the desktop ImGui dependency.
 | `SetTooltip` | delayed overlay `Tooltip` | Planned |
 | `BeginDisabled` | common enabled state and inherited input suppression | Per-widget partial |
 | modal dialog windows | `DialogHost`, scrim, focus trap and restoration | Foundation complete |
-| `Begin`/`End` tool windows | floating/dockable `Panel` | Modeless host and Z-order foundation complete |
+| `Begin`/`End` tool windows | floating/dockable `Panel` | Modeless host, Z-order, drag and resize complete; docking planned |
 | `DockSpace` | `DockHost`, split nodes, drag/drop docking, persisted layout | Planned |
 | draw-list circles/lines | backend-neutral vector/overlay paint commands | Planned |
 | numeric plots and node graphs | line paint commands, `PlotView`, later `GraphCanvas` | `PlotView` and engine smoke sample complete; see `graph-controls.md` |
@@ -78,7 +78,7 @@ widgets and application view models:
 2. `TabView`, closeable document tabs, overflow scrolling, add-tab action.
 3. `Popup`, `Tooltip`, menu model, `MenuBar`, context menus.
 4. ~~`DialogHost`, modal/modeless lifetime, focus, results, title slots,
-   Escape cancel, default confirmation, and Z-order.~~ Add drag/resize.
+   Escape cancel, default confirmation, Z-order, drag and resize.~~
 5. `ScrollView`, `ListView`, `DisclosurePanel`, `TreeView` and inline rename.
 6. `Slider`, radio group, combo box, vector numeric editor, color editor.
 7. toolbar, status bar, property grid and block thumbnail grid composites.
