@@ -189,6 +189,14 @@ WidgetKeyUpdate WidgetTree::keyPressed(
     }
     if (key == KeyCode::Tab && !modifiers.control &&
         !modifiers.alt && !modifiers.meta) {
+        // Editors can use Tab for indentation. Other widgets keep normal
+        // keyboard focus traversal by declining the event.
+        if (Widget* focused = focusedWidget(); focused != nullptr &&
+            focused->dispatchKeyEvent(widgetEvent)) {
+            update.handled = true;
+            update.needsRepaint = true;
+            return update;
+        }
         const FocusChange change = focusManager_.moveFocus(modifiers.shift);
         update.handled = true;
         update.focusChanged = change.changed();

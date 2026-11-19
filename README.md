@@ -114,6 +114,11 @@ and color editor into a CAD object inspector. It follows the 3dEngine scene
 tree and properties workflow while keeping engine APIs in an adapter outside
 LotUI. See [the example and capture](examples/cad_inspector_demo/README.md).
 
+`CodeEditor` adds a multiline source editor with line numbers, syntax colors,
+UTF-8 and IME input, indentation, find-next, selection, clipboard, and
+Undo/Redo. The standalone [code editor example](examples/code_editor_demo/README.md)
+uses a 3dEngine C API snippet as editable text without linking the engine.
+
 `ListControl` provides a virtualized, spreadsheet-style table foundation with
 cell selection and keyboard navigation. Cells can expose check boxes, combo
 selectors, lookup buttons, or right-edge action buttons through one generic

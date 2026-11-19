@@ -198,6 +198,7 @@ add_library(lotui_widgets STATIC
     widgets/box.cpp
     widgets/button.cpp
     widgets/checkbox.cpp
+    widgets/code_editor.cpp
     widgets/color_editor.cpp
     widgets/combo_box.cpp
     widgets/conversation_list.cpp
@@ -634,6 +635,13 @@ if(BUILD_TESTING)
     target_link_libraries(text_field_tests PRIVATE lotui_widgets)
     add_test(NAME text_field_tests COMMAND text_field_tests)
 
+    add_executable(code_editor_tests tests/code_editor_tests.cpp)
+    target_link_libraries(code_editor_tests PRIVATE lotui_widgets)
+    if(MSVC)
+        target_compile_options(code_editor_tests PRIVATE /utf-8)
+    endif()
+    add_test(NAME code_editor_tests COMMAND code_editor_tests)
+
     add_executable(disclosure_panel_tests
         tests/disclosure_panel_tests.cpp
     )
@@ -911,6 +919,26 @@ if(LOTUI_BUILD_EXAMPLES)
                 COMMAND cad_inspector_demo --self-test)
         endif()
 
+        add_executable(code_editor_demo
+            examples/code_editor_demo/main.cpp
+            examples/platform_probe/platform_event_bridge.cpp)
+        target_link_libraries(code_editor_demo PRIVATE
+            lotui_vulkan lotui_widgets lotui_text_freetype)
+        lotui_copy_legal_notices(code_editor_demo)
+        add_custom_command(TARGET code_editor_demo POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "$<TARGET_FILE_DIR:code_editor_demo>/resources/fonts"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${LOTUI_EXAMPLE_FONT_FILE}"
+                "$<TARGET_FILE_DIR:code_editor_demo>/resources/fonts/NotoSansKR-Regular.ttf"
+            VERBATIM)
+        install(TARGETS code_editor_demo
+            RUNTIME DESTINATION bin COMPONENT Examples)
+        if(BUILD_TESTING)
+            add_test(NAME code_editor_demo_state_tests
+                COMMAND code_editor_demo --self-test)
+        endif()
+
         add_executable(plot_view_demo
             examples/plot_view_demo/main.cpp
             examples/platform_probe/platform_event_bridge.cpp)
@@ -1050,6 +1078,8 @@ if(LOTUI_BUILD_EXAMPLES)
                 /W4 /permissive- /utf-8)
         endif()
         target_compile_options(cad_inspector_demo PRIVATE
+            /W4 /permissive- /utf-8)
+        target_compile_options(code_editor_demo PRIVATE
             /W4 /permissive- /utf-8)
     else()
         target_compile_options(platform_probe PRIVATE -Wall -Wextra -Wpedantic)
