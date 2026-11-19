@@ -118,13 +118,31 @@ std::string formatNumber(double value) {
 
 std::unique_ptr<Label> makeLabel(const std::shared_ptr<const TextEngine>& text,
         std::string label, const TextStyle& style) {
-    return std::make_unique<Label>(text, std::move(label), style);
+    auto result = std::make_unique<Label>(text, std::move(label), style);
+    result->setVerticalAlignment(VerticalTextAlignment::Center);
+    return result;
 }
 } // namespace
 
 std::optional<double> evaluatePropertyExpression(std::string_view expression) {
     if (expression.size() > 256) return std::nullopt;
     return ExpressionParser(expression).parse();
+}
+
+PropertyFieldStyle::PropertyFieldStyle() {
+    input.normal = {0.034F, 0.045F, 0.061F, 1.0F};
+    input.hovered = {0.047F, 0.064F, 0.087F, 1.0F};
+    input.cornerRadius = 3.0F;
+    input.contentPadding = {8.0F, 4.0F, 8.0F, 4.0F};
+    readOnlyInput = input;
+    readOnlyInput.normal = {0.028F, 0.036F, 0.048F, 1.0F};
+    readOnlyInput.hovered = readOnlyInput.normal;
+    readOnlyInput.text = {0.66F, 0.72F, 0.77F, 1.0F};
+    action.normal = {0.046F, 0.061F, 0.078F, 1.0F};
+    action.hovered = {0.069F, 0.089F, 0.113F, 1.0F};
+    action.pressed = {0.029F, 0.042F, 0.061F, 1.0F};
+    action.cornerRadius = 3.0F;
+    action.contentPadding = {2.0F, 2.0F, 2.0F, 2.0F};
 }
 
 PropertyField::PropertyField(std::shared_ptr<const TextEngine> textEngine,
@@ -138,37 +156,34 @@ PropertyField::PropertyField(std::shared_ptr<const TextEngine> textEngine,
     layout.spacing = 5.0F;
     layout.crossAxisAlignment = CrossAxisAlignment::Center;
     setOptions(layout);
-    addChild(makeLabel(textEngine, options_.label, textStyle),
+    auto title = makeLabel(textEngine, options_.label, textStyle);
+    label_ = title.get();
+    addChild(std::move(title),
         {0.0F, {96.0F, 30.0F}, {96.0F, 30.0F}});
-    TextFieldStyle fieldStyle;
-    fieldStyle.normal = {0.034F, 0.045F, 0.061F, 1.0F};
-    fieldStyle.hovered = {0.047F, 0.064F, 0.087F, 1.0F};
-    fieldStyle.cornerRadius = 3.0F;
-    fieldStyle.contentPadding = {8.0F, 4.0F, 8.0F, 4.0F};
     auto field = std::make_unique<TextField>(textEngine, std::move(value),
         Size{150.0F, 30.0F}, TextField::ChangedHandler{},
-        [this](const std::string&) { submit(); }, fieldStyle, textStyle);
+        [this](const std::string&) { submit(); }, style_.input, textStyle);
     input_ = field.get();
     addChild(std::move(field),
         {1.0F, {100.0F, 30.0F}, {unboundedLayoutSize, 30.0F}});
-    ButtonStyle actionStyle;
-    actionStyle.normal = {0.046F, 0.061F, 0.078F, 1.0F};
-    actionStyle.hovered = {0.069F, 0.089F, 0.113F, 1.0F};
-    actionStyle.pressed = {0.029F, 0.042F, 0.061F, 1.0F};
-    actionStyle.cornerRadius = 3.0F;
-    actionStyle.contentPadding = {2.0F, 2.0F, 2.0F, 2.0F};
     if (options_.pointPicker) {
+        auto icon = makeLabel(textEngine, "◎", textStyle);
+        icon->setHorizontalAlignment(HorizontalTextAlignment::Center);
+        pickLabel_ = icon.get();
         auto button = std::make_unique<Button>(
-            makeLabel(textEngine, "◎", textStyle), Size{32.0F, 30.0F},
-            [this] { requestPick(); }, actionStyle);
+            std::move(icon), Size{32.0F, 30.0F},
+            [this] { requestPick(); }, style_.action);
         pickButton_ = button.get();
         addChild(std::move(button),
             {0.0F, {32.0F, 30.0F}, {32.0F, 30.0F}});
     }
     if (options_.calculator) {
+        auto icon = makeLabel(textEngine, "=", textStyle);
+        icon->setHorizontalAlignment(HorizontalTextAlignment::Center);
+        calcLabel_ = icon.get();
         auto button = std::make_unique<Button>(
-            makeLabel(textEngine, "=", textStyle), Size{32.0F, 30.0F},
-            [this] { submit(); }, actionStyle);
+            std::move(icon), Size{32.0F, 30.0F},
+            [this] { submit(); }, style_.action);
         calcButton_ = button.get();
         addChild(std::move(button),
             {0.0F, {32.0F, 30.0F}, {32.0F, 30.0F}});
@@ -176,6 +191,7 @@ PropertyField::PropertyField(std::shared_ptr<const TextEngine> textEngine,
     const auto access = options_.access;
     options_.access = PropertyAccess::ReadWrite;
     setAccess(access);
+    setStyle(style_);
 }
 
 PropertyAccess PropertyField::access() const noexcept { return options_.access; }
@@ -184,6 +200,10 @@ void PropertyField::setAccess(PropertyAccess access) {
             options_.access != PropertyAccess::WriteOnly) input_->setText({});
     options_.access = access;
     input_->setReadOnly(access == PropertyAccess::ReadOnly);
+    input_->setStyle(access == PropertyAccess::ReadOnly ?
+        style_.readOnlyInput : style_.input);
+    label_->setColor(access == PropertyAccess::ReadOnly ?
+        style_.readOnlyLabel : style_.label);
     if (pickButton_) pickButton_->setEnabled(access != PropertyAccess::ReadOnly);
     if (calcButton_) calcButton_->setEnabled(access != PropertyAccess::ReadOnly);
 }
@@ -230,6 +250,18 @@ void PropertyField::requestPick() {
     if (options_.pointPicker && options_.access != PropertyAccess::ReadOnly &&
             onPick_) onPick_();
 }
+void PropertyField::setStyle(PropertyFieldStyle style) {
+    style_ = std::move(style);
+    input_->setStyle(options_.access == PropertyAccess::ReadOnly ?
+        style_.readOnlyInput : style_.input);
+    label_->setColor(options_.access == PropertyAccess::ReadOnly ?
+        style_.readOnlyLabel : style_.label);
+    if (pickButton_) pickButton_->setStyle(style_.action);
+    if (calcButton_) calcButton_->setStyle(style_.action);
+    if (pickLabel_) pickLabel_->setColor(style_.actionText);
+    if (calcLabel_) calcLabel_->setColor(style_.actionText);
+}
+const PropertyFieldStyle& PropertyField::style() const noexcept { return style_; }
 TextField& PropertyField::input() noexcept { return *input_; }
 const TextField& PropertyField::input() const noexcept { return *input_; }
 

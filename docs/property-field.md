@@ -4,6 +4,10 @@
 API has no CAD, platform, or Vulkan types. The host owns each value and applies
 edits through callbacks.
 
+`PropertyFieldStyle` exposes the input, read-only input, label, and action
+button colors. The host can call `setStyle()` when its application theme
+changes; the standalone inspector demonstrates one quiet desktop palette.
+
 - `ReadWrite`: shows a value and submits edits.
 - `ReadOnly`: shows a selectable value and rejects typing, paste, cut, and
   changes. Copy works when the host installs a clipboard handler on `input()`.

@@ -6,6 +6,7 @@
 #include "renderer/vulkan/vulkan_renderer.h"
 #include "text/freetype/freetype_text_engine.h"
 #include "widgets/button.h"
+#include "widgets/box.h"
 #include "widgets/checkbox.h"
 #include "widgets/color_editor.h"
 #include "widgets/label.h"
@@ -18,7 +19,6 @@
 #include <array>
 #include <chrono>
 #include <cmath>
-#include <cstdio>
 #include <exception>
 #include <fstream>
 #include <functional>
@@ -56,7 +56,7 @@ public:
     using PickHandler = std::function<void(lotui::PropertyPoint)>;
     explicit PointPad(PickHandler onPick) : onPick_(std::move(onPick)) {}
     lotui::Size measure(const lotui::LayoutConstraints& constraints) const override {
-        return constraints.constrain({270.0F, 120.0F});
+        return constraints.constrain({200.0F, 300.0F});
     }
     void setArmed(bool armed) noexcept { armed_ = armed; }
     bool armed() const noexcept { return armed_; }
@@ -70,21 +70,34 @@ protected:
         const auto area = bounds();
         const auto visible = clip();
         commands.push_back({area, visible,
-            desktopColor(armed_ ? 0x263b47 : 0x1d252b),
-            lotui::invalidTextureId, 3.0F});
-        for (int i = 1; i < 4; ++i) {
-            const float x = area.x + area.width * i / 4.0F;
+            desktopColor(armed_ ? 0x223943 : 0x1b252e),
+            lotui::invalidTextureId, 5.0F});
+        const float spacing = 32.0F;
+        const float centerX = area.x + area.width * 0.5F;
+        const float centerY = area.y + area.height * 0.5F;
+        for (float x = centerX; x < area.x + area.width; x += spacing) {
             commands.push_back({{x, area.y, 1.0F, area.height}, visible,
-                desktopColor(0x35414a), lotui::invalidTextureId, 0.0F});
+                desktopColor(0x32414d), lotui::invalidTextureId, 0.0F});
         }
-        for (int i = 1; i < 3; ++i) {
-            const float y = area.y + area.height * i / 3.0F;
+        for (float x = centerX - spacing; x > area.x; x -= spacing)
+            commands.push_back({{x, area.y, 1.0F, area.height}, visible,
+                desktopColor(0x32414d), lotui::invalidTextureId, 0.0F});
+        for (float y = centerY; y < area.y + area.height; y += spacing) {
             commands.push_back({{area.x, y, area.width, 1.0F}, visible,
-                desktopColor(0x35414a), lotui::invalidTextureId, 0.0F});
+                desktopColor(0x32414d), lotui::invalidTextureId, 0.0F});
         }
+        for (float y = centerY - spacing; y > area.y; y -= spacing)
+            commands.push_back({{area.x, y, area.width, 1.0F}, visible,
+                desktopColor(0x32414d), lotui::invalidTextureId, 0.0F});
+        commands.push_back({{centerX, area.y, 1.0F, area.height}, visible,
+            desktopColor(0x668697), lotui::invalidTextureId, 0.0F});
+        commands.push_back({{area.x, centerY, area.width, 1.0F}, visible,
+            desktopColor(0x668697), lotui::invalidTextureId, 0.0F});
+        commands.push_back({{centerX - 3.0F, centerY - 3.0F, 6.0F, 6.0F},
+            visible, desktopColor(0x99bdc8), lotui::invalidTextureId, 3.0F});
         if (picked_) {
             commands.push_back({{picked_->x - 3.0F, picked_->y - 3.0F,
-                6.0F, 6.0F}, visible, desktopColor(0xe6b974),
+                6.0F, 6.0F}, visible, desktopColor(0xf0ca8d),
                 lotui::invalidTextureId, 3.0F});
         }
     }
@@ -125,6 +138,55 @@ std::unique_ptr<lotui::Label> label(
     return widget;
 }
 
+std::unique_ptr<lotui::Label> mutedLabel(
+    const std::shared_ptr<const lotui::TextEngine>& text,
+    std::string value, float size = 12.0F) {
+    auto widget = label(text, std::move(value), size);
+    widget->setColor(desktopColor(0x9baab7));
+    return widget;
+}
+
+std::unique_ptr<lotui::Row> sectionHeading(
+    const std::shared_ptr<const lotui::TextEngine>& text,
+    std::string title) {
+    auto row = std::make_unique<lotui::Row>();
+    lotui::LinearLayoutOptions layout;
+    layout.spacing = 8.0F;
+    layout.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
+    row->setOptions(layout);
+    row->addChild(std::make_unique<lotui::Box>(
+        lotui::Size{3.0F, 15.0F}, desktopColor(0x81b9c6), 1.0F),
+        {0.0F, {3.0F, 15.0F}, {3.0F, 15.0F}});
+    auto textLabel = label(text, std::move(title), 14.0F);
+    textLabel->setColor(desktopColor(0xcbd9df));
+    row->addChild(std::move(textLabel),
+        {1.0F, {80.0F, 23.0F},
+            {lotui::unboundedLayoutSize, 23.0F}});
+    return row;
+}
+
+lotui::PropertyFieldStyle propertyStyle() {
+    lotui::PropertyFieldStyle style;
+    style.input.normal = desktopColor(0x313b45);
+    style.input.hovered = desktopColor(0x3a4854);
+    style.input.text = desktopColor(0xf0f3f5);
+    style.input.focusRing = desktopColor(0x83b8c4);
+    style.input.focusRingWidth = 1.0F;
+    style.readOnlyInput = style.input;
+    style.readOnlyInput.normal = desktopColor(0x29323b);
+    style.readOnlyInput.hovered = style.readOnlyInput.normal;
+    style.readOnlyInput.text = desktopColor(0xafbdc7);
+    style.action.normal = desktopColor(0x344b57);
+    style.action.hovered = desktopColor(0x42616e);
+    style.action.pressed = desktopColor(0x28414d);
+    style.action.focusRing = desktopColor(0x83b8c4);
+    style.action.focusRingWidth = 1.0F;
+    style.label = desktopColor(0xc5d0d7);
+    style.readOnlyLabel = desktopColor(0x9baab7);
+    style.actionText = desktopColor(0xe4f2f3);
+    return style;
+}
+
 struct InspectorState {
     std::shared_ptr<const lotui::TextEngine> text;
     std::vector<CadObject> objects{
@@ -140,6 +202,7 @@ struct InspectorState {
     lotui::Label* selectionTitle{nullptr};
     lotui::Label* kindValue{nullptr};
     lotui::Label* status{nullptr};
+    lotui::Label* pointHint{nullptr};
     lotui::TextField* nameField{nullptr};
     lotui::Checkbox* visibleField{nullptr};
     std::array<lotui::NumericInput*, 3> positionFields{};
@@ -174,6 +237,8 @@ struct InspectorState {
             std::to_string(object->position[1]) + ", " +
             std::to_string(object->position[2]));
         pointPad->setArmed(false);
+        pointHint->setText("X " + std::to_string(object->position[0]) +
+            "   Y " + std::to_string(object->position[1]));
         status->setText("선택: " + object->name);
     }
 
@@ -201,6 +266,8 @@ struct InspectorState {
         pointField->setValue(std::to_string(object->position[0]) + ", " +
             std::to_string(object->position[1]) + ", " +
             std::to_string(object->position[2]));
+        pointHint->setText("X " + std::to_string(object->position[0]) +
+            "   Y " + std::to_string(object->position[1]));
         status->setText("위치 변경: " + object->name);
     }
 
@@ -210,6 +277,7 @@ struct InspectorState {
         object->position = {0.0, 0.0, 0.0};
         for (auto* input : positionFields) input->setValue(0.0);
         pointField->setValue("0, 0, 0");
+        pointHint->setText("X 0   Y 0");
         status->setText("위치 초기화: " + object->name);
     }
 };
@@ -234,13 +302,13 @@ std::unique_ptr<lotui::Row> fieldRow(
 std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
     auto root = std::make_unique<lotui::Column>();
     root->setDecoration(lotui::BoxDecoration{
-        desktopColor(0x1b1d21), 0.0F});
+        desktopColor(0x171c22), 0.0F});
     lotui::LinearLayoutOptions rootOptions;
     rootOptions.spacing = 8.0F;
     rootOptions.padding = {12.0F, 12.0F, 12.0F, 10.0F};
     rootOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
     root->setOptions(rootOptions);
-    root->addChild(label(state.text, "CAD 객체 속성 검사", 18.0F), height(29.0F));
+    root->addChild(sectionHeading(state.text, "LOTUI  ·  객체 속성"), height(29.0F));
 
     auto body = std::make_unique<lotui::Row>();
     lotui::LinearLayoutOptions bodyOptions;
@@ -250,13 +318,14 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
 
     auto treePanel = std::make_unique<lotui::Column>();
     treePanel->setDecoration(lotui::BoxDecoration{
-        desktopColor(0x24282e), 3.0F});
+        desktopColor(0x222a31), 5.0F});
     lotui::LinearLayoutOptions panelOptions;
     panelOptions.spacing = 7.0F;
     panelOptions.padding = lotui::EdgeInsets::all(10.0F);
     panelOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
     treePanel->setOptions(panelOptions);
-    treePanel->addChild(label(state.text, "장면 트리", 15.0F), height(28.0F));
+    treePanel->addChild(sectionHeading(state.text, "장면"), height(28.0F));
+    treePanel->addChild(mutedLabel(state.text, "모델  /  건축 객체"), height(20.0F));
 
     std::vector<lotui::TreeNode> nodes{
         {"scene", "CAD 장면", 0, true, false, false, false},
@@ -266,9 +335,9 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
         nodes.push_back({object.id, object.name, 2, false, true,
             true, object.visible});
     lotui::TreeViewStyle treeStyle;
-    treeStyle.background = desktopColor(0x24282e);
-    treeStyle.selected = desktopColor(0x394959);
-    treeStyle.hovered = desktopColor(0x303941);
+    treeStyle.background = desktopColor(0x222a31);
+    treeStyle.selected = desktopColor(0x344c59);
+    treeStyle.hovered = desktopColor(0x2b3943);
     treeStyle.rowHeight = 28.0F;
     auto tree = std::make_unique<lotui::TreeView>(
         state.text, std::move(nodes), lotui::Size{280.0F, 380.0F},
@@ -287,24 +356,29 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
         }
     });
     treePanel->addChild(std::move(tree),
-        {0.0F, {200.0F, 240.0F}, {200.0F, 240.0F}});
-    treePanel->addChild(label(state.text,
-        "좌표 선택 버튼 → 아래 장면 클릭", 12.0F), height(22.0F));
+        {0.0F, {200.0F, 150.0F}, {200.0F, 150.0F}});
+    treePanel->addChild(sectionHeading(state.text, "작업 평면"), height(28.0F));
+    treePanel->addChild(mutedLabel(state.text,
+        "◎ 선택 후 평면을 클릭하세요"), height(22.0F));
     auto pointPad = std::make_unique<PointPad>([&state](lotui::PropertyPoint p) {
         state.pointField->acceptPoint(p);
     });
     state.pointPad = pointPad.get();
     treePanel->addChild(std::move(pointPad),
-        {0.0F, {200.0F, 120.0F}, {200.0F, 120.0F}});
+        {1.0F, {200.0F, 200.0F},
+            {200.0F, lotui::unboundedLayoutSize}});
+    auto pointHint = mutedLabel(state.text, "", 12.0F);
+    state.pointHint = pointHint.get();
+    treePanel->addChild(std::move(pointHint), height(22.0F));
     body->addChild(std::move(treePanel),
         {0.0F, {220.0F, 300.0F},
             {220.0F, lotui::unboundedLayoutSize}});
 
     auto inspector = std::make_unique<lotui::Column>();
     inspector->setDecoration(lotui::BoxDecoration{
-        desktopColor(0x24282e), 3.0F});
+        desktopColor(0x222a31), 5.0F});
     inspector->setOptions(panelOptions);
-    inspector->addChild(label(state.text, "속성", 15.0F), height(28.0F));
+    inspector->addChild(sectionHeading(state.text, "기본 정보"), height(28.0F));
     auto selected = label(state.text, "", 15.0F);
     state.selectionTitle = selected.get();
     inspector->addChild(std::move(selected), height(29.0F));
@@ -318,6 +392,7 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
         lotui::PropertyField::PickHandler{},
         lotui::PropertyField::ErrorHandler{}, textStyle());
     state.idField = id.get();
+    id->setStyle(propertyStyle());
     inspector->addChild(std::move(id), height(32.0F));
     auto name = std::make_unique<lotui::TextField>(
         state.text, "", lotui::Size{260.0F, 30.0F},
@@ -345,6 +420,7 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
         }, lotui::PropertyField::PickHandler{},
         lotui::PropertyField::ErrorHandler{}, textStyle());
     state.commandField = command.get();
+    command->setStyle(propertyStyle());
     inspector->addChild(std::move(command), height(32.0F));
     lotui::CheckboxStyle checkboxStyle;
     checkboxStyle.boxSize = 16.0F;
@@ -369,8 +445,9 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
             state.status->setText("수식을 확인하세요");
         }, textStyle());
     state.lengthField = length.get();
+    length->setStyle(propertyStyle());
     inspector->addChild(std::move(length), height(32.0F));
-    inspector->addChild(label(state.text, "위치 (월드 좌표)", 14.0F),
+    inspector->addChild(sectionHeading(state.text, "위치  ·  월드 좌표"),
         height(25.0F));
     lotui::NumericInputStyle numericStyle;
     numericStyle.normal = desktopColor(0x343c46);
@@ -423,6 +500,7 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
             state.status->setText("왼쪽 장면에서 좌표를 클릭하세요");
         }, lotui::PropertyField::ErrorHandler{}, textStyle());
     state.pointField = point.get();
+    point->setStyle(propertyStyle());
     inspector->addChild(std::move(point), height(32.0F));
     lotui::ButtonStyle resetStyle;
     resetStyle.normal = desktopColor(0x343c45);
@@ -433,9 +511,9 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
         [&state] { state.resetPosition(); }, resetStyle);
     inspector->addChild(std::move(reset),
         {0.0F, {116.0F, 29.0F}, {116.0F, 29.0F}});
-    inspector->addChild(label(state.text, "객체 색상", 14.0F), height(25.0F));
+    inspector->addChild(sectionHeading(state.text, "외관  ·  객체 색상"), height(25.0F));
     lotui::ColorEditorStyle colorStyle;
-    colorStyle.background = desktopColor(0x24282e);
+    colorStyle.background = desktopColor(0x222a31);
     colorStyle.track = desktopColor(0x1d2228);
     colorStyle.text = desktopColor(0xe1e5e9);
     colorStyle.focusRing = desktopColor(0x809db5);
@@ -459,6 +537,7 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
         {1.0F, {600.0F, 340.0F},
             {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
     auto status = label(state.text, "", 13.0F);
+    status->setColor(desktopColor(0xa5b7c1));
     state.status = status.get();
     root->addChild(std::move(status), height(20.0F));
     auto widgets = std::make_unique<lotui::WidgetTree>(std::move(root));
