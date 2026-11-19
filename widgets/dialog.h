@@ -21,6 +21,7 @@ struct DialogStyle {
 
 class Dialog final : public SingleChildWidget {
 public:
+    using BoundsHandler = std::function<void(Rect)>;
     explicit Dialog(
         std::unique_ptr<Widget> content = {},
         Size preferredSize = {420.0F, 260.0F},
@@ -43,6 +44,7 @@ public:
 
     void setStyle(DialogStyle style) noexcept;
     const DialogStyle& style() const noexcept;
+    void setOnBoundsChanged(BoundsHandler handler);
 
 protected:
     void onArrange() override;
@@ -58,14 +60,20 @@ protected:
     bool onPointerEvent(const WidgetPointerEvent& event) override;
 
 private:
+    enum class Drag { None, Move, Resize };
     std::unique_ptr<Widget> title_;
     Size preferredSize_{};
     DialogStyle style_{};
+    BoundsHandler onBoundsChanged_{};
+    Drag drag_{Drag::None};
+    Rect dragStartBounds_{};
+    Point dragStartPoint_{};
 };
 
 struct DialogHostStyle {
     Color scrim{0.0F, 0.0F, 0.0F, 0.58F};
     EdgeInsets modalMargin{24.0F, 24.0F, 24.0F, 24.0F};
+    Size minimumModelessSize{180.0F, 120.0F};
     bool cancelOnEscape{true};
     bool acceptOnUnhandledEnter{false};
 };

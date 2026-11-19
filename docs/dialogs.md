@@ -6,6 +6,10 @@ routes pointer input only to the modal, and exposes only modal controls to
 keyboard focus traversal. Closing the modal restores the control that was
 focused before it opened.
 
+A modal dialog is measured against the current host bounds each time the
+window changes size. Its title and content are arranged again within the
+available space.
+
 The modal content remains ordinary retained-mode widgets:
 
 ```cpp
@@ -77,5 +81,17 @@ dialogHost->closeModeless(propertiesId);
 ```
 
 An active modal is always painted above modeless dialogs and temporarily
-blocks their pointer and keyboard focus. Title-bar dragging and resize handles
-are the next layer on top of the modeless bounds API.
+blocks their pointer and keyboard focus. A modeless `Dialog` can be dragged by
+its title area and resized from the lower-right grip. `DialogHost` limits its
+size to the available window and `DialogHostStyle::minimumModelessSize` (default
+180 × 120 logical units). It also keeps the dialog within the host after the
+main window shrinks. Its content is arranged again after each size change.
+Other widgets passed to `showModeless()` continue to use `setModelessBounds()`.
+
+The standalone ribbon example captures both sizes with
+`ribbon_demo --capture-modeless-small output.ppm` and
+`ribbon_demo --capture-modeless-large output.ppm`.
+
+| Initial size | Resized by dragging the grip |
+| --- | --- |
+| ![Small modeless dialog](images/dialog-modeless-small.png) | ![Larger modeless dialog](images/dialog-modeless-large.png) |

@@ -368,6 +368,53 @@ void managesModelessZOrderAndBounds() {
         "modeless bounds updates must arrange the dialog immediately");
 }
 
+void resizesAndMovesModelessWithinHost() {
+    auto host = std::make_unique<lotui::DialogHost>(
+        std::make_unique<lotui::Box>());
+    auto* observed = host.get();
+    auto dialog = std::make_unique<lotui::Dialog>(
+        std::make_unique<lotui::Box>(lotui::Size{100.0F, 70.0F}),
+        lotui::Size{240.0F, 160.0F});
+    dialog->setTitle(std::make_unique<lotui::Box>(
+        lotui::Size{100.0F, 24.0F}));
+    const auto id = observed->showModeless(std::move(dialog),
+        {70.0F, 50.0F, 240.0F, 160.0F});
+    lotui::WidgetTree tree(std::move(host));
+    tree.layout({0.0F, 0.0F, 600.0F, 420.0F});
+    const auto initialContent = dynamic_cast<lotui::Dialog*>(
+        observed->modeless(id))->content()->bounds();
+    tree.pointerPressed({302.0F, 202.0F}, lotui::PointerButton::Primary);
+    tree.pointerMoved({382.0F, 262.0F});
+    tree.pointerReleased({382.0F, 262.0F}, lotui::PointerButton::Primary);
+    auto* panel = dynamic_cast<lotui::Dialog*>(observed->modeless(id));
+    require(near(panel->bounds().width, 320.0F) &&
+            near(panel->bounds().height, 220.0F) &&
+            panel->content()->bounds().width > initialContent.width,
+        "dragging the resize grip must reflow dialog content");
+
+    tree.pointerPressed({382.0F, 262.0F}, lotui::PointerButton::Primary);
+    tree.pointerMoved({-400.0F, -300.0F});
+    tree.pointerReleased({-400.0F, -300.0F}, lotui::PointerButton::Primary);
+    require(near(panel->bounds().width, 180.0F) &&
+            near(panel->bounds().height, 120.0F),
+        "modeless resizing must respect the minimum size");
+
+    const auto before = panel->bounds();
+    const lotui::Point title{before.x + 12.0F, before.y + 12.0F};
+    tree.pointerPressed(title, lotui::PointerButton::Primary);
+    tree.pointerMoved({title.x + 1000.0F, title.y + 1000.0F});
+    tree.pointerReleased({title.x + 1000.0F, title.y + 1000.0F},
+        lotui::PointerButton::Primary);
+    require(panel->bounds().x + panel->bounds().width <= 600.0F &&
+            panel->bounds().y + panel->bounds().height <= 420.0F,
+        "modeless title drag must keep the panel on screen");
+    tree.layout({0.0F, 0.0F, 300.0F, 220.0F});
+    require(panel->bounds().x >= 0.0F && panel->bounds().y >= 0.0F &&
+            panel->bounds().x + panel->bounds().width <= 300.0F &&
+            panel->bounds().y + panel->bounds().height <= 220.0F,
+        "host resize must keep modeless dialogs visible");
+}
+
 void closesModelessSafelyFromItsButton() {
     auto host = std::make_unique<lotui::DialogHost>(
         std::make_unique<lotui::Box>());
@@ -441,6 +488,7 @@ int main() {
     cancelsWithEscapeAndRestoresFocus();
     acceptsOnlyUnhandledEnterAsTheDefaultAction();
     managesModelessZOrderAndBounds();
+    resizesAndMovesModelessWithinHost();
     closesModelessSafelyFromItsButton();
     modalInputTemporarilyBlocksModelessDialogs();
     std::cout << "dialog_tests passed\n";

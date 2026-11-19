@@ -151,6 +151,10 @@ const DialogStyle& Dialog::style() const noexcept {
     return style_;
 }
 
+void Dialog::setOnBoundsChanged(BoundsHandler handler) {
+    onBoundsChanged_ = std::move(handler);
+}
+
 void Dialog::onArrange() {
     float contentTop = bounds().y;
     if (title_) {
@@ -196,6 +200,17 @@ void Dialog::onPaint(std::vector<PaintCommand>& commands) const {
             },
             clip(), style_.titleDivider, invalidTextureId, 0.0F});
     }
+    if (onBoundsChanged_ && bounds().width >= 20.0F &&
+            bounds().height >= 20.0F) {
+        const Rect edge = intersect(bounds(), clip());
+        for (float offset : {6.0F, 11.0F})
+            commands.push_back(linePaintCommand(
+                {bounds().x + bounds().width - offset - 5.0F,
+                    bounds().y + bounds().height - 4.0F},
+                {bounds().x + bounds().width - 4.0F,
+                    bounds().y + bounds().height - offset - 5.0F},
+                1.0F, edge, style_.titleDivider));
+    }
 }
 
 void Dialog::paintChildren(
@@ -235,7 +250,39 @@ bool Dialog::acceptsPointerEvents() const noexcept {
     return true;
 }
 
-bool Dialog::onPointerEvent(const WidgetPointerEvent&) {
+bool Dialog::onPointerEvent(const WidgetPointerEvent& event) {
+    if (!onBoundsChanged_) return true;
+    if (event.type == WidgetPointerEventType::Press &&
+            event.button == PointerButton::Primary) {
+        const Rect area = bounds();
+        if (event.position.x >= area.x + area.width - 18.0F &&
+                event.position.y >= area.y + area.height - 18.0F) {
+            drag_ = Drag::Resize;
+        } else if (event.position.y < area.y +
+                (title_ ? title_->bounds().y +
+                    title_->bounds().height - area.y +
+                    style_.titlePadding.bottom : 20.0F)) {
+            drag_ = Drag::Move;
+        }
+        dragStartBounds_ = area;
+        dragStartPoint_ = event.position;
+    } else if (event.type == WidgetPointerEventType::Move &&
+            drag_ != Drag::None) {
+        Rect next = dragStartBounds_;
+        const float dx = event.position.x - dragStartPoint_.x;
+        const float dy = event.position.y - dragStartPoint_.y;
+        if (drag_ == Drag::Resize) {
+            next.width = std::max(1.0F, next.width + dx);
+            next.height = std::max(1.0F, next.height + dy);
+        } else {
+            next.x += dx;
+            next.y += dy;
+        }
+        onBoundsChanged_(next);
+    } else if (event.type == WidgetPointerEventType::Release ||
+            event.type == WidgetPointerEventType::Cancel) {
+        drag_ = Drag::None;
+    }
     return true;
 }
 
@@ -338,6 +385,14 @@ ModelessDialogId DialogHost::showModeless(
         std::move(dialog),
         std::move(onClosed),
     });
+    if (auto* panel = dynamic_cast<Dialog*>(
+            modelessDialogs_.back().dialog.get())) {
+        panel->setOnBoundsChanged([this, id](Rect absolute) {
+            setModelessBounds(id, {absolute.x - bounds().x,
+                absolute.y - bounds().y, absolute.width,
+                absolute.height});
+        });
+    }
     arrangeModeless(modelessDialogs_.back());
     return id;
 }
@@ -416,6 +471,10 @@ std::size_t DialogHost::modelessCount() const noexcept {
 
 void DialogHost::setStyle(DialogHostStyle style) noexcept {
     style.modalMargin = normalized(style.modalMargin);
+    style.minimumModelessSize.width = nonNegative(
+        style.minimumModelessSize.width);
+    style.minimumModelessSize.height = nonNegative(
+        style.minimumModelessSize.height);
     style_ = style;
 }
 
@@ -592,6 +651,18 @@ void DialogHost::arrangeModeless(ModelessEntry& entry) {
             dialogSize.height = measured.height;
         }
     }
+    dialogSize.width = std::clamp(dialogSize.width,
+        std::min(style_.minimumModelessSize.width, bounds().width),
+        bounds().width);
+    dialogSize.height = std::clamp(dialogSize.height,
+        std::min(style_.minimumModelessSize.height, bounds().height),
+        bounds().height);
+    entry.bounds.width = dialogSize.width;
+    entry.bounds.height = dialogSize.height;
+    entry.bounds.x = std::clamp(entry.bounds.x, 0.0F,
+        bounds().width - dialogSize.width);
+    entry.bounds.y = std::clamp(entry.bounds.y, 0.0F,
+        bounds().height - dialogSize.height);
     entry.dialog->arrange({
         bounds().x + entry.bounds.x,
         bounds().y + entry.bounds.y,

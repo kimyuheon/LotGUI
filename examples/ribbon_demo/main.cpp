@@ -457,6 +457,38 @@ struct DemoState {
         dialogs->showModal(std::move(dialog));
     }
 
+    lotui::ModelessDialogId showResizableDialog() {
+        auto content = std::make_unique<lotui::Column>();
+        lotui::LinearLayoutOptions options;
+        options.spacing = 8.0F;
+        options.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
+        content->setOptions(options);
+        content->addChild(std::make_unique<lotui::Label>(
+            textEngine, "선택 항목의 설정을 확인하세요", textStyle(14.0F)),
+            fixedHeight(26.0F));
+        content->addChild(std::make_unique<lotui::Label>(
+            textEngine, "크기를 바꾸면 내용도 다시 배치됩니다", textStyle(13.0F)),
+            fixedHeight(26.0F));
+        auto actions = std::make_unique<lotui::Row>();
+        lotui::LinearLayoutOptions actionOptions;
+        actionOptions.mainAxisAlignment = lotui::MainAxisAlignment::End;
+        actions->setOptions(actionOptions);
+        auto id = std::make_shared<lotui::ModelessDialogId>(
+            lotui::invalidModelessDialogId);
+        actions->addChild(dialogButton(textEngine,
+            [this, id] { dialogs->closeModeless(*id); }),
+            {0.0F, {78.0F, 30.0F}, {78.0F, 30.0F}});
+        content->addChild(std::move(actions), fixedHeight(30.0F));
+        auto dialog = std::make_unique<lotui::Dialog>(
+            std::move(content), lotui::Size{300.0F, 220.0F},
+            desktopDialogStyle());
+        dialog->setTitle(std::make_unique<lotui::Label>(
+            textEngine, "크기 조절 대화상자", textStyle(14.0F)));
+        *id = dialogs->showModeless(std::move(dialog),
+            {160.0F, 80.0F, 300.0F, 220.0F});
+        return *id;
+    }
+
     void showSelectionDetails() {
         const auto index = selectedItem();
         if (!index) {
@@ -1165,8 +1197,13 @@ int main(int argc, char** argv) {
             std::string_view(argv[1]) == "--capture-insert-menu";
         const bool captureDialog = argc == 3 &&
             std::string_view(argv[1]) == "--capture-dialog";
+        const bool captureModelessSmall = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-modeless-small";
+        const bool captureModelessLarge = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-modeless-large";
         const bool captureFrame = capturePlugin || captureClickedPlugin ||
-            captureHome || captureInsertMenu || captureDialog;
+            captureHome || captureInsertMenu || captureDialog ||
+            captureModelessSmall || captureModelessLarge;
         if ((argc > 2 && !captureFrame) ||
             (argc == 2 && mode != "--smoke" &&
                 mode != "--input-test" && mode != "--input-test-v1")) {
@@ -1176,7 +1213,9 @@ int main(int argc, char** argv) {
                 "--capture-clicked-plugin output.ppm|"
                 "--capture-home output.ppm|"
                 "--capture-insert-menu output.ppm|"
-                "--capture-dialog output.ppm]\n";
+                "--capture-dialog output.ppm|"
+                "--capture-modeless-small output.ppm|"
+                "--capture-modeless-large output.ppm]\n";
             return 2;
         }
         const bool smoke = !mode.empty() || captureFrame;
@@ -1237,6 +1276,23 @@ int main(int argc, char** argv) {
             }
         }
         if (captureDialog) state.showDialog();
+        if (captureModelessSmall || captureModelessLarge) {
+            const auto id = state.showResizableDialog();
+            if (captureModelessLarge) {
+                const auto initial = state.dialogs->modeless(id)->bounds();
+                const lotui::Point grip{
+                    initial.x + initial.width - 8.0F,
+                    initial.y + initial.height - 8.0F};
+                tree->pointerPressed(grip, lotui::PointerButton::Primary);
+                tree->pointerMoved({grip.x + 100.0F, grip.y + 70.0F});
+                tree->pointerReleased({grip.x + 100.0F, grip.y + 70.0F},
+                    lotui::PointerButton::Primary);
+                const auto resized = state.dialogs->modeless(id)->bounds();
+                if (resized.width <= initial.width ||
+                        resized.height <= initial.height)
+                    throw std::runtime_error("modeless resize failed");
+            }
+        }
         if (captureInsertMenu) state.showInsertMenu();
         if (mode == "--input-test" || mode == "--input-test-v1") {
             exerciseWorkspace(*tree, state);
