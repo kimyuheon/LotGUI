@@ -132,6 +132,54 @@ void virtualizesAndScrolls() {
         "wheel input must change tree scroll offset");
 }
 
+void iconsKeepLabelsAndChecksSeparate() {
+    auto engine = std::make_shared<TestTextEngine>();
+    std::vector<lotui::TreeNode> nodes{
+        {"scene", "Scene", 0, true},
+        {"folder", "Folder", 1, true},
+        {"part", "Part", 2, false, true, true, true},
+        {"external", "Image", 1},
+    };
+    nodes[0].icon = lotui::TreeIcon::Scene;
+    nodes[1].icon = lotui::TreeIcon::Folder;
+    nodes[2].icon = lotui::TreeIcon::Cube;
+    nodes[3].iconTexture = 491;
+    lotui::TreeViewStyle style;
+    style.iconColor = {0.83F, 0.17F, 0.11F, 1.0F};
+    auto view = std::make_unique<lotui::TreeView>(engine, std::move(nodes),
+        lotui::Size{250.0F, 120.0F}, style);
+    auto* observed = view.get();
+    lotui::WidgetTree tree(std::move(view));
+    tree.layout({0.0F, 0.0F, 250.0F, 120.0F});
+    for (const std::string_view id : {"scene", "folder", "part", "external"}) {
+        const auto icon = observed->iconBounds(id);
+        const auto label = observed->labelBounds(id);
+        require(icon.width == style.iconSize &&
+                label.x == icon.x + icon.width + style.iconSpacing,
+            "icon must reserve space before the label");
+    }
+    std::vector<lotui::PaintCommand> commands;
+    tree.paint(commands);
+    bool paintedVector = false;
+    bool paintedImage = false;
+    for (const auto& command : commands) {
+        if (command.primitive == lotui::PaintPrimitive::Line &&
+                command.color.red == style.iconColor.red)
+            paintedVector = true;
+        if (command.texture == 491 && command.bounds.width == style.iconSize)
+            paintedImage = true;
+    }
+    require(paintedVector && paintedImage,
+        "tree must paint vector icons and host-provided image textures");
+    const auto part = observed->iconBounds("part");
+    tree.pointerPressed({part.x + 5.0F, part.y + 5.0F},
+        lotui::PointerButton::Primary);
+    tree.pointerReleased({part.x + 5.0F, part.y + 5.0F},
+        lotui::PointerButton::Primary);
+    require(observed->selectedId() == "part" && observed->isChecked("part"),
+        "icon click must select without toggling the checkbox");
+}
+
 void connectorsAndCheckboxes() {
     lotui::TreeViewStyle style;
     style.rowHeight = 24.0F;
@@ -409,6 +457,7 @@ void dragDropUsesStableIdsAndRejectsCycles() {
 int main() {
     expansionSelectionAndKeyboard();
     virtualizesAndScrolls();
+    iconsKeepLabelsAndChecksSeparate();
     connectorsAndCheckboxes();
     mixedCheckboxShowsPartialVisibility();
     renamesSelectedNodeWithUtf8Editor();

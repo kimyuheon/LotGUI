@@ -4,7 +4,9 @@ This standalone LotUI example models the scene-tree and property-panel workflow
 used in the sibling 3dEngine project. It builds with LotUI only. Selecting an
 object in the tree refreshes its name, visibility, world position, and color.
 Edits update the selected object; a visibility edit also updates the tree
-checkbox. The reset button sets X, Y, and Z to zero.
+checkbox. The tree shows scene, folder, and object icons; applications and
+plugins can supply a registered image texture for individual nodes. The reset
+button sets X, Y, and Z to zero.
 
 `PropertyField` demonstrates access modes and host actions: object ID is
 read-only, the command input is write-only and clears after submission, the

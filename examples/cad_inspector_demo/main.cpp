@@ -16,6 +16,7 @@
 #include "widgets/text_field.h"
 #include "widgets/tree_view.h"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -332,13 +333,18 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
         {"scene", "CAD 장면", 0, true, false, false, false},
         {"group:architecture", "건축", 1, true, false, false, false},
     };
-    for (const auto& object : state.objects)
+    nodes[0].icon = lotui::TreeIcon::Scene;
+    nodes[1].icon = lotui::TreeIcon::Folder;
+    for (const auto& object : state.objects) {
         nodes.push_back({object.id, object.name, 2, false, true,
             true, object.visible});
+        nodes.back().icon = lotui::TreeIcon::Cube;
+    }
     lotui::TreeViewStyle treeStyle;
     treeStyle.background = desktopColor(0x222a31);
     treeStyle.selected = desktopColor(0x344c59);
     treeStyle.hovered = desktopColor(0x2b3943);
+    treeStyle.iconColor = desktopColor(0x91bcc9);
     treeStyle.rowHeight = 28.0F;
     auto tree = std::make_unique<lotui::TreeView>(
         state.text, std::move(nodes), lotui::Size{280.0F, 380.0F},
@@ -565,6 +571,21 @@ void selfTest(lotui::WidgetTree& widgets, InspectorState& state,
             if (const auto* child = single->child()) visit(visit, *child);
     };
     diagnose(diagnose, widgets.root());
+    for (const std::string_view id : {"scene", "group:architecture",
+            "object:column", "object:wall", "object:door"}) {
+        const auto icon = state.tree->iconBounds(id);
+        const auto name = state.tree->labelBounds(id);
+        const auto node = std::find_if(state.tree->nodes().begin(),
+            state.tree->nodes().end(), [id](const lotui::TreeNode& item) {
+                return item.id == id;
+            });
+        const auto textLayout = state.text->createLayout(
+            node->label, textStyle(), {});
+        if (icon.width <= 0.0F ||
+                name.x < icon.x + icon.width + 1.0F ||
+                textLayout->size().width > name.width)
+            throw std::runtime_error("tree icon overlaps its label");
+    }
     const auto reference = state.lengthField->input().bounds();
     const auto aligned = [&](lotui::Rect rect) {
         return std::abs(rect.x - reference.x) < 0.1F &&

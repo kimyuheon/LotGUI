@@ -9,6 +9,21 @@ refreshes with the same ID. A checkable group can also display `Mixed` when
 only some descendants are visible. Clicking it requests `Checked`; the host
 decides whether to apply that state to descendants.
 
+Each node can show a compact icon between its checkbox and label. The built-in
+`TreeIcon::Scene`, `Folder`, and `Cube` icons use paint commands and need no
+image file. Set `TreeNode::iconTexture` to a texture ID registered with the
+active renderer to show a host or plugin image instead; the host owns that
+texture and must keep it valid while the tree paints it. The texture takes
+precedence over the built-in icon. `TreeViewStyle::iconSize`, `iconSpacing`,
+`iconColor`, and `imageTint` control appearance. `iconBounds(id)` returns the
+visible icon's rectangle, and clicking it selects the row.
+
+```cpp
+std::vector<lotui::TreeNode> nodes{{"scene", "Scene", 0, true}};
+nodes[0].icon = lotui::TreeIcon::Scene;
+// For a registered image: nodes[0].iconTexture = hostTextureId;
+```
+
 ```cpp
 auto tree = std::make_unique<lotui::TreeView>(textEngine,
     std::vector<lotui::TreeNode>{

@@ -24,6 +24,8 @@ enum class TreeCheckState {
     Mixed,
 };
 
+enum class TreeIcon { None, Scene, Folder, Cube };
+
 // Nodes are supplied in preorder. A child immediately follows its parent
 // with depth one greater; IDs remain stable across model refreshes.
 struct TreeNode {
@@ -35,6 +37,8 @@ struct TreeNode {
     bool checkable{false};
     bool checked{false};
     bool mixed{false};
+    TreeIcon icon{TreeIcon::None};
+    TextureId iconTexture{invalidTextureId};
 };
 
 struct TreeViewStyle {
@@ -51,6 +55,8 @@ struct TreeViewStyle {
     Color checkboxMark{0.96F, 0.98F, 0.97F, 1.0F};
     Color focusLine{0.32F, 0.63F, 0.88F, 1.0F};
     Color dropTarget{0.14F, 0.27F, 0.36F, 1.0F};
+    Color iconColor{0.55F, 0.73F, 0.82F, 1.0F};
+    Color imageTint{1.0F, 1.0F, 1.0F, 1.0F};
     float rowHeight{26.0F};
     float indent{16.0F};
     float padding{8.0F};
@@ -60,6 +66,8 @@ struct TreeViewStyle {
     float checkboxSize{14.0F};
     float checkboxSpacing{7.0F};
     float dragThreshold{5.0F};
+    float iconSize{16.0F};
+    float iconSpacing{5.0F};
 };
 
 class TreeView final : public Widget {
@@ -100,6 +108,7 @@ public:
     bool setLabel(std::string_view id, std::string label);
     Rect rowBounds(std::string_view id) const noexcept;
     Rect labelBounds(std::string_view id) const noexcept;
+    Rect iconBounds(std::string_view id) const noexcept;
     bool requestRename(std::string_view id);
     void ensureVisible(std::string_view id) noexcept;
     void setScrollOffset(float offset) noexcept;

@@ -23,6 +23,61 @@ void sanitize(TreeViewStyle& style) noexcept {
     style.checkboxSize = dimension(style.checkboxSize);
     style.checkboxSpacing = dimension(style.checkboxSpacing);
     style.dragThreshold = dimension(style.dragThreshold);
+    style.iconSize = dimension(style.iconSize);
+    style.iconSpacing = dimension(style.iconSpacing);
+}
+
+bool hasIcon(const TreeNode& node) noexcept {
+    return node.icon != TreeIcon::None || node.iconTexture != invalidTextureId;
+}
+
+float contentStart(const TreeNode& node, const TreeViewStyle& style,
+        Rect row) noexcept {
+    return row.x + style.padding + static_cast<float>(node.depth) *
+        style.indent + style.disclosureSize + style.labelSpacing +
+        (node.checkable ? style.checkboxSize + style.checkboxSpacing : 0.0F);
+}
+
+void appendIconLine(std::vector<PaintCommand>& commands, Rect icon,
+        Rect clip, Color color, Point first, Point last) {
+    commands.push_back(linePaintCommand(
+        {icon.x + first.x * icon.width, icon.y + first.y * icon.height},
+        {icon.x + last.x * icon.width, icon.y + last.y * icon.height},
+        1.25F, clip, color));
+}
+
+void appendTreeIcon(std::vector<PaintCommand>& commands, TreeIcon kind,
+        Rect icon, Rect clip, Color color) {
+    const auto line = [&](Point a, Point b) {
+        appendIconLine(commands, icon, clip, color, a, b);
+    };
+    if (kind == TreeIcon::Folder) {
+        line({0.08F, 0.26F}, {0.08F, 0.79F});
+        line({0.08F, 0.79F}, {0.92F, 0.79F});
+        line({0.92F, 0.79F}, {0.92F, 0.35F});
+        line({0.92F, 0.35F}, {0.45F, 0.35F});
+        line({0.45F, 0.35F}, {0.34F, 0.26F});
+        line({0.34F, 0.26F}, {0.08F, 0.26F});
+    } else if (kind == TreeIcon::Cube) {
+        line({0.5F, 0.07F}, {0.91F, 0.29F});
+        line({0.91F, 0.29F}, {0.91F, 0.73F});
+        line({0.91F, 0.73F}, {0.5F, 0.95F});
+        line({0.5F, 0.95F}, {0.09F, 0.73F});
+        line({0.09F, 0.73F}, {0.09F, 0.29F});
+        line({0.09F, 0.29F}, {0.5F, 0.07F});
+        line({0.09F, 0.29F}, {0.5F, 0.51F});
+        line({0.91F, 0.29F}, {0.5F, 0.51F});
+        line({0.5F, 0.51F}, {0.5F, 0.95F});
+    } else if (kind == TreeIcon::Scene) {
+        line({0.08F, 0.26F}, {0.5F, 0.07F});
+        line({0.5F, 0.07F}, {0.92F, 0.26F});
+        line({0.92F, 0.26F}, {0.5F, 0.45F});
+        line({0.5F, 0.45F}, {0.08F, 0.26F});
+        line({0.08F, 0.49F}, {0.5F, 0.68F});
+        line({0.5F, 0.68F}, {0.92F, 0.49F});
+        line({0.08F, 0.72F}, {0.5F, 0.91F});
+        line({0.5F, 0.91F}, {0.92F, 0.72F});
+    }
 }
 
 void appendLine(std::vector<PaintCommand>& commands, Rect bounds,
@@ -180,12 +235,19 @@ Rect TreeView::labelBounds(std::string_view id) const noexcept {
     if (!index || !visibleIndex(id)) return {};
     const Rect row = rowBounds(id);
     const TreeNode& node = nodes_[*index];
-    const float x = row.x + style_.padding +
-        static_cast<float>(node.depth) * style_.indent +
-        style_.disclosureSize + style_.labelSpacing +
-        (node.checkable ? style_.checkboxSize + style_.checkboxSpacing : 0.0F);
+    const float x = contentStart(node, style_, row) +
+        (hasIcon(node) ? style_.iconSize + style_.iconSpacing : 0.0F);
     return {x, row.y, std::max(0.0F,
         row.x + row.width - style_.padding - x), row.height};
+}
+
+Rect TreeView::iconBounds(std::string_view id) const noexcept {
+    const auto index = nodeIndex(id);
+    if (!index || !visibleIndex(id) || !hasIcon(nodes_[*index])) return {};
+    const Rect row = rowBounds(id);
+    const float size = std::min(style_.iconSize, row.height);
+    return {contentStart(nodes_[*index], style_, row),
+        row.y + (row.height - size) * 0.5F, size, size};
 }
 
 bool TreeView::requestRename(std::string_view id) {
@@ -383,10 +445,21 @@ void TreeView::onPaint(std::vector<PaintCommand>& commands) const {
                 }
             }
         }
+        float textX = contentStart(node, style_, rectangle);
+        if (hasIcon(node)) {
+            const float size = std::min(style_.iconSize, rectangle.height);
+            const Rect image{textX, rectangle.y +
+                (rectangle.height - size) * 0.5F, size, size};
+            if (node.iconTexture != invalidTextureId)
+                commands.push_back({image, rowClip, style_.imageTint,
+                    node.iconTexture, 0.0F});
+            else
+                appendTreeIcon(commands, node.icon, image, rowClip,
+                    style_.iconColor);
+            textX += style_.iconSize + style_.iconSpacing;
+        }
         if (const TextLayout* layout = layoutFor(node)) {
-            const Point origin{iconX + style_.disclosureSize +
-                    style_.labelSpacing + (node.checkable ?
-                        style_.checkboxSize + style_.checkboxSpacing : 0.0F),
+            const Point origin{textX,
                 rectangle.y + std::max(0.0F,
                     (rectangle.height - layout->size().height) * 0.5F)};
             layout->appendPaintCommands(origin, rowClip,
