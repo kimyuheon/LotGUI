@@ -112,10 +112,17 @@ const std::vector<TimelineKeyRef>& TimelineView::selectedKeys() const noexcept {
     return selection_;
 }
 
+float TimelineView::nameWidth() const noexcept {
+    const float width = std::max(0.0F, bounds().width);
+    return std::min({kNames, std::max(72.0F, width * 0.27F),
+        width * 0.45F});
+}
+
 Rect TimelineView::rulerBounds() const noexcept {
     const Rect area = bounds();
-    return {area.x + kNames, area.y,
-        std::max(0.0F, area.width - kNames),
+    const float names = nameWidth();
+    return {area.x + names, area.y,
+        std::max(0.0F, area.width - names),
         std::min(kRuler, area.height)};
 }
 
@@ -251,20 +258,35 @@ void TimelineView::onPaint(std::vector<PaintCommand>& commands) const {
     commands.push_back({{area.x, area.y, area.width, kRuler}, visible,
         style_.header, invalidTextureId, 2.0F});
     const Rect ruler = rulerBounds();
+    const float names = nameWidth();
     const Rect timelineClip = intersect(visible, {ruler.x, area.y,
         ruler.width, area.height});
-    label(commands, playing_ ? "❚❚" : "▶",
-        {area.x + 14.0F, area.y + 9.0F}, visible, style_.text);
-    label(commands, "보간", {area.x + 48.0F, area.y + 9.0F},
-        visible, selection_.empty() ? style_.grid : style_.text);
-    label(commands, "삭제", {area.x + 103.0F, area.y + 9.0F},
-        visible, selection_.empty() ? style_.grid : style_.text);
-    commands.push_back(linePaintCommand({area.x + 42.0F, area.y + 4.0F},
-        {area.x + 42.0F, area.y + kRuler - 4.0F},
-        1.0F, visible, style_.grid));
-    commands.push_back(linePaintCommand({area.x + 98.0F, area.y + 4.0F},
-        {area.x + 98.0F, area.y + kRuler - 4.0F},
-        1.0F, visible, style_.grid));
+    const float buttonWidth = names / 3.0F;
+    const Rect headerClip = intersect(visible,
+        {area.x, area.y, names, std::min(kRuler, area.height)});
+    const auto headerButton = [&](int index, std::string_view caption,
+            Color color) {
+        auto layout = textEngine_->createLayout(caption, textStyle_, {});
+        if (!layout) return;
+        const Rect segment{area.x + index * buttonWidth, area.y,
+            buttonWidth, kRuler};
+        layout->appendPaintCommands({segment.x + std::max(0.0F,
+                (segment.width - layout->size().width) * 0.5F),
+                segment.y + std::max(0.0F,
+                (segment.height - layout->size().height) * 0.5F)},
+            intersect(headerClip, segment), color, commands);
+    };
+    headerButton(0, playing_ ? "❚❚" : "▶", style_.text);
+    headerButton(1, names < 105.0F ? "◇" : "보간",
+        selection_.empty() ? style_.grid : style_.text);
+    headerButton(2, names < 105.0F ? "×" : "삭제",
+        selection_.empty() ? style_.grid : style_.text);
+    for (int index = 1; index < 3; ++index)
+        commands.push_back(linePaintCommand(
+            {area.x + index * buttonWidth, area.y + 4.0F},
+            {area.x + index * buttonWidth,
+                area.y + std::min(kRuler, area.height) - 4.0F},
+            1.0F, headerClip, style_.grid));
     commands.push_back(linePaintCommand({ruler.x, area.y},
         {ruler.x, area.y + area.height}, 1.0F, visible, style_.grid));
 
@@ -277,10 +299,14 @@ void TimelineView::onPaint(std::vector<PaintCommand>& commands) const {
     for (double t = first; t <= viewStart_ + viewDuration_ + step * 0.001;
             t += step) {
         const float x = xAt(t);
+        if (x < ruler.x || x > ruler.x + ruler.width) continue;
         commands.push_back(linePaintCommand({x, area.y + 24.0F},
             {x, area.y + area.height}, 1.0F, timelineClip, style_.grid));
-        label(commands, tickText(t), {x + 4.0F, area.y + 5.0F},
-            timelineClip, style_.text);
+        auto tick = textEngine_->createLayout(tickText(t), textStyle_, {});
+        if (tick && x + 4.0F + tick->size().width <=
+                ruler.x + ruler.width - 2.0F)
+            tick->appendPaintCommands({x + 4.0F, area.y + 5.0F},
+                timelineClip, style_.text, commands);
     }
     for (std::size_t i = 0; i < tracks_.size(); ++i) {
         const float y = area.y + kRuler + static_cast<float>(i) * kRow;
@@ -293,7 +319,7 @@ void TimelineView::onPaint(std::vector<PaintCommand>& commands) const {
             {area.x + area.width, y + kRow}, 1.0F, visible, style_.grid));
         label(commands, tracks_[i].label,
             {area.x + 12.0F, y + 9.0F},
-            intersect(visible, {area.x, y, kNames, kRow}), style_.text);
+            intersect(visible, {area.x, y, names, kRow}), style_.text);
         for (const auto& key : tracks_[i].keys) {
             const Rect marker = keyBounds(tracks_[i].id, key.id);
             if (!hasArea(intersect(marker, timelineClip))) continue;
@@ -320,16 +346,17 @@ bool TimelineView::onPointerEvent(const WidgetPointerEvent& event) {
         event.button == PointerButton::Primary &&
         contains(bounds(), event.position)) {
         if (event.position.y < bounds().y + kRuler &&
-            event.position.x < bounds().x + kNames) {
+            event.position.x < bounds().x + nameWidth()) {
             const float local = event.position.x - bounds().x;
-            if (local < 42.0F) {
+            const float buttonWidth = nameWidth() / 3.0F;
+            if (local < buttonWidth) {
                 playing_ = !playing_;
                 if (onPlayChanged_) onPlayChanged_(playing_);
-            } else if (local < 98.0F) cycleInterpolation();
+            } else if (local < buttonWidth * 2.0F) cycleInterpolation();
             else deleteSelection();
             return true;
         }
-        if (event.position.x < bounds().x + kNames) return true;
+        if (event.position.x < bounds().x + nameWidth()) return true;
         for (std::size_t i = tracks_.size(); i > 0; --i)
             for (auto& key : tracks_[i - 1].keys)
                 if (contains(keyBounds(tracks_[i - 1].id, key.id),
@@ -403,7 +430,8 @@ bool TimelineView::onPointerEvent(const WidgetPointerEvent& event) {
 }
 
 bool TimelineView::onScrollEvent(const WidgetScrollEvent& event) {
-    if (!contains(bounds(), event.position) || event.delta.y == 0.0F)
+    if (!contains(bounds(), event.position) ||
+        event.position.x < rulerBounds().x || event.delta.y == 0.0F)
         return false;
     const double factor = std::pow(1.12,
         -std::clamp(static_cast<double>(event.delta.y) /

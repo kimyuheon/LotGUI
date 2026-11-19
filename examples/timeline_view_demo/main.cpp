@@ -9,6 +9,7 @@
 #include "widgets/linear_layout.h"
 #include "widgets/timeline_view.h"
 
+#include <algorithm>
 #include <chrono>
 #include <exception>
 #include <fstream>
@@ -17,6 +18,7 @@
 #include <stdexcept>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -36,14 +38,24 @@ int main(int argc, char** argv) {
         const bool smoke = argc == 2 && std::string_view(argv[1]) == "--smoke";
         const bool captureEdits = argc == 3 &&
             std::string_view(argv[1]) == "--capture-edits";
+        const bool captureCompact = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-compact";
+        const bool captureExpanded = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-expanded";
         const bool capture = argc == 3 &&
-            (std::string_view(argv[1]) == "--capture" || captureEdits);
+            (std::string_view(argv[1]) == "--capture" || captureEdits ||
+                captureCompact || captureExpanded);
         if (argc > 1 && !smoke && !capture) {
-            std::cerr << "usage: timeline_view_demo [--smoke|--capture output.ppm|--capture-edits output.ppm]\n";
+            std::cerr << "usage: timeline_view_demo [--smoke|--capture output.ppm|--capture-edits output.ppm|--capture-compact output.ppm|--capture-expanded output.ppm]\n";
             return 2;
         }
         auto platform = lotui::createPlatformBackend();
-        auto window = platform->createWindow({"LotUI TimelineView", 1024, 480, true});
+        const int windowWidth = captureCompact ? 420 :
+            captureExpanded ? 1440 : 1024;
+        const int windowHeight = captureCompact ? 400 :
+            captureExpanded ? 560 : 480;
+        auto window = platform->createWindow({"LotUI TimelineView",
+            windowWidth, windowHeight, true});
         window->show();
         lotui::VulkanRenderer renderer(*window);
         const auto font = lotui::executableDirectory() /
@@ -59,6 +71,7 @@ int main(int argc, char** argv) {
         lotui::LinearLayoutOptions options;
         options.padding = {16.0F, 15.0F, 16.0F, 15.0F};
         options.spacing = 9.0F;
+        options.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
         root->setOptions(options);
         root->addChild(std::make_unique<lotui::Label>(text,
             "LotUI 타임라인", heading),
@@ -118,7 +131,7 @@ int main(int argc, char** argv) {
                 "개 삭제");
         });
         root->addChild(std::move(timeline),
-            {1.0F, {400.0F, 210.0F},
+            {1.0F, {0.0F, 0.0F},
                 {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
         root->addChild(std::move(status),
             {0.0F, {0.0F, 24.0F},
@@ -126,9 +139,10 @@ int main(int argc, char** argv) {
         lotui::WidgetTree tree(std::move(root));
         const auto layout = [](lotui::WidgetTree& widgets,
             const lotui::WindowMetrics& metrics) {
+            const float scale = std::max(0.01F, metrics.dpiScale);
             widgets.layout({0.0F, 0.0F,
-                static_cast<float>(metrics.width),
-                static_cast<float>(metrics.height)});
+                static_cast<float>(metrics.width) / scale,
+                static_cast<float>(metrics.height) / scale});
         };
         layout(tree, window->metrics());
         if (captureEdits) {
@@ -151,6 +165,19 @@ int main(int argc, char** argv) {
         }
         std::vector<lotui::PaintCommand> commands;
         if (smoke) {
+            for (const auto [width, height] : {
+                    std::pair{336.0F, 320.0F},
+                    {1152.0F, 448.0F}}) {
+                tree.layout({0.0F, 0.0F, width, height});
+                const auto ruler = view->rulerBounds();
+                const auto key = view->keyBounds("camera", "c1");
+                if (ruler.width < 100.0F || key.x < ruler.x ||
+                        key.x + key.width > ruler.x + ruler.width ||
+                        view->bounds().x + view->bounds().width > width + 0.1F ||
+                        view->bounds().y + view->bounds().height > height + 0.1F)
+                    throw std::runtime_error("timeline resize layout failed");
+            }
+            layout(tree, window->metrics());
             const auto marker = view->keyBounds("camera", "c1");
             const lotui::Point point{marker.x + 6.0F, marker.y + 6.0F};
             tree.pointerPressed(point, lotui::PointerButton::Primary);

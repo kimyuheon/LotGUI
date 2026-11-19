@@ -95,6 +95,7 @@ protected:
 
 private:
     enum class Drag { None, Scrub, Key };
+    float nameWidth() const noexcept;
     double timeAt(float x) const noexcept;
     float xAt(double seconds) const noexcept;
     void seek(double seconds);

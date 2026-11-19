@@ -31,6 +31,10 @@ from the selection; dragging any selected key moves the group without changing
 their spacing. The ruler supports scrubbing, the wheel zooms around the
 pointer, and the three compact header controls toggle playback, cycle the
 selected keys through smooth/linear/step interpolation, and delete them.
+The track-name column narrows with the widget, while the ruler recomputes its
+tick spacing and keeps tick labels inside the visible edge. In compact panels,
+the interpolation and delete controls show symbols; all three remain clickable.
+Resize does not change key times or selection.
 Space toggles playback, F2 cycles interpolation, Delete removes selected keys,
 Left/Right seek and Home returns to zero. Key dragging previews locally and
 calls `setOnKeysMoved()` once on release when that callback is installed. A
@@ -40,8 +44,14 @@ model persistence.
 Run `timeline_view_demo`, `timeline_view_demo --smoke`, or
 `timeline_view_demo --capture output.ppm`, or
 `timeline_view_demo --capture-edits output.ppm` to capture a multi-key
-selection. The same demo builds separately in
+selection. `--capture-compact output.ppm` and
+`--capture-expanded output.ppm` capture the narrow and wide layouts. The same
+demo builds separately in
 `LotGUI_Sample` against the static DesktopSDK through `find_package(LotUI)`.
+
+| Compact window | Expanded window |
+| --- | --- |
+| ![Compact timeline](images/timeline-compact.png) | ![Expanded timeline](images/timeline-expanded.png) |
 
 The 3dEngine adapter lives in its `samples/lotui_smoke` directory. It reads
 real timeline tracks through the engine C API and checks group drag,

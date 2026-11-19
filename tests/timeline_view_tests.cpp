@@ -7,6 +7,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 
 namespace {
 void check(bool okay, const char* message) {
@@ -26,9 +27,53 @@ public:
         return std::make_unique<StubLayout>();
     }
 };
+
+void resizeKeepsKeysAndControlsUsable() {
+    auto timeline = std::make_unique<lotui::TimelineView>(
+        std::make_shared<StubText>());
+    auto* view = timeline.get();
+    view->setDuration(12.0);
+    view->setTracks({{"camera", "Camera", {{"middle", 6.0}}}});
+    lotui::WidgetTree tree(std::move(timeline));
+    for (const auto [width, height] : {
+            std::pair{320.0F, 90.0F}, {420.0F, 220.0F},
+            {800.0F, 280.0F}, {1440.0F, 480.0F}}) {
+        tree.layout({4.0F, 8.0F, width, height});
+        const auto ruler = view->rulerBounds();
+        const auto key = view->keyBounds("camera", "middle");
+        check(ruler.x > view->bounds().x &&
+                ruler.x + ruler.width <= view->bounds().x + width &&
+                key.x >= ruler.x &&
+                key.x + key.width <= ruler.x + ruler.width &&
+                key.y >= ruler.y + ruler.height &&
+                key.y + key.height <= view->bounds().y + height,
+            "resizing must keep ruler and key inside the view");
+        std::vector<lotui::PaintCommand> commands;
+        tree.paint(commands);
+        const lotui::Point point{key.x + key.width * 0.5F,
+            key.y + key.height * 0.5F};
+        tree.pointerPressed(point, lotui::PointerButton::Primary);
+        tree.pointerReleased(point, lotui::PointerButton::Primary);
+        check(view->selectedKey() ==
+                lotui::TimelineKeyRef{"camera", "middle"},
+            "resized key must remain selectable");
+        const float segment = (ruler.x - view->bounds().x) / 3.0F;
+        const lotui::Point play{view->bounds().x + segment * 0.5F,
+            view->bounds().y + 15.0F};
+        const bool before = view->playing();
+        tree.pointerPressed(play, lotui::PointerButton::Primary);
+        tree.pointerReleased(play, lotui::PointerButton::Primary);
+        check(view->playing() != before,
+            "resized transport button must stay clickable");
+        check(!tree.scroll({view->bounds().x + 4.0F, point.y},
+                {0.0F, 48.0F}).handled,
+            "name column wheel must not zoom the timeline");
+    }
+}
 }
 
 int main() {
+    resizeKeepsKeysAndControlsUsable();
     auto timeline = std::make_unique<lotui::TimelineView>(
         std::make_shared<StubText>(), lotui::Size{800.0F, 280.0F});
     auto* view = timeline.get();
