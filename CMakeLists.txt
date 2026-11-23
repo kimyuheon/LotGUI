@@ -574,8 +574,12 @@ if(BUILD_TESTING)
     if(WIN32)
         add_executable(window_minimum_tests tests/window_minimum_tests.cpp)
         target_link_libraries(window_minimum_tests PRIVATE lotui_platform)
-        target_compile_options(window_minimum_tests PRIVATE
-            /W4 /permissive- /utf-8)
+        target_compile_definitions(window_minimum_tests PRIVATE
+            _WIN32_WINNT=0x0A00)
+        if(MSVC)
+            target_compile_options(window_minimum_tests PRIVATE
+                /W4 /permissive- /utf-8)
+        endif()
         add_test(NAME window_minimum_tests COMMAND window_minimum_tests)
     endif()
 
