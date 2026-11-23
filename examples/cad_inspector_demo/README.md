@@ -18,7 +18,9 @@ request `CAD_EdGetPoint`, pass the returned world coordinates to
 The field never owns the engine viewport or its input state.
 
 The example composes public `TreeView`, `TextField`, `Checkbox`,
-`NumericInput`, `PropertyField`, and `ColorEditor` widgets. Its small `CadObject` model and
+`Vector3Input`, `PropertyField`, and `ColorEditor` widgets. `Vector3Input`
+keeps X/Y/Z fields aligned and reports the changed axis; the host callback
+still owns the model update and Undo transaction. Its small `CadObject` model and
 callbacks live in `main.cpp`, so an engine can replace the in-memory model
 with its own adapter. In 3dEngine, the corresponding API calls are
 `CAD_GetSelection`, `CAD_GetObjectName` / `CAD_SetObjectName`,

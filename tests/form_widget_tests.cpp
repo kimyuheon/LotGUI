@@ -2,6 +2,7 @@
 #include "widgets/checkbox.h"
 #include "widgets/label.h"
 #include "widgets/numeric_input.h"
+#include "widgets/vector3_input.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -183,12 +184,47 @@ void rejectsInvalidNumericConfiguration() {
     require(false, "invalid numeric ranges must be rejected");
 }
 
+void editsVectorAxesIndependently() {
+    auto engine = std::make_shared<TestTextEngine>();
+    lotui::NumericInputOptions options;
+    options.minimum = -10.0;
+    options.maximum = 10.0;
+    options.step = 0.25;
+    options.preferredSize = {120.0F, 28.0F};
+    std::size_t changedAxis = 3;
+    double changedValue = 0.0;
+    auto editor = std::make_unique<lotui::Vector3Input>(engine, options,
+        [&](std::size_t axis, double value) {
+            changedAxis = axis;
+            changedValue = value;
+        });
+    auto* observed = editor.get();
+    lotui::WidgetTree tree(std::move(editor));
+    tree.layout({0.0F, 0.0F, 180.0F, 100.0F});
+    observed->setValue({1.0, 2.0, 3.0});
+    require(near(observed->value()[2], 3.0) && changedAxis == 3,
+        "model refresh must not emit a user edit");
+    observed->axis(1).increment();
+    require(changedAxis == 1 && near(changedValue, 2.25) &&
+        near(observed->value()[0], 1.0) && near(observed->value()[2], 3.0),
+        "axis edit must identify the changed component only");
+    require(near(observed->axis(0).bounds().x,
+            observed->axis(2).bounds().x),
+        "axis fields must align after layout");
+    observed->setEnabled(false);
+    require(!observed->axis(0).isEnabled() &&
+        !observed->axis(1).isEnabled() &&
+        !observed->axis(2).isEnabled(),
+        "disabled vector must disable all axis fields");
+}
+
 } // namespace
 
 int main() {
     togglesCheckboxWithPointerAndKeyboard();
     editsNumericValueWithinItsRange();
     rejectsInvalidNumericConfiguration();
+    editsVectorAxesIndependently();
     std::cout << "form_widget_tests passed\n";
     return EXIT_SUCCESS;
 }

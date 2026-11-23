@@ -15,6 +15,7 @@
 #include "widgets/property_field.h"
 #include "widgets/text_field.h"
 #include "widgets/tree_view.h"
+#include "widgets/vector3_input.h"
 
 #include <algorithm>
 #include <array>
@@ -468,21 +469,21 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
     numericStyle.cornerRadius = 3.0F;
     numericStyle.stepButtonWidth = 22.0F;
     numericStyle.contentPadding = {8.0F, 4.0F, 4.0F, 4.0F};
-    for (std::size_t axis = 0; axis < 3; ++axis) {
-        lotui::NumericInputOptions inputOptions;
-        inputOptions.minimum = -10000.0;
-        inputOptions.maximum = 10000.0;
-        inputOptions.step = 0.25;
-        inputOptions.decimalPlaces = 2;
-        inputOptions.preferredSize = {205.0F, 30.0F};
-        auto input = std::make_unique<lotui::NumericInput>(
-            state.text, inputOptions,
-            [&state, axis](double value) { state.setPosition(axis, value); },
-            numericStyle, textStyle());
-        state.positionFields[axis] = input.get();
-        inspector->addChild(fieldRow(state.text,
-            std::string(1, "XYZ"[axis]), std::move(input)), height(32.0F));
-    }
+    lotui::NumericInputOptions inputOptions;
+    inputOptions.minimum = -10000.0;
+    inputOptions.maximum = 10000.0;
+    inputOptions.step = 0.25;
+    inputOptions.decimalPlaces = 2;
+    inputOptions.preferredSize = {205.0F, 30.0F};
+    auto position = std::make_unique<lotui::Vector3Input>(state.text,
+        inputOptions, [&state](std::size_t axis, double value) {
+            state.setPosition(axis, value);
+        }, numericStyle, textStyle(),
+        lotui::Vector3InputLayout{96.0F, 32.0F, 5.0F, 2.0F,
+            180.0F});
+    for (std::size_t axis = 0; axis < 3; ++axis)
+        state.positionFields[axis] = &position->axis(axis);
+    inspector->addChild(std::move(position), height(98.0F));
     auto point = std::make_unique<lotui::PropertyField>(state.text,
         lotui::PropertyFieldOptions{"클릭 좌표", lotui::PropertyAccess::ReadWrite,
             true, false}, "", [&state](std::string_view value) {
