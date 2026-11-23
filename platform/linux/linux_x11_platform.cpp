@@ -163,6 +163,8 @@ private:
 };
 
 X11Window::X11Window(const WindowOptions& options) {
+    const int initialWidth = std::max(options.width, options.minimumWidth);
+    const int initialHeight = std::max(options.height, options.minimumHeight);
     std::setlocale(LC_CTYPE, "");
     XSetLocaleModifiers("");
     display_ = XOpenDisplay(nullptr);
@@ -176,8 +178,8 @@ X11Window::X11Window(const WindowOptions& options) {
         RootWindow(display_, screen_),
         0,
         0,
-        static_cast<unsigned int>(options.width),
-        static_cast<unsigned int>(options.height),
+        static_cast<unsigned int>(initialWidth),
+        static_cast<unsigned int>(initialHeight),
         0,
         BlackPixel(display_, screen_),
         BlackPixel(display_, screen_));
@@ -256,17 +258,23 @@ X11Window::X11Window(const WindowOptions& options) {
     if (!options.resizable) {
         XSizeHints hints{};
         hints.flags = PMinSize | PMaxSize;
-        hints.min_width = options.width;
-        hints.max_width = options.width;
-        hints.min_height = options.height;
-        hints.max_height = options.height;
+        hints.min_width = initialWidth;
+        hints.max_width = initialWidth;
+        hints.min_height = initialHeight;
+        hints.max_height = initialHeight;
+        XSetWMNormalHints(display_, window_, &hints);
+    } else if (options.minimumWidth > 0 || options.minimumHeight > 0) {
+        XSizeHints hints{};
+        hints.flags = PMinSize;
+        hints.min_width = std::max(1, options.minimumWidth);
+        hints.min_height = std::max(1, options.minimumHeight);
         XSetWMNormalHints(display_, window_, &hints);
     }
 
-    metrics_.width = options.width;
-    metrics_.height = options.height;
-    metrics_.framebufferWidth = options.width;
-    metrics_.framebufferHeight = options.height;
+    metrics_.width = initialWidth;
+    metrics_.height = initialHeight;
+    metrics_.framebufferWidth = metrics_.width;
+    metrics_.framebufferHeight = metrics_.height;
     metrics_.dpiScale = displayDpiScale(display_, screen_);
 }
 

@@ -417,7 +417,9 @@ MacOSWindowImpl::MacOSWindowImpl(const lotui::WindowOptions& options) {
     }
 
     window_ = [[NSWindow alloc]
-        initWithContentRect:NSMakeRect(0, 0, options.width, options.height)
+        initWithContentRect:NSMakeRect(0, 0,
+            std::max(options.width, options.minimumWidth),
+            std::max(options.height, options.minimumHeight))
                   styleMask:style
                     backing:NSBackingStoreBuffered
                       defer:NO];
@@ -430,6 +432,11 @@ MacOSWindowImpl::MacOSWindowImpl(const lotui::WindowOptions& options) {
     window_.delegate = delegate_;
     window_.releasedWhenClosed = NO;
     window_.title = [NSString stringWithUTF8String:options.title.c_str()];
+    if (options.resizable &&
+            (options.minimumWidth > 0 || options.minimumHeight > 0))
+        window_.contentMinSize = NSMakeSize(
+            std::max(1, options.minimumWidth),
+            std::max(1, options.minimumHeight));
     [window_ center];
     [window_ setAcceptsMouseMovedEvents:YES];
 

@@ -732,7 +732,7 @@ int main(int argc, char** argv) {
             {"LotUI CAD Inspector", captureCompact ? 680 :
                 captureExpanded ? 1200 : 840,
                 captureCompact ? 900 : captureExpanded ? 1100 : 1000,
-                true});
+                true, 680, 900});
         window->show();
         lotui::VulkanRenderer renderer(*window);
         const auto font = lotui::executableDirectory() /

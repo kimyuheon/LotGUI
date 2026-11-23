@@ -571,6 +571,14 @@ if(LOTUI_BUILD_VULKAN_RENDERER)
 endif()
 
 if(BUILD_TESTING)
+    if(WIN32)
+        add_executable(window_minimum_tests tests/window_minimum_tests.cpp)
+        target_link_libraries(window_minimum_tests PRIVATE lotui_platform)
+        target_compile_options(window_minimum_tests PRIVATE
+            /W4 /permissive- /utf-8)
+        add_test(NAME window_minimum_tests COMMAND window_minimum_tests)
+    endif()
+
     add_executable(paint_batch_tests
         tests/paint_batch_tests.cpp
     )

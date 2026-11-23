@@ -16,6 +16,9 @@ struct WindowOptions {
     int width{960};
     int height{640};
     bool resizable{true};
+    // Client-area units; zero leaves that dimension unconstrained.
+    int minimumWidth{0};
+    int minimumHeight{0};
 };
 
 struct WindowMetrics {

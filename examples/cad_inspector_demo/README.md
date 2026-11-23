@@ -43,4 +43,7 @@ picking, visibility, naming, and reset. `--capture output.ppm` saves a
 Vulkan-rendered frame; `--capture-compact` and `--capture-expanded` save the
 same screen in small and large windows.
 
+The native window keeps its client area at least 680×900 when resized. The
+compact capture uses the minimum supported layout size.
+
 ![CAD inspector example](../../docs/images/cad-inspector-demo.png)

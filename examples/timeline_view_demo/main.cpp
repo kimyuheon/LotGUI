@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
         const int windowHeight = captureCompact ? 400 :
             captureExpanded ? 560 : 480;
         auto window = platform->createWindow({"LotUI TimelineView",
-            windowWidth, windowHeight, true});
+            windowWidth, windowHeight, true, 420, 400});
         window->show();
         lotui::VulkanRenderer renderer(*window);
         const auto font = lotui::executableDirectory() /

@@ -167,6 +167,9 @@ private:
     void updateDpiScale();
 
     HWND window_{nullptr};
+    DWORD windowStyle_{0};
+    int minimumWidth_{0};
+    int minimumHeight_{0};
     WindowMetrics metrics_{};
     std::deque<PlatformEvent> events_;
     bool closeRequested_{false};
@@ -175,7 +178,9 @@ private:
     wchar_t pendingHighSurrogate_{0};
 };
 
-WindowsWindow::WindowsWindow(const WindowOptions& options) {
+WindowsWindow::WindowsWindow(const WindowOptions& options)
+    : minimumWidth_(std::max(0, options.minimumWidth)),
+      minimumHeight_(std::max(0, options.minimumHeight)) {
     const HINSTANCE instance = GetModuleHandleW(nullptr);
 
     WNDCLASSEXW windowClass{};
@@ -194,8 +199,11 @@ WindowsWindow::WindowsWindow(const WindowOptions& options) {
     if (options.resizable) {
         style |= WS_THICKFRAME | WS_MAXIMIZEBOX;
     }
+    windowStyle_ = style;
 
-    RECT frame{0, 0, options.width, options.height};
+    RECT frame{0, 0,
+        std::max(options.width, minimumWidth_),
+        std::max(options.height, minimumHeight_)};
     if (AdjustWindowRectEx(&frame, style, FALSE, 0) == FALSE) {
         throw std::runtime_error("failed to calculate the Win32 window frame");
     }
@@ -409,6 +417,25 @@ LRESULT CALLBACK WindowsWindow::windowProcedure(
 LRESULT WindowsWindow::handleMessage(
     UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
+    case WM_GETMINMAXINFO: {
+        if (minimumWidth_ <= 0 && minimumHeight_ <= 0)
+            return DefWindowProcW(window_, message, wParam, lParam);
+        auto* limits = reinterpret_cast<MINMAXINFO*>(lParam);
+        RECT minimum{0, 0, std::max(1, minimumWidth_),
+            std::max(1, minimumHeight_)};
+        const UINT dpi = GetDpiForWindow(window_);
+        if (AdjustWindowRectExForDpi(&minimum, windowStyle_, FALSE, 0,
+                dpi > 0 ? dpi : 96) == FALSE)
+            return DefWindowProcW(window_, message, wParam, lParam);
+        if (minimumWidth_ > 0)
+            limits->ptMinTrackSize.x = std::max(limits->ptMinTrackSize.x,
+                minimum.right - minimum.left);
+        if (minimumHeight_ > 0)
+            limits->ptMinTrackSize.y = std::max(limits->ptMinTrackSize.y,
+                minimum.bottom - minimum.top);
+        return 0;
+    }
+
     case WM_CLOSE:
         if (!closeRequested_) {
             closeRequested_ = true;

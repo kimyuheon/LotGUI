@@ -5,6 +5,9 @@ and `TimelineKey` types contain stable string IDs and seconds. The widget has
 no CAD, Vulkan or operating system type in its API, so a plugin or host can
 translate its own animation model into tracks.
 
+The standalone timeline demo keeps its native client area at least 420×400
+while the window is resized.
+
 ```cpp
 auto view = std::make_unique<lotui::TimelineView>(textEngine);
 view->setDuration(12.0);
