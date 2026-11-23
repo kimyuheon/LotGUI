@@ -14,6 +14,8 @@ namespace lotui {
 class DialogHost;
 class Dialog;
 class PopupHost;
+class DockToolbar;
+class DockWorkspace;
 
 enum class WidgetPointerEventType {
     Enter,
@@ -58,6 +60,8 @@ private:
     friend class DialogHost;
     friend class Dialog;
     friend class PopupHost;
+    friend class DockToolbar;
+    friend class DockWorkspace;
 
     void collectHitTestEntries(std::vector<HitTestEntry>& entries) const;
     void collectFocusTargets(std::vector<PointerTargetId>& targets) const;

@@ -205,6 +205,7 @@ add_library(lotui_widgets STATIC
     widgets/disclosure_panel.cpp
     widgets/document_tab_view.cpp
     widgets/dialog.cpp
+    widgets/dock_workspace.cpp
     widgets/graph_canvas.cpp
     widgets/inline_text_editor.cpp
     widgets/label.cpp
@@ -723,6 +724,10 @@ if(BUILD_TESTING)
     )
     target_link_libraries(dialog_tests PRIVATE lotui_widgets)
     add_test(NAME dialog_tests COMMAND dialog_tests)
+
+    add_executable(dock_workspace_tests tests/dock_workspace_tests.cpp)
+    target_link_libraries(dock_workspace_tests PRIVATE lotui_widgets)
+    add_test(NAME dock_workspace_tests COMMAND dock_workspace_tests)
 
     add_executable(texture_tests
         tests/texture_tests.cpp

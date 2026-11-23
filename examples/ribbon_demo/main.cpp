@@ -13,6 +13,7 @@
 #include "widgets/box.h"
 #include "widgets/combo_box.h"
 #include "widgets/dialog.h"
+#include "widgets/dock_workspace.h"
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/list_control.h"
@@ -219,6 +220,7 @@ struct DemoState {
     lotui::DialogHost* dialogs{nullptr};
     lotui::PopupHost* popups{nullptr};
     lotui::Ribbon* ribbon{nullptr};
+    lotui::DockWorkspace* dock{nullptr};
     lotui::Button* insertMenuButton{nullptr};
     lotui::Label* status{nullptr};
     lotui::Label* count{nullptr};
@@ -816,7 +818,24 @@ std::unique_ptr<lotui::WidgetTree> createUi(
         state.textEngine, "준비", textStyle(14.0F));
     state.status = status.get();
     workspace->addChild(std::move(status), fixedHeight(20.0F));
-    root->addChild(std::move(workspace),
+    auto toolbar = std::make_unique<lotui::DockToolbar>();
+    toolbar->addCommand(commandButton(state.textEngine, "취소",
+        [&state] { state.undo(); }, 44.0F));
+    toolbar->addCommand(commandButton(state.textEngine, "다시",
+        [&state] { state.redo(); }, 44.0F));
+    toolbar->addCommand(commandButton(state.textEngine, "추가",
+        [&state] { state.addItem(); }, 44.0F));
+    toolbar->addCommand(commandButton(state.textEngine, "삭제",
+        [&state] { state.removeItem(); }, 44.0F));
+    lotui::DockWorkspaceStyle dockStyle;
+    dockStyle.toolbarBackground = desktopColor(0x292e34);
+    dockStyle.gripColor = desktopColor(0x9baab7);
+    dockStyle.dockPreview = desktopColor(0x779fc0, 0.35F);
+    auto dock = std::make_unique<lotui::DockWorkspace>(
+        std::move(workspace), std::move(toolbar),
+        lotui::DockSide::Top, dockStyle);
+    state.dock = dock.get();
+    root->addChild(std::move(dock),
         {1.0F, {}, {lotui::unboundedLayoutSize, lotui::unboundedLayoutSize}});
     state.refreshList();
 
@@ -1182,6 +1201,52 @@ void exerciseWorkspace(lotui::WidgetTree& tree, DemoState& state) {
     }
 }
 
+void exerciseDocking(lotui::WidgetTree& tree, DemoState& state) {
+    if (!state.dock || state.dock->toolbar().commandCount() != 4)
+        throw std::runtime_error("quick toolbar is missing");
+    for (const auto side : {lotui::DockSide::Bottom,
+            lotui::DockSide::Left, lotui::DockSide::Right,
+            lotui::DockSide::Top}) {
+        const auto area = state.dock->bounds();
+        const lotui::Point drop = side == lotui::DockSide::Bottom
+            ? lotui::Point{area.x + area.width * 0.5F,
+                area.y + area.height - 4.0F}
+            : side == lotui::DockSide::Left
+            ? lotui::Point{area.x + 4.0F,
+                area.y + area.height * 0.5F}
+            : side == lotui::DockSide::Right
+            ? lotui::Point{area.x + area.width - 4.0F,
+                area.y + area.height * 0.5F}
+            : lotui::Point{area.x + area.width * 0.5F, area.y + 4.0F};
+        const auto grip = state.dock->toolbar().gripBounds();
+        const lotui::Point start{grip.x + grip.width * 0.5F,
+            grip.y + grip.height * 0.5F};
+        tree.pointerPressed(start, lotui::PointerButton::Primary);
+        tree.pointerMoved(drop);
+        if (state.dock->previewSide() != side)
+            throw std::runtime_error("toolbar edge preview failed");
+        tree.pointerReleased(drop, lotui::PointerButton::Primary);
+        if (state.dock->side() != side ||
+                state.dock->toolbar().vertical() !=
+                    (side == lotui::DockSide::Left ||
+                     side == lotui::DockSide::Right))
+            throw std::runtime_error("toolbar did not dock on requested side");
+    }
+    const auto initialCount = state.items.size();
+    const auto click = [&tree](lotui::Rect rect) {
+        const lotui::Point center{rect.x + rect.width * 0.5F,
+            rect.y + rect.height * 0.5F};
+        tree.pointerPressed(center, lotui::PointerButton::Primary);
+        tree.pointerReleased(center, lotui::PointerButton::Primary);
+    };
+    click(state.dock->toolbar().commandAt(2).bounds());
+    if (state.items.size() != initialCount + 1)
+        throw std::runtime_error("docked add command failed");
+    click(state.dock->toolbar().commandAt(0).bounds());
+    if (state.items.size() != initialCount)
+        throw std::runtime_error("docked undo command failed");
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1193,6 +1258,8 @@ int main(int argc, char** argv) {
             std::string_view(argv[1]) == "--capture-clicked-plugin";
         const bool captureHome = argc == 3 &&
             std::string_view(argv[1]) == "--capture-home";
+        const bool captureDockLeft = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-dock-left";
         const bool captureInsertMenu = argc == 3 &&
             std::string_view(argv[1]) == "--capture-insert-menu";
         const bool captureDialog = argc == 3 &&
@@ -1202,7 +1269,7 @@ int main(int argc, char** argv) {
         const bool captureModelessLarge = argc == 3 &&
             std::string_view(argv[1]) == "--capture-modeless-large";
         const bool captureFrame = capturePlugin || captureClickedPlugin ||
-            captureHome || captureInsertMenu || captureDialog ||
+            captureHome || captureDockLeft || captureInsertMenu || captureDialog ||
             captureModelessSmall || captureModelessLarge;
         if ((argc > 2 && !captureFrame) ||
             (argc == 2 && mode != "--smoke" &&
@@ -1212,6 +1279,7 @@ int main(int argc, char** argv) {
                 "--capture-plugin output.ppm|"
                 "--capture-clicked-plugin output.ppm|"
                 "--capture-home output.ppm|"
+                "--capture-dock-left output.ppm|"
                 "--capture-insert-menu output.ppm|"
                 "--capture-dialog output.ppm|"
                 "--capture-modeless-small output.ppm|"
@@ -1262,6 +1330,7 @@ int main(int argc, char** argv) {
             }
         }
         if (capturePlugin) state.ribbon->selectTab("plugin");
+        if (captureDockLeft) state.dock->setSide(lotui::DockSide::Left);
         if (captureClickedPlugin) {
             const auto header = state.ribbon->tabHeaderBounds(3);
             const lotui::Point center{
@@ -1297,6 +1366,7 @@ int main(int argc, char** argv) {
         if (mode == "--input-test" || mode == "--input-test-v1") {
             exerciseWorkspace(*tree, state);
             exercisePlugin(*tree, state, mode == "--input-test");
+            exerciseDocking(*tree, state);
         }
 
         std::vector<lotui::PaintCommand> commands;

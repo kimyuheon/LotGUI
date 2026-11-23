@@ -108,6 +108,8 @@ The [plugin ribbon capture](docs/images/ribbon-demo-plugin.png) shows the
 host-owned text field beside the existing controls.
 See [`examples/ribbon_demo/README.md`](examples/ribbon_demo/README.md) for
 build and separate example-package instructions.
+The [dockable toolbar](docs/dock-workspace.md) can move to all four sides of
+the ribbon demo workspace while keeping its command widgets active.
 
 `cad_inspector_demo` combines the tree, text field, checkbox, numeric inputs,
 and color editor into a CAD object inspector. It follows the 3dEngine scene
