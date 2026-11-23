@@ -7,7 +7,10 @@
 #include <array>
 #include <cstddef>
 #include <functional>
+#include <iomanip>
+#include <locale>
 #include <memory>
+#include <sstream>
 #include <string>
 
 namespace lotui {
@@ -76,6 +79,19 @@ public:
 
     std::array<double, 3> value() const noexcept {
         return {fields_[0]->value(), fields_[1]->value(), fields_[2]->value()};
+    }
+
+    // Locale-independent X, Y, Z text for host clipboard actions and plugins.
+    std::string clipboardText() const {
+        std::ostringstream output;
+        output.imbue(std::locale::classic());
+        output << std::fixed;
+        for (std::size_t index = 0; index < fields_.size(); ++index) {
+            if (index != 0) output << ", ";
+            output << std::setprecision(fields_[index]->decimalPlaces())
+                   << fields_[index]->value();
+        }
+        return output.str();
     }
 
     void setEnabled(bool enabled) noexcept {

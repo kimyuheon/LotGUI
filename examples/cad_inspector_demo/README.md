@@ -7,6 +7,10 @@ Edits update the selected object; a visibility edit also updates the tree
 checkbox. The tree shows scene, folder, and object icons; applications and
 plugins can supply a registered image texture for individual nodes. The reset
 button sets X, Y, and Z to zero.
+The adjacent copy button writes the selected object's X, Y, and Z values to
+the native clipboard as comma-separated numbers with the editor's decimal
+precision. Hosts and plugins can use `Vector3Input::clipboardText()` with
+their own clipboard service.
 
 `PropertyField` demonstrates access modes and host actions: object ID is
 read-only, the command input is write-only and clears after submission, the

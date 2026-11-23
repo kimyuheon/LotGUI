@@ -208,6 +208,9 @@ struct InspectorState {
     lotui::TextField* nameField{nullptr};
     lotui::Checkbox* visibleField{nullptr};
     std::array<lotui::NumericInput*, 3> positionFields{};
+    lotui::Vector3Input* positionControl{nullptr};
+    lotui::Button* copyPositionButton{nullptr};
+    std::function<bool(std::string_view)> clipboardWriter;
     lotui::ColorEditor* colorField{nullptr};
     lotui::PropertyField* idField{nullptr};
     lotui::PropertyField* commandField{nullptr};
@@ -281,6 +284,15 @@ struct InspectorState {
         pointField->setValue("0, 0, 0");
         pointHint->setText("X 0   Y 0");
         status->setText("위치 초기화: " + object->name);
+    }
+
+    void copyPosition() {
+        if (!current() || !positionControl || !clipboardWriter ||
+                !clipboardWriter(positionControl->clipboardText())) {
+            status->setText("좌표를 복사하지 못했습니다");
+            return;
+        }
+        status->setText("X, Y, Z 좌표를 복사했습니다");
     }
 };
 
@@ -483,6 +495,7 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
             180.0F});
     for (std::size_t axis = 0; axis < 3; ++axis)
         state.positionFields[axis] = &position->axis(axis);
+    state.positionControl = position.get();
     inspector->addChild(std::move(position), height(98.0F));
     auto point = std::make_unique<lotui::PropertyField>(state.text,
         lotui::PropertyFieldOptions{"클릭 좌표", lotui::PropertyAccess::ReadWrite,
@@ -515,11 +528,22 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
     resetStyle.hovered = desktopColor(0x45515d);
     resetStyle.pressed = desktopColor(0x2e3945);
     resetStyle.contentPadding = {8.0F, 3.0F, 8.0F, 3.0F};
+    auto actions = std::make_unique<lotui::Row>();
+    lotui::LinearLayoutOptions actionOptions;
+    actionOptions.spacing = 6.0F;
+    actions->setOptions(actionOptions);
+    auto copy = std::make_unique<lotui::Button>(
+        label(state.text, "좌표 복사"), lotui::Size{116.0F, 29.0F},
+        [&state] { state.copyPosition(); }, resetStyle);
+    state.copyPositionButton = copy.get();
+    actions->addChild(std::move(copy),
+        {0.0F, {116.0F, 29.0F}, {116.0F, 29.0F}});
     auto reset = std::make_unique<lotui::Button>(
         label(state.text, "위치 초기화"), lotui::Size{116.0F, 29.0F},
         [&state] { state.resetPosition(); }, resetStyle);
-    inspector->addChild(std::move(reset),
+    actions->addChild(std::move(reset),
         {0.0F, {116.0F, 29.0F}, {116.0F, 29.0F}});
+    inspector->addChild(std::move(actions), height(29.0F));
     inspector->addChild(sectionHeading(state.text, "외관  ·  객체 색상"), height(25.0F));
     lotui::ColorEditorStyle colorStyle;
     colorStyle.background = desktopColor(0x222a31);
@@ -625,6 +649,21 @@ void selfTest(lotui::WidgetTree& widgets, InspectorState& state,
     state.positionFields[0]->increment();
     if (std::abs(state.objects[1].position[0] - 4.25) > 0.001)
         throw std::runtime_error("position edit did not reach the model");
+    std::string copiedPosition;
+    auto clipboardWriter = std::move(state.clipboardWriter);
+    state.clipboardWriter = [&copiedPosition](std::string_view value) {
+        copiedPosition = value;
+        return true;
+    };
+    const auto copyArea = state.copyPositionButton->bounds();
+    const lotui::Point copyPoint{copyArea.x + copyArea.width * 0.5F,
+        copyArea.y + copyArea.height * 0.5F};
+    widgets.pointerPressed(copyPoint, lotui::PointerButton::Primary);
+    widgets.pointerReleased(copyPoint, lotui::PointerButton::Primary);
+    state.clipboardWriter = std::move(clipboardWriter);
+    if (copiedPosition != "4.25, 0.00, 0.00" ||
+            std::abs(state.objects[1].position[0] - 4.25) > 0.001)
+        throw std::runtime_error("copy must preserve XYZ values and precision");
     state.visibleField->toggle();
     if (state.objects[1].visible || state.tree->isChecked("object:wall"))
         throw std::runtime_error("visibility edit did not update the tree");
@@ -738,6 +777,9 @@ int main(int argc, char** argv) {
         const auto font = lotui::executableDirectory() /
             "resources" / "fonts" / "NotoSansKR-Regular.ttf";
         InspectorState state;
+        state.clipboardWriter = [&window](std::string_view value) {
+            return window->writeClipboardText(value);
+        };
         state.text = std::make_shared<lotui::FreetypeTextEngine>(
             renderer, std::vector<lotui::FontSource>{{"Noto Sans KR", font}});
         auto widgets = buildUi(state);
