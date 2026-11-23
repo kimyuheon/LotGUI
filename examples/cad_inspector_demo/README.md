@@ -37,8 +37,10 @@ cmake --build build --config Release --target cad_inspector_demo
 ```
 
 The executable is `build/Release/cad_inspector_demo.exe` on Windows. Run
-`--self-test` to exercise tree selection, numeric editing, access modes,
-expression evaluation, point picking, visibility, naming, and reset.
-`--capture output.ppm` saves a Vulkan-rendered frame.
+`--self-test` to exercise 680×900 and 1200×1100 layouts, aligned XYZ fields,
+tree selection, numeric editing, access modes, expression evaluation, point
+picking, visibility, naming, and reset. `--capture output.ppm` saves a
+Vulkan-rendered frame; `--capture-compact` and `--capture-expanded` save the
+same screen in small and large windows.
 
 ![CAD inspector example](../../docs/images/cad-inspector-demo.png)

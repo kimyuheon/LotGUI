@@ -663,6 +663,37 @@ void selfTest(lotui::WidgetTree& widgets, InspectorState& state,
         throw std::runtime_error("scene click must update world coordinates");
 }
 
+void resizeTest(lotui::WidgetTree& widgets, InspectorState& state,
+        lotui::Size originalSize) {
+    const double originalZ = state.positionFields[2]->value();
+    for (const lotui::Size size : {
+            lotui::Size{680.0F, 900.0F},
+            lotui::Size{1200.0F, 1100.0F}, originalSize}) {
+        widgets.layout({0.0F, 0.0F, size.width, size.height});
+        const auto first = state.positionFields[0]->bounds();
+        for (auto* field : state.positionFields) {
+            const auto area = field->bounds();
+            if (std::abs(area.x - first.x) > 0.1F ||
+                    std::abs(area.width - first.width) > 0.1F ||
+                    area.width < 180.0F || area.height < 29.0F ||
+                    area.x < 0.0F ||
+                    area.x + area.width > size.width - 12.0F)
+                throw std::runtime_error(
+                    "position inputs changed alignment on resize");
+        }
+        if (state.colorField->bounds().y +
+                state.colorField->bounds().height > size.height - 20.0F ||
+            state.pointPad->bounds().y +
+                state.pointPad->bounds().height > size.height - 20.0F ||
+            std::abs(state.positionFields[2]->value() - originalZ) > 0.001)
+            throw std::runtime_error("inspector resize changed content");
+        std::vector<lotui::PaintCommand> commands;
+        widgets.paint(commands);
+        if (commands.size() < 250)
+            throw std::runtime_error("inspector resize lost paint content");
+    }
+}
+
 void saveCapture(const lotui::VulkanRenderer::CapturedFrame& frame,
     const char* path) {
     std::ofstream output(path, std::ios::binary);
@@ -683,16 +714,25 @@ int main(int argc, char** argv) {
             std::string_view(argv[1]) == "--smoke";
         const bool test = argc == 2 &&
             std::string_view(argv[1]) == "--self-test";
+        const bool captureCompact = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-compact";
+        const bool captureExpanded = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-expanded";
         const bool capture = argc == 3 &&
-            std::string_view(argv[1]) == "--capture";
+            (std::string_view(argv[1]) == "--capture" ||
+                captureCompact || captureExpanded);
         if (argc > 1 && !smoke && !test && !capture) {
             std::cerr << "usage: cad_inspector_demo "
-                "[--smoke|--self-test|--capture output.ppm]\n";
+                "[--smoke|--self-test|--capture output.ppm|"
+                "--capture-compact output.ppm|--capture-expanded output.ppm]\n";
             return 2;
         }
         auto platform = lotui::createPlatformBackend();
         auto window = platform->createWindow(
-            {"LotUI CAD Inspector", 840, 1000, true});
+            {"LotUI CAD Inspector", captureCompact ? 680 :
+                captureExpanded ? 1200 : 840,
+                captureCompact ? 900 : captureExpanded ? 1100 : 1000,
+                true});
         window->show();
         lotui::VulkanRenderer renderer(*window);
         const auto font = lotui::executableDirectory() /
@@ -714,9 +754,11 @@ int main(int argc, char** argv) {
             const auto metrics = window->metrics();
             const float scale = metrics.dpiScale > 0.0F ?
                 metrics.dpiScale : 1.0F;
-            selfTest(*widgets, state,
-                {static_cast<float>(metrics.framebufferWidth) / scale,
-                 static_cast<float>(metrics.framebufferHeight) / scale});
+            const lotui::Size viewport{
+                static_cast<float>(metrics.framebufferWidth) / scale,
+                static_cast<float>(metrics.framebufferHeight) / scale};
+            resizeTest(*widgets, state, viewport);
+            selfTest(*widgets, state, viewport);
         }
         std::vector<lotui::PaintCommand> commands;
         if (smoke || test) {
