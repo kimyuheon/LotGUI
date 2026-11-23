@@ -458,13 +458,13 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
     inspector->addChild(sectionHeading(state.text, "위치  ·  월드 좌표"),
         height(25.0F));
     lotui::NumericInputStyle numericStyle;
-    numericStyle.normal = desktopColor(0x343c46);
-    numericStyle.hovered = desktopColor(0x3d4854);
-    numericStyle.stepButton = desktopColor(0x3c4b59);
-    numericStyle.stepButtonPressed = desktopColor(0x4c6881);
-    numericStyle.text = desktopColor(0xf0f2f4);
-    numericStyle.indicator = desktopColor(0xcbd9e5);
-    numericStyle.focusRing = desktopColor(0x809db5);
+    numericStyle.normal = desktopColor(0x242C35);
+    numericStyle.hovered = desktopColor(0x303B46);
+    numericStyle.stepButton = desktopColor(0x303A45);
+    numericStyle.stepButtonPressed = desktopColor(0x40566B);
+    numericStyle.text = desktopColor(0xF1F4F6);
+    numericStyle.indicator = desktopColor(0xC5D2DC);
+    numericStyle.focusRing = desktopColor(0x829BAF);
     numericStyle.focusRingWidth = 1.0F;
     numericStyle.cornerRadius = 3.0F;
     numericStyle.stepButtonWidth = 22.0F;

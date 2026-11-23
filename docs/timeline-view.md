@@ -45,6 +45,9 @@ The ruler has subdued minor ticks, each track carries a narrow color accent,
 and smooth/linear/step keys use diamond/rounded/square marks. Selected keys
 receive a soft halo and their track row gains a subtle highlight. The painted
 mark stays within the same hit area used for pointer selection and dragging.
+The default palette keeps the track surface and selected keys dark. Supply
+custom display colors through `lotui::colorFromSrgb(0xRRGGBB)` so an sRGB
+swapchain shows the intended shade.
 Space toggles playback, F2 cycles interpolation, Delete removes selected keys,
 Left/Right seek and Home returns to zero. Key dragging previews locally and
 calls `setOnKeysMoved()` once on release when that callback is installed. A

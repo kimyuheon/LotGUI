@@ -24,7 +24,7 @@ struct TimelineTrack {
     std::string id;
     std::string label;
     std::vector<TimelineKey> keys;
-    Color color{0.42F, 0.76F, 0.96F, 1.0F};
+    Color color{colorFromSrgb(0x7797AC)};
 };
 
 struct TimelineKeyRef {
@@ -36,16 +36,16 @@ struct TimelineKeyRef {
 };
 
 struct TimelineViewStyle {
-    Color background{0.025F, 0.032F, 0.045F, 1.0F};
-    Color header{0.09F, 0.12F, 0.16F, 1.0F};
-    Color alternateRow{0.052F, 0.069F, 0.087F, 1.0F};
-    Color grid{0.15F, 0.20F, 0.25F, 1.0F};
-    Color text{0.88F, 0.91F, 0.95F, 1.0F};
-    Color playhead{0.98F, 0.64F, 0.32F, 1.0F};
-    Color selected{1.0F, 0.9F, 0.57F, 1.0F};
-    Color namePanel{0.065F, 0.084F, 0.106F, 1.0F};
-    Color minorGrid{0.115F, 0.15F, 0.19F, 1.0F};
-    Color selectedRow{0.075F, 0.105F, 0.13F, 1.0F};
+    Color background{colorFromSrgb(0x181E26)};
+    Color header{colorFromSrgb(0x242C35)};
+    Color alternateRow{colorFromSrgb(0x202832)};
+    Color grid{colorFromSrgb(0x394550)};
+    Color text{colorFromSrgb(0xE5EAF0)};
+    Color playhead{colorFromSrgb(0xB4875E)};
+    Color selected{colorFromSrgb(0x7795AD)};
+    Color namePanel{colorFromSrgb(0x202832)};
+    Color minorGrid{colorFromSrgb(0x303B46)};
+    Color selectedRow{colorFromSrgb(0x2A3B4B)};
 };
 
 class TimelineView final : public Widget {

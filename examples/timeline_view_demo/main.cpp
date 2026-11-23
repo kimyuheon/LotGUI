@@ -95,16 +95,16 @@ int main(int argc, char** argv) {
         view->setTracks({
             {"camera", "카메라 위치",
                 {{"c0", 0.0}, {"c1", 3.0}, {"c2", 7.5}, {"c3", 12.0}},
-                {0.39F, 0.75F, 0.96F, 1.0F}},
+                lotui::colorFromSrgb(0x7797AC)},
             {"rotation", "카메라 회전",
                 {{"r0", 0.0}, {"r1", 4.0}, {"r2", 9.0}},
-                {0.70F, 0.78F, 0.48F, 1.0F}},
+                lotui::colorFromSrgb(0x8E9D78)},
             {"visibility", "부품 표시",
                 {{"v0", 1.0}, {"v1", 5.0}, {"v2", 10.0}},
-                {0.91F, 0.60F, 0.74F, 1.0F}},
+                lotui::colorFromSrgb(0xA98C9D)},
             {"opacity", "투명도",
                 {{"o0", 2.0}, {"o1", 6.0}, {"o2", 11.0}},
-                {0.98F, 0.70F, 0.39F, 1.0F}}
+                lotui::colorFromSrgb(0xAB9475)}
         });
         auto status = std::make_unique<lotui::Label>(text,
             "3.0초 · 키를 선택하거나 드래그하세요", heading);
