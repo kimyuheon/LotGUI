@@ -17,6 +17,7 @@
 #include "widgets/label.h"
 #include "widgets/linear_layout.h"
 #include "widgets/list_control.h"
+#include "widgets/menu_bar.h"
 #include "widgets/numeric_input.h"
 #include "widgets/popup.h"
 #include "widgets/ribbon.h"
@@ -240,6 +241,7 @@ struct DemoState {
     std::shared_ptr<const lotui::TextEngine> textEngine;
     lotui::DialogHost* dialogs{nullptr};
     lotui::PopupHost* popups{nullptr};
+    lotui::MenuBar* menuBar{nullptr};
     lotui::Ribbon* ribbon{nullptr};
     lotui::DockWorkspace* dock{nullptr};
     lotui::Button* insertMenuButton{nullptr};
@@ -621,6 +623,61 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     rootOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Stretch;
     root->setOptions(rootOptions);
 
+    const auto menuCommand = [](std::string id, std::string label,
+            std::string shortcut = {}) {
+        return lotui::MenuEntry{lotui::MenuEntryKind::Command,
+            std::move(id), std::move(label), std::move(shortcut),
+            true, false, {}};
+    };
+    lotui::MenuBarStyle menuStyle;
+    menuStyle.background = desktopColor(0x202328);
+    menuStyle.popupBackground = desktopColor(0x292e34);
+    menuStyle.hovered = desktopColor(0x36414b);
+    menuStyle.selected = desktopColor(0x40505d);
+    menuStyle.text = desktopColor(0xe8edf1);
+    menuStyle.muted = desktopColor(0x9ba9b5);
+    menuStyle.separator = desktopColor(0x47515a);
+    menuStyle.barHeight = 26.0F;
+    menuStyle.popupWidth = 188.0F;
+    auto menuBar = std::make_unique<lotui::MenuBar>(state.textEngine,
+        std::vector<lotui::Menu>{
+            {"edit", "편집", {menuCommand("undo", "실행 취소", "Ctrl+Z"),
+                menuCommand("redo", "다시 실행", "Ctrl+Y"),
+                {lotui::MenuEntryKind::Separator, {}, {}, {}, true, false, {}},
+                menuCommand("duplicate", "복제"),
+                menuCommand("delete", "삭제")}},
+            {"insert", "삽입", {menuCommand("add", "항목 추가"),
+                menuCommand("table", "표 삽입"),
+                menuCommand("sketch", "스케치 삽입"),
+                menuCommand("view", "뷰 삽입")}},
+            {"display", "보기", {menuCommand("home-tab", "홈 탭"),
+                menuCommand("view-tab", "보기 탭"),
+                menuCommand("data-tab", "데이터 탭"),
+                menuCommand("plugin-tab", "플러그인 탭")}},
+            {"help", "도움말", {menuCommand("details", "선택 정보"),
+                menuCommand("dialog", "대화상자")}}},
+        [&state](std::string_view id) {
+            if (id == "undo") state.undo();
+            else if (id == "redo") state.redo();
+            else if (id == "duplicate") state.duplicateItem();
+            else if (id == "delete") state.removeItem();
+            else if (id == "add") state.addItem();
+            else if (id == "table")
+                state.insertItem("Table", "Table", "Architecture");
+            else if (id == "sketch")
+                state.insertItem("Sketch", "Sketch", "Structure");
+            else if (id == "view")
+                state.insertItem("View", "View", "Drawings");
+            else if (id == "home-tab") state.ribbon->selectTab("home");
+            else if (id == "view-tab") state.ribbon->selectTab("view");
+            else if (id == "data-tab") state.ribbon->selectTab("data");
+            else if (id == "plugin-tab") state.ribbon->selectTab("plugin");
+            else if (id == "details") state.showSelectionDetails();
+            else if (id == "dialog") state.showDialog();
+        }, menuStyle, textStyle(13.0F));
+    state.menuBar = menuBar.get();
+    root->addChild(std::move(menuBar), fixedHeight(menuStyle.barHeight));
+
     lotui::RibbonStyle ribbonStyle;
     ribbonStyle.preferredHeight = ribbonHeight;
     ribbonStyle.tabBarHeight = 27.0F;
@@ -864,6 +921,7 @@ std::unique_ptr<lotui::WidgetTree> createUi(
 
     auto popup = std::make_unique<lotui::PopupHost>(std::move(root));
     state.popups = popup.get();
+    state.menuBar->setPopupHost(popup.get());
     for (auto* control : state.pluginControls) {
         if (auto* combo = dynamic_cast<lotui::ComboBox*>(control)) {
             combo->setPopupHost(popup.get());
@@ -1270,6 +1328,30 @@ void exerciseDocking(lotui::WidgetTree& tree, DemoState& state) {
         throw std::runtime_error("docked undo command failed");
 }
 
+void exerciseMenuBar(lotui::WidgetTree& tree, DemoState& state) {
+    if (!state.menuBar || !state.popups)
+        throw std::runtime_error("menu bar is missing");
+    const auto click = [&tree](lotui::Rect area) {
+        const lotui::Point center{area.x + area.width * 0.5F,
+            area.y + area.height * 0.5F};
+        tree.pointerPressed(center, lotui::PointerButton::Primary);
+        tree.pointerReleased(center, lotui::PointerButton::Primary);
+    };
+    const auto initialCount = state.items.size();
+    click(state.menuBar->menuBounds(1));
+    if (!state.menuBar->isOpen() || !state.popups->hasPopup())
+        throw std::runtime_error("insert menu did not open");
+    auto popup = state.popups->popupBounds();
+    click({popup.x + 12.0F, popup.y + 4.0F, 70.0F, 25.0F});
+    if (state.items.size() != initialCount + 1 || state.popups->hasPopup())
+        throw std::runtime_error("insert menu action did not run");
+    click(state.menuBar->menuBounds(0));
+    popup = state.popups->popupBounds();
+    click({popup.x + 12.0F, popup.y + 4.0F, 70.0F, 25.0F});
+    if (state.items.size() != initialCount || state.popups->hasPopup())
+        throw std::runtime_error("edit menu undo did not run");
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1281,6 +1363,8 @@ int main(int argc, char** argv) {
             std::string_view(argv[1]) == "--capture-clicked-plugin";
         const bool captureHome = argc == 3 &&
             std::string_view(argv[1]) == "--capture-home";
+        const bool captureMenu = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-menu";
         const bool captureDockLeft = argc == 3 &&
             std::string_view(argv[1]) == "--capture-dock-left";
         const bool captureDockBottom = argc == 3 &&
@@ -1296,7 +1380,7 @@ int main(int argc, char** argv) {
         const bool captureModelessLarge = argc == 3 &&
             std::string_view(argv[1]) == "--capture-modeless-large";
         const bool captureFrame = capturePlugin || captureClickedPlugin ||
-            captureHome || captureDockLeft || captureDockBottom ||
+            captureHome || captureMenu || captureDockLeft || captureDockBottom ||
             captureDockRight || captureInsertMenu || captureDialog ||
             captureModelessSmall || captureModelessLarge;
         if ((argc > 2 && !captureFrame) ||
@@ -1307,6 +1391,7 @@ int main(int argc, char** argv) {
                 "--capture-plugin output.ppm|"
                 "--capture-clicked-plugin output.ppm|"
                 "--capture-home output.ppm|"
+                "--capture-menu output.ppm|"
                 "--capture-dock-left output.ppm|"
                 "--capture-dock-bottom output.ppm|"
                 "--capture-dock-right output.ppm|"
@@ -1360,6 +1445,15 @@ int main(int argc, char** argv) {
             }
         }
         if (capturePlugin) state.ribbon->selectTab("plugin");
+        if (captureMenu) {
+            const auto area = state.menuBar->menuBounds(1);
+            const lotui::Point center{area.x + area.width * 0.5F,
+                area.y + area.height * 0.5F};
+            tree->pointerPressed(center, lotui::PointerButton::Primary);
+            tree->pointerReleased(center, lotui::PointerButton::Primary);
+            if (!state.menuBar->isOpen())
+                throw std::runtime_error("capture menu did not open");
+        }
         if (captureDockLeft) state.dock->setSide(lotui::DockSide::Left);
         if (captureDockBottom) state.dock->setSide(lotui::DockSide::Bottom);
         if (captureDockRight) state.dock->setSide(lotui::DockSide::Right);
@@ -1399,6 +1493,7 @@ int main(int argc, char** argv) {
             exerciseWorkspace(*tree, state);
             exercisePlugin(*tree, state, mode == "--input-test");
             exerciseDocking(*tree, state);
+            exerciseMenuBar(*tree, state);
         }
 
         std::vector<lotui::PaintCommand> commands;
