@@ -471,7 +471,7 @@ std::unique_ptr<lotui::WidgetTree> buildUi(InspectorState& state) {
         height(25.0F));
     lotui::NumericInputStyle numericStyle;
     numericStyle.normal = desktopColor(0x242C35);
-    numericStyle.disabled = desktopColor(0x242C35);
+    numericStyle.disabled = desktopColor(0x303A46);
     numericStyle.hovered = desktopColor(0x303B46);
     numericStyle.stepButton = desktopColor(0x303A45);
     numericStyle.stepButtonPressed = desktopColor(0x40566B);
