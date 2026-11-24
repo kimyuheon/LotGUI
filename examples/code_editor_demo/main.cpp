@@ -90,6 +90,7 @@ std::unique_ptr<lotui::Button> button(
     style.hovered = desktopColor(0x45515d);
     style.pressed = desktopColor(0x2c3540);
     style.cornerRadius = 3.0F;
+    style.contentPadding = {10.0F, 3.0F, 10.0F, 3.0F};
     return std::make_unique<lotui::Button>(
         label(engine, std::move(title), 13.0F),
         lotui::Size{width, 30.0F}, std::move(action), style);
@@ -114,10 +115,10 @@ std::unique_ptr<lotui::WidgetTree> buildUi(
     toolbarOptions.spacing = 7.0F;
     toolbarOptions.crossAxisAlignment = lotui::CrossAxisAlignment::Center;
     toolbar->setOptions(toolbarOptions);
-    toolbar->addChild(button(engine, "실행 취소", 84.0F,
-        [&state] { state.editor->undo(); }), fixed(84.0F, 30.0F));
-    toolbar->addChild(button(engine, "다시 실행", 84.0F,
-        [&state] { state.editor->redo(); }), fixed(84.0F, 30.0F));
+    toolbar->addChild(button(engine, "실행 취소", 100.0F,
+        [&state] { state.editor->undo(); }), fixed(100.0F, 30.0F));
+    toolbar->addChild(button(engine, "다시 실행", 100.0F,
+        [&state] { state.editor->redo(); }), fixed(100.0F, 30.0F));
 
     lotui::TextFieldStyle searchStyle;
     searchStyle.normal = desktopColor(0x343c46);
@@ -139,13 +140,13 @@ std::unique_ptr<lotui::WidgetTree> buildUi(
             return window.writeClipboardText(std::move(text));
         }, [&window] { return window.readClipboardText(); });
     toolbar->addChild(std::move(search), fixed(190.0F, 30.0F));
-    toolbar->addChild(button(engine, "다음 찾기", 84.0F,
+    toolbar->addChild(button(engine, "다음 찾기", 100.0F,
         [&state] {
             if (!state.editor->findNext(state.search->text()))
                 state.status->setText("검색 결과가 없습니다.");
-        }), fixed(84.0F, 30.0F));
-    toolbar->addChild(button(engine, "전체 선택", 84.0F,
-        [&state] { state.editor->selectAll(); }), fixed(84.0F, 30.0F));
+        }), fixed(100.0F, 30.0F));
+    toolbar->addChild(button(engine, "전체 선택", 100.0F,
+        [&state] { state.editor->selectAll(); }), fixed(100.0F, 30.0F));
     root->addChild(std::move(toolbar), height(34.0F));
 
     lotui::CodeEditorStyle editorStyle;
@@ -174,7 +175,7 @@ std::unique_ptr<lotui::WidgetTree> buildUi(
     root->addChild(std::move(editor), stretch());
 
     auto status = label(engine,
-        "C++  ·  Ctrl+F 대신 위 검색창 사용  ·  Tab 들여쓰기  ·  Ctrl+Z 실행 취소",
+        "C++  ·  괄호 자동 완성  ·  Enter 자동 들여쓰기  ·  Tab/Shift+Tab 들여쓰기  ·  Ctrl+Z 실행 취소",
         12.0F);
     state.status = status.get();
     root->addChild(std::move(status), height(23.0F));

@@ -137,6 +137,59 @@ void selectionClipboardAndFind() {
         "multi-line outdent should be one undo step");
 }
 
+void bracketsAndAutomaticIndentation() {
+    auto engine = std::make_shared<TestEngine>();
+    auto widget = std::make_unique<lotui::CodeEditor>(engine, "");
+    auto* editor = widget.get();
+    lotui::WidgetTree tree(std::move(widget));
+    tree.layout({0.0F, 0.0F, 420.0F, 180.0F});
+    tree.keyPressed(lotui::KeyCode::Tab);
+
+    tree.textInput({lotui::TextInputEventType::Commit, "{"});
+    require(editor->text() == "{}" && editor->cursorByteOffset() == 1,
+        "opening brace should insert a pair and leave caret inside");
+    tree.keyPressed(lotui::KeyCode::Enter);
+    require(editor->text() == "{\n    \n}" && editor->cursorByteOffset() == 6,
+        "Enter between braces should indent the body and align the close");
+    tree.textInput({lotui::TextInputEventType::Commit, "("});
+    tree.textInput({lotui::TextInputEventType::Commit, "["});
+    require(editor->text() == "{\n    ([])\n}",
+        "parentheses and square brackets should nest");
+    tree.keyPressed(lotui::KeyCode::Backspace);
+    require(editor->text() == "{\n    ()\n}",
+        "Backspace inside an empty pair should remove both brackets");
+    tree.textInput({lotui::TextInputEventType::Commit, ")"});
+    require(editor->text() == "{\n    ()\n}" && editor->cursorByteOffset() == 8,
+        "typing an existing close should move past it");
+    require(editor->undo() && editor->text() == "{\n    ([])\n}",
+        "skipping a close should not create an undo step");
+
+    editor->setText("");
+    tree.textInput({lotui::TextInputEventType::Commit, "{"});
+    tree.keyPressed(lotui::KeyCode::Enter);
+    tree.textInput({lotui::TextInputEventType::Commit, "}"});
+    require(editor->text() == "{\n}" && editor->cursorByteOffset() == 3,
+        "typing a close on the blank body should reuse the existing brace");
+
+    editor->setText("if (ready) {");
+    tree.keyPressed(lotui::KeyCode::End);
+    tree.keyPressed(lotui::KeyCode::Enter);
+    require(editor->text() == "if (ready) {\n    ",
+        "Enter after an opening brace should add one indent level");
+    tree.textInput({lotui::TextInputEventType::Commit, "}"});
+    require(editor->text() == "if (ready) {\n}",
+        "typing a close on an empty indented line should outdent");
+
+    editor->setText("item");
+    editor->selectAll();
+    tree.textInput({lotui::TextInputEventType::Commit, "("});
+    require(editor->text() == "(item)" && editor->selectedText() == "item",
+        "opening bracket should wrap a selection and preserve it");
+    tree.textInput({lotui::TextInputEventType::Commit, "value"});
+    require(editor->text() == "(value)",
+        "replacement of wrapped selection should retain brackets");
+}
+
 void scrollsAndClips() {
     auto engine = std::make_shared<TestEngine>();
     std::string content;
@@ -165,6 +218,7 @@ void scrollsAndClips() {
 int main() {
     editsUtf8AndHistory();
     selectionClipboardAndFind();
+    bracketsAndAutomaticIndentation();
     scrollsAndClips();
     return 0;
 }

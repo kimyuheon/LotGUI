@@ -6,7 +6,9 @@ text; LotUI does not link to 3dEngine or execute the code.
 
 The editor supports line numbers, shared syntax colors for C++ and other
 languages accepted by `tokenizeCodeLine`, pointer selection, UTF-8 insertion,
-IME composition, indentation, find-next, clipboard shortcuts, vertical
+IME composition, automatic `()`, `[]` and `{}` pairing, selection wrapping,
+paired deletion, four-space indentation after `{`, aligned closing braces,
+Tab/Shift+Tab indentation, find-next, clipboard shortcuts, vertical
 scrolling, and Undo/Redo. The toolbar demonstrates its public API. Code text
 and callbacks stay in the consumer application; plugins can instantiate the
 same widget using the SDK `LotUI::Widgets` target.

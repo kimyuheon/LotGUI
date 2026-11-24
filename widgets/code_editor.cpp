@@ -44,6 +44,15 @@ std::string normalizeNewlines(std::string_view text) {
     return result;
 }
 
+char closingBracket(char opening) noexcept {
+    switch (opening) {
+    case '(': return ')';
+    case '[': return ']';
+    case '{': return '}';
+    default: return '\0';
+    }
+}
+
 Color tokenColor(const CodeEditorStyle& style, CodeTokenKind kind) noexcept {
     switch (kind) {
     case CodeTokenKind::Keyword: return style.keyword;
@@ -367,6 +376,13 @@ bool CodeEditor::onKeyEvent(const WidgetKeyEvent& event) {
         moveTo(lineEnd(lineOf(cursor_)), event.modifiers.shift);
         return true;
     case KeyCode::Backspace:
+        if (!hasSelection() && cursor_ > 0 && cursor_ < text_.size() &&
+            closingBracket(text_[cursor_ - 1]) == text_[cursor_]) {
+            anchor_ = cursor_ - 1;
+            ++cursor_;
+            replaceSelection({});
+            return true;
+        }
         if (!hasSelection() && cursor_ > 0)
             anchor_ = previousPoint(text_, cursor_);
         replaceSelection({});
@@ -377,12 +393,24 @@ bool CodeEditor::onKeyEvent(const WidgetKeyEvent& event) {
         replaceSelection({});
         return true;
     case KeyCode::Enter: {
-        const std::size_t start = lineStarts_[lineOf(selectionStart())];
-        const std::size_t end = lineEnd(lineOf(selectionStart()));
+        const std::size_t position = selectionStart();
+        const std::size_t start = lineStarts_[lineOf(position)];
+        const std::size_t end = lineEnd(lineOf(position));
         std::size_t indent = start;
         while (indent < end && (text_[indent] == ' ' || text_[indent] == '\t'))
             ++indent;
-        replaceSelection("\n" + text_.substr(start, indent - start));
+        const std::string base = text_.substr(start, indent - start);
+        std::size_t preceding = position;
+        while (preceding > start &&
+            (text_[preceding - 1] == ' ' || text_[preceding - 1] == '\t'))
+            --preceding;
+        const bool opensBlock = preceding > start && text_[preceding - 1] == '{';
+        const std::string inner = base + (opensBlock ? "    " : "");
+        const bool splitsPair = opensBlock && selectionEnd() < text_.size() &&
+            text_[selectionEnd()] == '}';
+        replaceSelection("\n" + inner +
+            (splitsPair ? "\n" + base : ""));
+        if (splitsPair) moveTo(position + 1 + inner.size(), false);
         return true;
     }
     case KeyCode::Tab:
@@ -406,7 +434,60 @@ bool CodeEditor::onTextInputEvent(const TextInputEvent& event) {
     switch (event.type) {
     case TextInputEventType::Commit:
         composition_.clear();
-        if (!event.text.empty()) replaceSelection(normalizeNewlines(event.text));
+        if (!event.text.empty()) {
+            const std::string value = normalizeNewlines(event.text);
+            if (value.size() == 1) {
+                const char character = value.front();
+                const char close = closingBracket(character);
+                if (close != '\0') {
+                    const std::size_t start = selectionStart();
+                    const std::size_t selected = selectionEnd() - start;
+                    const std::string inside = selectedText();
+                    replaceSelection(std::string(1, character) + inside + close);
+                    anchor_ = start + 1;
+                    cursor_ = anchor_ + selected;
+                    revealCursor();
+                    return true;
+                }
+                if (!hasSelection() && cursor_ < text_.size() &&
+                    text_[cursor_] == character &&
+                    (character == ')' || character == ']' || character == '}')) {
+                    moveTo(cursor_ + 1, false);
+                    return true;
+                }
+                if (character == '}' && !hasSelection()) {
+                    const std::size_t start = lineStarts_[lineOf(cursor_)];
+                    if (text_.find_first_not_of(" \t", start) >= cursor_) {
+                        if (cursor_ < text_.size() && text_[cursor_] == '\n') {
+                            const std::size_t nextStart = cursor_ + 1;
+                            const std::size_t nextEnd = lineEnd(lineOf(nextStart));
+                            std::size_t closeOffset = nextStart;
+                            while (closeOffset < nextEnd &&
+                                (text_[closeOffset] == ' ' ||
+                                    text_[closeOffset] == '\t'))
+                                ++closeOffset;
+                            if (closeOffset + 1 == nextEnd &&
+                                text_[closeOffset] == '}') {
+                                anchor_ = start;
+                                cursor_ = nextStart;
+                                replaceSelection({});
+                                moveTo(start + closeOffset - nextStart + 1,
+                                    false);
+                                return true;
+                            }
+                        }
+                        const std::size_t spaces = cursor_ - start;
+                        const std::size_t remove = spaces > 0 &&
+                            text_[cursor_ - 1] == '\t' ? 1 :
+                            std::min<std::size_t>(4, spaces);
+                        anchor_ = cursor_ - remove;
+                        replaceSelection("}");
+                        return true;
+                    }
+                }
+            }
+            replaceSelection(value);
+        }
         return true;
     case TextInputEventType::Composition:
         composition_ = event.text;
