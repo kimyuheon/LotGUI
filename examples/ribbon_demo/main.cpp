@@ -186,6 +186,27 @@ std::unique_ptr<lotui::Button> commandButton(
         std::move(action), style);
 }
 
+std::unique_ptr<lotui::Button> quickIconButton(
+    const std::shared_ptr<const lotui::TextEngine>& textEngine,
+    std::string_view icon, lotui::Button::ClickHandler action) {
+    auto glyphStyle = textStyle(20.0F);
+    glyphStyle.fontFamilies = {"Lucide"};
+    auto glyph = std::make_unique<lotui::Label>(
+        textEngine, std::string(icon), glyphStyle);
+    glyph->setColor(desktopColor(0xc1d8e8));
+    glyph->setHorizontalAlignment(lotui::HorizontalTextAlignment::Center);
+    glyph->setVerticalAlignment(lotui::VerticalTextAlignment::Center);
+    lotui::ButtonStyle style;
+    style.normal = {0.0F, 0.0F, 0.0F, 0.0F};
+    style.hovered = desktopColor(0x3b4652);
+    style.pressed = desktopColor(0x50677a);
+    style.cornerRadius = 4.0F;
+    style.contentPadding = lotui::EdgeInsets::all(2.0F);
+    return std::make_unique<lotui::Button>(
+        std::move(glyph), lotui::Size{38.0F, 30.0F},
+        std::move(action), style);
+}
+
 std::unique_ptr<lotui::Button> dialogButton(
     const std::shared_ptr<const lotui::TextEngine>& textEngine,
     lotui::Button::ClickHandler action) {
@@ -819,15 +840,17 @@ std::unique_ptr<lotui::WidgetTree> createUi(
     state.status = status.get();
     workspace->addChild(std::move(status), fixedHeight(20.0F));
     auto toolbar = std::make_unique<lotui::DockToolbar>();
-    toolbar->addCommand(commandButton(state.textEngine, "취소",
-        [&state] { state.undo(); }, 44.0F));
-    toolbar->addCommand(commandButton(state.textEngine, "다시",
-        [&state] { state.redo(); }, 44.0F));
-    toolbar->addCommand(commandButton(state.textEngine, "추가",
-        [&state] { state.addItem(); }, 44.0F));
-    toolbar->addCommand(commandButton(state.textEngine, "삭제",
-        [&state] { state.removeItem(); }, 44.0F));
+    toolbar->addCommand(quickIconButton(state.textEngine, u8"\uE2A1",
+        [&state] { state.undo(); }));
+    toolbar->addCommand(quickIconButton(state.textEngine, u8"\uE2A0",
+        [&state] { state.redo(); }));
+    toolbar->addCommand(quickIconButton(state.textEngine, u8"\uE13D",
+        [&state] { state.addItem(); }));
+    toolbar->addCommand(quickIconButton(state.textEngine, u8"\uE18E",
+        [&state] { state.removeItem(); }));
     lotui::DockWorkspaceStyle dockStyle;
+    dockStyle.horizontalThickness = 36.0F;
+    dockStyle.verticalThickness = 44.0F;
     dockStyle.toolbarBackground = desktopColor(0x292e34);
     dockStyle.gripColor = desktopColor(0x9baab7);
     dockStyle.dockPreview = desktopColor(0x779fc0, 0.35F);
