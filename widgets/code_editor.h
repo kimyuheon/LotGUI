@@ -25,6 +25,7 @@ struct CodeEditorStyle {
     Color selection{0.25F, 0.39F, 0.55F, 0.85F};
     Color caret{0.96F, 0.97F, 0.99F, 1.0F};
     Color composition{0.46F, 0.75F, 1.0F, 1.0F};
+    Color breakpoint{0.88F, 0.34F, 0.37F, 1.0F};
     float lineHeight{23.0F};
     float gutterWidth{54.0F};
     float padding{10.0F};
@@ -38,6 +39,8 @@ public:
     using ChangedHandler = std::function<void(const std::string&)>;
     using ClipboardWriteHandler = std::function<bool(std::string)>;
     using ClipboardReadHandler = std::function<std::optional<std::string>()>;
+    using BreakpointsChangedHandler =
+        std::function<void(const std::vector<std::size_t>&)>;
 
     CodeEditor(std::shared_ptr<const TextEngine> textEngine,
         std::string text = {}, std::string language = "cpp",
@@ -53,6 +56,12 @@ public:
     void setOnChanged(ChangedHandler handler);
     void setClipboardHandlers(ClipboardWriteHandler write,
         ClipboardReadHandler read);
+    // One-based line numbers. Invalid lines are ignored; values are sorted and unique.
+    void setBreakpoints(std::vector<std::size_t> lines);
+    const std::vector<std::size_t>& breakpoints() const noexcept;
+    bool hasBreakpoint(std::size_t line) const noexcept;
+    void toggleBreakpoint(std::size_t line);
+    void setOnBreakpointsChanged(BreakpointsChangedHandler handler);
     void setStyle(CodeEditorStyle style);
     const CodeEditorStyle& style() const noexcept;
     std::size_t lineCount() const noexcept;
@@ -105,6 +114,8 @@ private:
     void moveVertical(int lines, bool select);
     void moveTo(std::size_t offset, bool select, bool keepColumn = false);
     void replaceSelection(std::string value);
+    void rebaseBreakpoints(const std::vector<std::size_t>& offsets,
+        std::size_t start, std::size_t end, std::size_t inserted);
     void indentSelection(bool reverse);
     void recordEdit();
     void restore(Snapshot snapshot);
@@ -125,6 +136,8 @@ private:
     ChangedHandler onChanged_;
     ClipboardWriteHandler clipboardWrite_;
     ClipboardReadHandler clipboardRead_;
+    std::vector<std::size_t> breakpoints_;
+    BreakpointsChangedHandler onBreakpointsChanged_;
     CodeEditorStyle style_;
     TextStyle textStyle_;
     Size preferredSize_;
@@ -133,6 +146,7 @@ private:
     float preferredColumnX_{-1.0F};
     bool focused_{false};
     bool dragging_{false};
+    bool breakpointPressed_{false};
 };
 
 } // namespace lotui

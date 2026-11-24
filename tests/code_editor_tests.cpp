@@ -190,6 +190,62 @@ void bracketsAndAutomaticIndentation() {
         "replacement of wrapped selection should retain brackets");
 }
 
+void breakpointsFollowEditsAndHistory() {
+    auto engine = std::make_shared<TestEngine>();
+    auto widget = std::make_unique<lotui::CodeEditor>(engine, "a\nb\nc");
+    auto* editor = widget.get();
+    lotui::WidgetTree tree(std::move(widget));
+    tree.layout({0.0F, 0.0F, 420.0F, 180.0F});
+    int changes = 0;
+    editor->setOnBreakpointsChanged([&changes](const auto&) { ++changes; });
+    editor->setBreakpoints({3, 0, 1, 3, 99});
+    require(editor->breakpoints() == std::vector<std::size_t>({1, 3}) &&
+        changes == 1, "breakpoints should have valid unique one-based lines");
+    std::vector<lotui::PaintCommand> commands;
+    tree.paint(commands);
+    require(std::count_if(commands.begin(), commands.end(),
+        [editor](const auto& command) {
+            return command.color.red == editor->style().breakpoint.red &&
+                command.color.green == editor->style().breakpoint.green;
+        }) == 2, "each visible breakpoint should paint a gutter marker");
+
+    const lotui::Point marker{10.0F, 21.0F};
+    require(tree.pointerPressed(marker, lotui::PointerButton::Primary).handled,
+        "gutter press should be handled");
+    tree.pointerReleased(marker, lotui::PointerButton::Primary);
+    require(!editor->hasBreakpoint(1) && editor->hasBreakpoint(3) &&
+        editor->text() == "a\nb\nc" && changes == 2,
+        "gutter click should toggle a breakpoint without editing text");
+    tree.pointerPressed(marker, lotui::PointerButton::Primary);
+    tree.pointerReleased(marker, lotui::PointerButton::Primary);
+    require(editor->hasBreakpoint(1), "second gutter click should restore it");
+    tree.pointerPressed({40.0F, 21.0F}, lotui::PointerButton::Primary);
+    tree.pointerReleased({40.0F, 21.0F}, lotui::PointerButton::Primary);
+    require(editor->hasBreakpoint(1),
+        "line number click should keep the breakpoint unchanged");
+    editor->setBreakpoints({1, 3});
+    tree.keyPressed(lotui::KeyCode::Home);
+    tree.textInput({lotui::TextInputEventType::Commit, "\n"});
+    require(editor->breakpoints() == std::vector<std::size_t>({2, 4}),
+        "inserting a line before code should shift its breakpoints");
+    require(editor->undo() &&
+        editor->breakpoints() == std::vector<std::size_t>({1, 3}),
+        "Undo should restore breakpoint lines with the text");
+    require(editor->redo() &&
+        editor->breakpoints() == std::vector<std::size_t>({2, 4}),
+        "Redo should restore shifted breakpoint lines");
+    editor->toggleBreakpoint(3);
+    require(editor->undo() &&
+        editor->breakpoints() == std::vector<std::size_t>({1, 2, 3}),
+        "a breakpoint added after editing should survive text Undo");
+    require(editor->redo() &&
+        editor->breakpoints() == std::vector<std::size_t>({2, 3, 4}),
+        "the manually added breakpoint should follow text Redo");
+    editor->setText("new document");
+    require(editor->breakpoints().empty(),
+        "replacing the document should clear its breakpoints");
+}
+
 void scrollsAndClips() {
     auto engine = std::make_shared<TestEngine>();
     std::string content;
@@ -219,6 +275,7 @@ int main() {
     editsUtf8AndHistory();
     selectionClipboardAndFind();
     bracketsAndAutomaticIndentation();
+    breakpointsFollowEditsAndHistory();
     scrollsAndClips();
     return 0;
 }

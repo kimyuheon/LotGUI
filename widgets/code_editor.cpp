@@ -86,7 +86,9 @@ Size CodeEditor::measure(const LayoutConstraints& constraints) const {
 }
 
 void CodeEditor::setText(std::string text) {
+    const bool hadBreakpoints = !breakpoints_.empty();
     text_ = normalizeNewlines(text);
+    breakpoints_.clear();
     cursor_ = anchor_ = 0;
     undoStack_.clear();
     redoStack_.clear();
@@ -94,6 +96,8 @@ void CodeEditor::setText(std::string text) {
     scrollX_ = scrollY_ = 0.0F;
     preferredColumnX_ = -1.0F;
     rebuildLines();
+    if (hadBreakpoints && onBreakpointsChanged_)
+        onBreakpointsChanged_(breakpoints_);
 }
 
 const std::string& CodeEditor::text() const noexcept { return text_; }
@@ -106,6 +110,34 @@ void CodeEditor::setClipboardHandlers(ClipboardWriteHandler write,
     ClipboardReadHandler read) {
     clipboardWrite_ = std::move(write);
     clipboardRead_ = std::move(read);
+}
+void CodeEditor::setBreakpoints(std::vector<std::size_t> lines) {
+    lines.erase(std::remove_if(lines.begin(), lines.end(), [this](std::size_t line) {
+        return line == 0 || line > lineCount();
+    }), lines.end());
+    std::sort(lines.begin(), lines.end());
+    lines.erase(std::unique(lines.begin(), lines.end()), lines.end());
+    if (lines == breakpoints_) return;
+    breakpoints_ = std::move(lines);
+    if (onBreakpointsChanged_) onBreakpointsChanged_(breakpoints_);
+}
+const std::vector<std::size_t>& CodeEditor::breakpoints() const noexcept {
+    return breakpoints_;
+}
+bool CodeEditor::hasBreakpoint(std::size_t line) const noexcept {
+    return std::binary_search(breakpoints_.begin(), breakpoints_.end(), line);
+}
+void CodeEditor::toggleBreakpoint(std::size_t line) {
+    if (line == 0 || line > lineCount()) return;
+    auto it = std::lower_bound(breakpoints_.begin(), breakpoints_.end(), line);
+    if (it != breakpoints_.end() && *it == line)
+        breakpoints_.erase(it);
+    else
+        breakpoints_.insert(it, line);
+    if (onBreakpointsChanged_) onBreakpointsChanged_(breakpoints_);
+}
+void CodeEditor::setOnBreakpointsChanged(BreakpointsChangedHandler handler) {
+    onBreakpointsChanged_ = std::move(handler);
 }
 void CodeEditor::setStyle(CodeEditorStyle style) {
     if (!std::isfinite(style.lineHeight) || style.lineHeight <= 0.0F ||
@@ -216,6 +248,15 @@ void CodeEditor::onPaint(std::vector<PaintCommand>& commands) const {
             gutter.x + gutter.width - style_.padding - numberLayout->size().width,
             y + (style_.lineHeight - numberLayout->size().height) * 0.5F},
             intersect(gutter, clip()), style_.lineNumber, commands);
+        if (hasBreakpoint(line + 1)) {
+            const float diameter = std::max(0.0F,
+                std::min(13.0F, style_.lineHeight - 4.0F));
+            if (diameter > 0.0F) commands.push_back({
+                {gutter.x + 5.0F, y + (style_.lineHeight - diameter) * 0.5F,
+                    diameter, diameter},
+                intersect(gutter, clip()), style_.breakpoint,
+                invalidTextureId, diameter * 0.5F});
+        }
 
         float x = textX();
         for (const auto& token : tokenizeCodeLine(language_, lineText(line))) {
@@ -247,6 +288,20 @@ bool CodeEditor::onPointerEvent(const WidgetPointerEvent& event) {
     switch (event.type) {
     case WidgetPointerEventType::Press:
         if (event.button != PointerButton::Primary) return false;
+        if (event.position.x >= bounds().x &&
+            event.position.x < bounds().x +
+                std::min(23.0F, style_.gutterWidth)) {
+            const float relative = event.position.y - bounds().y -
+                style_.padding + scrollY_;
+            if (relative >= 0.0F &&
+                relative < static_cast<float>(lineCount()) *
+                    style_.lineHeight) {
+                toggleBreakpoint(static_cast<std::size_t>(
+                    std::floor(relative / style_.lineHeight)) + 1);
+                breakpointPressed_ = true;
+                return true;
+            }
+        }
         composition_.clear();
         cursor_ = offsetAt(event.position);
         if (!event.modifiers.shift || !focused_) anchor_ = cursor_;
@@ -259,12 +314,17 @@ bool CodeEditor::onPointerEvent(const WidgetPointerEvent& event) {
         revealCursor();
         return true;
     case WidgetPointerEventType::Release:
+        if (breakpointPressed_ && event.button == PointerButton::Primary) {
+            breakpointPressed_ = false;
+            return true;
+        }
         if (event.button != PointerButton::Primary || !dragging_) return false;
         cursor_ = offsetAt(event.position);
         dragging_ = false;
         revealCursor();
         return true;
     case WidgetPointerEventType::Cancel:
+        breakpointPressed_ = false;
         dragging_ = false;
         return false;
     case WidgetPointerEventType::Enter:
@@ -292,7 +352,11 @@ bool CodeEditor::acceptsFocus() const noexcept { return true; }
 bool CodeEditor::onFocusChanged(bool focused) {
     const bool changed = focused_ != focused;
     focused_ = focused;
-    if (!focused) { dragging_ = false; composition_.clear(); }
+    if (!focused) {
+        dragging_ = false;
+        breakpointPressed_ = false;
+        composition_.clear();
+    }
     return changed;
 }
 
@@ -612,13 +676,31 @@ void CodeEditor::replaceSelection(std::string value) {
     const std::size_t inserted = value.size();
     const std::size_t start = selectionStart();
     const std::size_t removed = selectionEnd() - start;
+    std::vector<std::size_t> breakpointOffsets;
+    breakpointOffsets.reserve(breakpoints_.size());
+    for (const std::size_t line : breakpoints_)
+        breakpointOffsets.push_back(lineStarts_[line - 1]);
     recordEdit();
     text_.replace(start, removed, std::move(value));
     cursor_ = anchor_ = start + inserted;
     rebuildLines();
+    rebaseBreakpoints(breakpointOffsets, start, start + removed, inserted);
     preferredColumnX_ = -1.0F;
     revealCursor();
     notifyChanged();
+}
+void CodeEditor::rebaseBreakpoints(const std::vector<std::size_t>& offsets,
+    std::size_t start, std::size_t end, std::size_t inserted) {
+    std::vector<std::size_t> lines;
+    lines.reserve(offsets.size());
+    for (const std::size_t offset : offsets) {
+        if (offset > start && offset < end) continue;
+        const std::size_t mapped = offset < start ||
+            (offset == start && start != end) ? offset :
+            start + inserted + (offset - end);
+        lines.push_back(lineOf(mapped) + 1);
+    }
+    setBreakpoints(std::move(lines));
 }
 void CodeEditor::indentSelection(bool reverse) {
     const std::size_t first = lineOf(selectionStart());
@@ -659,10 +741,25 @@ void CodeEditor::recordEdit() {
     redoStack_.clear();
 }
 void CodeEditor::restore(Snapshot snapshot) {
+    std::vector<std::size_t> breakpointOffsets;
+    breakpointOffsets.reserve(breakpoints_.size());
+    for (const std::size_t line : breakpoints_)
+        breakpointOffsets.push_back(lineStarts_[line - 1]);
+    std::size_t start = 0;
+    while (start < text_.size() && start < snapshot.text.size() &&
+        text_[start] == snapshot.text[start]) ++start;
+    std::size_t suffix = 0;
+    while (suffix < text_.size() - start &&
+        suffix < snapshot.text.size() - start &&
+        text_[text_.size() - suffix - 1] ==
+            snapshot.text[snapshot.text.size() - suffix - 1]) ++suffix;
+    const std::size_t oldEnd = text_.size() - suffix;
+    const std::size_t inserted = snapshot.text.size() - start - suffix;
     text_ = std::move(snapshot.text);
     cursor_ = snapshot.cursor;
     anchor_ = snapshot.anchor;
     rebuildLines();
+    rebaseBreakpoints(breakpointOffsets, start, oldEnd, inserted);
     revealCursor();
     notifyChanged();
 }

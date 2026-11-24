@@ -13,6 +13,13 @@ scrolling, and Undo/Redo. The toolbar demonstrates its public API. Code text
 and callbacks stay in the consumer application; plugins can instantiate the
 same widget using the SDK `LotUI::Widgets` target.
 
+Click the marker lane left of a line number to toggle a breakpoint. The demo
+starts with markers on lines 5, 9 and 13. Integrations can call
+`setBreakpoints({5, 9})`, read `breakpoints()` and register
+`setOnBreakpointsChanged(...)`; line numbers are one-based. Markers follow line
+insertions and Undo/Redo. This widget records and paints breakpoint locations;
+the host application connects those locations to its debugger.
+
 From the LotGUI repository root:
 
 ```sh

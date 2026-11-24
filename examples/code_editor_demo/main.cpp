@@ -160,6 +160,7 @@ std::unique_ptr<lotui::WidgetTree> buildUi(
     editorStyle.number = desktopColor(0xe4ae85);
     editorStyle.comment = desktopColor(0x9cb0a9);
     editorStyle.selection = desktopColor(0x435e78);
+    editorStyle.breakpoint = desktopColor(0xe45b61);
     editorStyle.lineHeight = 25.0F;
     auto editor = std::make_unique<lotui::CodeEditor>(engine,
         std::string(exampleCode), "cpp", lotui::Size{900.0F, 500.0F},
@@ -175,10 +176,15 @@ std::unique_ptr<lotui::WidgetTree> buildUi(
     root->addChild(std::move(editor), stretch());
 
     auto status = label(engine,
-        "C++  ·  괄호 자동 완성  ·  Enter 자동 들여쓰기  ·  Tab/Shift+Tab 들여쓰기  ·  Ctrl+Z 실행 취소",
+        "C++  ·  왼쪽 여백 클릭: 중단점  ·  괄호 자동 완성  ·  Enter/Tab 들여쓰기",
         12.0F);
     state.status = status.get();
     root->addChild(std::move(status), height(23.0F));
+    state.editor->setOnBreakpointsChanged([&state](const auto& lines) {
+        state.status->setText("중단점 " + std::to_string(lines.size()) +
+            "개  ·  왼쪽 여백을 클릭해서 설정하거나 해제하세요.");
+    });
+    state.editor->setBreakpoints({5, 9, 13});
     return std::make_unique<lotui::WidgetTree>(std::move(root));
 }
 
@@ -223,7 +229,8 @@ int main(int argc, char** argv) {
         };
         updateLayout(*widgets, window->metrics());
         if (test && (!state.editor->findNext("CAD_GetPosition") ||
-                state.editor->selectedText() != "CAD_GetPosition"))
+                state.editor->selectedText() != "CAD_GetPosition" ||
+                state.editor->breakpoints().size() != 3))
             throw std::runtime_error("code editor search failed");
         std::vector<lotui::PaintCommand> commands;
         if (smoke || test) {
