@@ -1283,6 +1283,10 @@ int main(int argc, char** argv) {
             std::string_view(argv[1]) == "--capture-home";
         const bool captureDockLeft = argc == 3 &&
             std::string_view(argv[1]) == "--capture-dock-left";
+        const bool captureDockBottom = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-dock-bottom";
+        const bool captureDockRight = argc == 3 &&
+            std::string_view(argv[1]) == "--capture-dock-right";
         const bool captureInsertMenu = argc == 3 &&
             std::string_view(argv[1]) == "--capture-insert-menu";
         const bool captureDialog = argc == 3 &&
@@ -1292,7 +1296,8 @@ int main(int argc, char** argv) {
         const bool captureModelessLarge = argc == 3 &&
             std::string_view(argv[1]) == "--capture-modeless-large";
         const bool captureFrame = capturePlugin || captureClickedPlugin ||
-            captureHome || captureDockLeft || captureInsertMenu || captureDialog ||
+            captureHome || captureDockLeft || captureDockBottom ||
+            captureDockRight || captureInsertMenu || captureDialog ||
             captureModelessSmall || captureModelessLarge;
         if ((argc > 2 && !captureFrame) ||
             (argc == 2 && mode != "--smoke" &&
@@ -1303,6 +1308,8 @@ int main(int argc, char** argv) {
                 "--capture-clicked-plugin output.ppm|"
                 "--capture-home output.ppm|"
                 "--capture-dock-left output.ppm|"
+                "--capture-dock-bottom output.ppm|"
+                "--capture-dock-right output.ppm|"
                 "--capture-insert-menu output.ppm|"
                 "--capture-dialog output.ppm|"
                 "--capture-modeless-small output.ppm|"
@@ -1354,6 +1361,8 @@ int main(int argc, char** argv) {
         }
         if (capturePlugin) state.ribbon->selectTab("plugin");
         if (captureDockLeft) state.dock->setSide(lotui::DockSide::Left);
+        if (captureDockBottom) state.dock->setSide(lotui::DockSide::Bottom);
+        if (captureDockRight) state.dock->setSide(lotui::DockSide::Right);
         if (captureClickedPlugin) {
             const auto header = state.ribbon->tabHeaderBounds(3);
             const lotui::Point center{

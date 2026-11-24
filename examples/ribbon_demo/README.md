@@ -17,12 +17,14 @@ A compact quick toolbar sits under the ribbon. Drag its dotted grip to the
 top, bottom, left, or right edge of the workspace; the highlighted edge shows
 the pending dock position. The Undo, Redo, Add, and Delete commands retain
 their callbacks and use the same Lucide icon font as the ribbon. Dropping in
-the center leaves the toolbar on
-its current edge. `--input-test` checks all four positions and command clicks;
-`--capture-dock-left output.ppm` captures the vertical layout.
+the center leaves the toolbar on its current edge. `--input-test` checks all
+four positions and command clicks. Capture any docked layout with
+`--capture-dock-left`, `--capture-dock-bottom`, or `--capture-dock-right`.
 
 ![Top dock](../../docs/images/ribbon-dock-top.png)
 ![Left dock](../../docs/images/ribbon-dock-left.png)
+![Bottom dock](../../docs/images/ribbon-dock-bottom.png)
+![Right dock](../../docs/images/ribbon-dock-right.png)
 
 Ribbon commands use a 20-glyph subset of the Lucide 1.55.0 icon font. The
 subset is stored in `resources/fonts/lucide-subset.ttf`; its ISC/MIT license
