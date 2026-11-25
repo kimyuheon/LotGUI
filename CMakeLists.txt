@@ -973,6 +973,26 @@ if(LOTUI_BUILD_EXAMPLES)
         install(TARGETS plot_view_demo
             RUNTIME DESTINATION bin COMPONENT Examples)
 
+        add_executable(dashboard_demo
+            examples/dashboard_demo/main.cpp
+            examples/platform_probe/platform_event_bridge.cpp)
+        target_link_libraries(dashboard_demo PRIVATE
+            lotui_vulkan lotui_widgets lotui_text_freetype)
+        if(MSVC)
+            target_compile_options(dashboard_demo PRIVATE /W4 /permissive- /utf-8)
+        else()
+            target_compile_options(dashboard_demo PRIVATE -Wall -Wextra -Wpedantic)
+        endif()
+        lotui_copy_legal_notices(dashboard_demo)
+        add_custom_command(TARGET dashboard_demo POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "$<TARGET_FILE_DIR:dashboard_demo>/resources/fonts"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${LOTUI_EXAMPLE_FONT_FILE}"
+                "$<TARGET_FILE_DIR:dashboard_demo>/resources/fonts/NotoSansKR-Regular.ttf"
+            VERBATIM)
+        install(TARGETS dashboard_demo RUNTIME DESTINATION bin COMPONENT Examples)
+
         add_executable(graph_canvas_demo
             examples/graph_canvas_demo/main.cpp
             examples/platform_probe/platform_event_bridge.cpp)
