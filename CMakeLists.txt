@@ -993,6 +993,28 @@ if(LOTUI_BUILD_EXAMPLES)
             VERBATIM)
         install(TARGETS dashboard_demo RUNTIME DESTINATION bin COMPONENT Examples)
 
+        add_executable(hardware_monitor_demo
+            examples/hardware_monitor_demo/main.cpp
+            examples/platform_probe/platform_event_bridge.cpp)
+        target_link_libraries(hardware_monitor_demo PRIVATE
+            lotui_vulkan lotui_widgets lotui_text_freetype)
+        include(examples/hardware_monitor_demo/sensors.cmake)
+        lotui_add_hardware_sensor_sources(hardware_monitor_demo)
+        if(MSVC)
+            target_compile_options(hardware_monitor_demo PRIVATE /W4 /permissive- /utf-8)
+        else()
+            target_compile_options(hardware_monitor_demo PRIVATE -Wall -Wextra -Wpedantic)
+        endif()
+        lotui_copy_legal_notices(hardware_monitor_demo)
+        add_custom_command(TARGET hardware_monitor_demo POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "$<TARGET_FILE_DIR:hardware_monitor_demo>/resources/fonts"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${LOTUI_EXAMPLE_FONT_FILE}"
+                "$<TARGET_FILE_DIR:hardware_monitor_demo>/resources/fonts/NotoSansKR-Regular.ttf"
+            VERBATIM)
+        install(TARGETS hardware_monitor_demo RUNTIME DESTINATION bin COMPONENT Examples)
+
         add_executable(graph_canvas_demo
             examples/graph_canvas_demo/main.cpp
             examples/platform_probe/platform_event_bridge.cpp)
