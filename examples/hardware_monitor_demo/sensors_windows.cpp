@@ -1,4 +1,4 @@
-#include "examples/hardware_monitor_demo/sensors.h"
+#include "examples/hardware_monitor_demo/sensors_nvml.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -14,69 +14,21 @@
 namespace lotui::example {
 namespace {
 
-// NVML is optional. Load the copy installed with the NVIDIA DCH driver.
-class NvidiaSensors {
+// Search only the driver location used by the Windows system copy.
+class NvmlModule {
 public:
-    NvidiaSensors() {
-        library_ = LoadLibraryExW(L"nvml.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
-        if (!library_) return;
-        const auto init = symbol<int (*)()>("nvmlInit_v2");
-        shutdown_ = symbol<int (*)()>("nvmlShutdown");
-        if (!init || !shutdown_ || init() != 0) return;
-        initialized_ = true;
-        const auto getDevice =
-            symbol<int (*)(unsigned int, Device*)>("nvmlDeviceGetHandleByIndex_v2");
-        if (!getDevice || getDevice(0, &device_) != 0 || !device_) return;
-        temperature_ = symbol<TemperatureQuery>("nvmlDeviceGetTemperature");
-        utilization_ = symbol<UtilizationQuery>("nvmlDeviceGetUtilizationRates");
-        const auto getName = symbol<int (*)(Device, char*, unsigned int)>("nvmlDeviceGetName");
-        char name[128]{};
-        if (getName && getName(device_, name, sizeof(name)) == 0) name_ = name;
-    }
-
-    ~NvidiaSensors() {
-        if (initialized_) shutdown_();
-        if (library_) FreeLibrary(library_);
-    }
-
-    NvidiaSensors(const NvidiaSensors&) = delete;
-    NvidiaSensors& operator=(const NvidiaSensors&) = delete;
-
-    void read(HardwareReadings& values) const {
-        if (!device_) return;
-        values.gpuName = name_.empty() ? "NVIDIA GPU" : name_;
-        values.gpuSource = "NVIDIA NVML";
-        unsigned int degrees = 0;
-        constexpr int gpuTemperatureSensor = 0; // NVML_TEMPERATURE_GPU
-        if (temperature_ && temperature_(device_, gpuTemperatureSensor, &degrees) == 0 &&
-            degrees <= 200)
-            values.gpuTemperature = static_cast<int>(degrees);
-        Utilization utilization{};
-        if (utilization_ && utilization_(device_, &utilization) == 0 &&
-            utilization.gpu <= 100)
-            values.gpuLoad = static_cast<int>(utilization.gpu);
-    }
-
-private:
-    struct DeviceTag;
-    using Device = DeviceTag*;
-    struct Utilization { unsigned int gpu, memory; };
-    using TemperatureQuery = int (*)(Device, int, unsigned int*);
-    using UtilizationQuery = int (*)(Device, Utilization*);
+    NvmlModule() = default;
+    ~NvmlModule() { if (library_) FreeLibrary(library_); }
+    NvmlModule(const NvmlModule&) = delete;
+    NvmlModule& operator=(const NvmlModule&) = delete;
+    explicit operator bool() const noexcept { return library_ != nullptr; }
 
     template <typename Function> Function symbol(const char* name) const {
-        // GetProcAddress returns an opaque address; the NVML signatures above
-        // match the driver's C ABI.
         return reinterpret_cast<Function>(GetProcAddress(library_, name));
     }
 
-    HMODULE library_{};
-    int (*shutdown_)(){};
-    bool initialized_{};
-    Device device_{};
-    TemperatureQuery temperature_{};
-    UtilizationQuery utilization_{};
-    std::string name_;
+private:
+    HMODULE library_{LoadLibraryExW(L"nvml.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32)};
 };
 
 struct CloseInternet {
@@ -162,7 +114,7 @@ void readCpuPackage(std::string_view metrics, HardwareReadings& values) {
 
 HardwareReadings readHardwareSensors() {
     HardwareReadings values;
-    static const NvidiaSensors nvidia;
+    static const NvidiaSensors<NvmlModule> nvidia;
     nvidia.read(values);
     readCpuPackage(localSensorMetrics(), values);
     return values;

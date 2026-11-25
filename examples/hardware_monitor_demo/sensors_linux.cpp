@@ -1,4 +1,6 @@
-#include "examples/hardware_monitor_demo/sensors.h"
+#include "examples/hardware_monitor_demo/sensors_nvml.h"
+
+#include <dlfcn.h>
 
 #include <cmath>
 #include <filesystem>
@@ -7,6 +9,22 @@
 
 namespace lotui::example {
 namespace {
+
+class NvmlModule {
+public:
+    NvmlModule() = default;
+    ~NvmlModule() { if (library_) dlclose(library_); }
+    NvmlModule(const NvmlModule&) = delete;
+    NvmlModule& operator=(const NvmlModule&) = delete;
+    explicit operator bool() const noexcept { return library_ != nullptr; }
+
+    template <typename Function> Function symbol(const char* name) const {
+        return reinterpret_cast<Function>(dlsym(library_, name));
+    }
+
+private:
+    void* library_{dlopen("libnvidia-ml.so.1", RTLD_NOW | RTLD_LOCAL)};
+};
 
 std::string readLine(const std::filesystem::path& path) {
     std::ifstream input(path);
@@ -51,6 +69,12 @@ void readPackage(const std::filesystem::path& hwmon, std::string_view chip,
 
 HardwareReadings readHardwareSensors() {
     HardwareReadings readings;
+    static const NvidiaSensors<NvmlModule> nvidia;
+    nvidia.read(readings);
+    if (!readings.gpuTemperature && !readings.gpuLoad) {
+        readings.gpuName.clear();
+        readings.gpuSource.clear();
+    }
     std::error_code error;
     for (std::filesystem::directory_iterator entry("/sys/class/hwmon", error), end;
             !error && entry != end; entry.increment(error)) {
