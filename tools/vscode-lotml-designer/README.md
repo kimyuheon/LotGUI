@@ -23,7 +23,7 @@ Python 3 and VS Code with the `code` command are required.
 
 ```sh
 python tools/vscode-lotml-designer/package_vsix.py out
-code --install-extension out/lotml-designer-0.1.0.vsix
+code --install-extension out/lotml-designer-0.1.1.vsix
 ```
 
 The VSIX can also be installed from the Extensions view using **Install from VSIX…**.

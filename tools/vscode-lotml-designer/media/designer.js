@@ -110,6 +110,17 @@
     return [top, right, bottom, left].join(' ');
   }
 
+  function applyColors(widget, attrs, bindings) {
+    for (const [property, css] of Object.entries(bindings)) {
+      const hex = attrs[property];
+      if (!/^#[a-f\d]{6}([a-f\d]{2})?$/i.test(hex ?? '')) continue;
+      const [red, green, blue, alpha = 1] =
+        hex.slice(1).match(/../g).map(byte => parseInt(byte, 16) / 255);
+      // LotML uses linear RGB, as does the native renderer before display conversion.
+      widget.style.setProperty(css, `color(srgb-linear ${red} ${green} ${blue} / ${alpha})`);
+    }
+  }
+
   function styles(node, outer) {
     const a = node.attrs;
     const style = outer.style;
@@ -157,7 +168,7 @@
       outer.style.flexDirection = type === 'Row' ? 'row' : 'column';
       outer.style.gap = px(a.spacing) || '0';
       outer.style.padding = inset(a.padding) || (node.children.length ? '0' : '7px');
-      if (a.background) outer.style.backgroundColor = a.background;
+      applyColors(outer, a, { background: 'background-color' });
       outer.style.justifyContent = a.mainAlign === 'spaceBetween' ? 'space-between' : a.mainAlign || 'start';
       outer.style.alignItems = a.crossAlign || 'start';
       if (path.length === 0) {
@@ -169,20 +180,32 @@
         outer.append(create('span', 'hint', type));
     } else if (type === 'Label' || type === 'Button' || type === 'Checkbox' ||
         type === 'TextField' || type === 'NumericInput') {
-      if (type === 'Checkbox')
-        outer.append(create('span', 'check', a.checked === 'true' ? '✓' : ''));
+      if (type === 'Checkbox') {
+        const checked = a.checked === 'true';
+        const check = create('span', 'check', checked ? '✓' : '');
+        applyColors(check, a, { [checked ? 'checkedColor' : 'unchecked']: '--check-fill',
+          checkmark: '--checkmark' });
+        outer.append(check);
+      }
       if (node.children.length) appendChildren();
       else outer.append(create('span', '', type === 'NumericInput' ?
         a.value ?? '0' : a.text ?? (node.text.trim() || captions[type] || type)));
-      if (type === 'NumericInput') outer.append(create('span', 'step', '−   +'));
-      if (a.normal) outer.style.backgroundColor = a.normal;
-      if (a.color || a.textColor) outer.style.color = a.color || a.textColor;
+      if (type === 'NumericInput') {
+        const step = create('span', 'step', '−   +');
+        applyColors(step, a, { stepButton: '--step-fill', indicator: '--step-text' });
+        outer.append(step);
+      }
+      applyColors(outer, a, { normal: '--widget-background',
+        hovered: '--widget-hover', color: 'color', textColor: 'color' });
       if (a.contentPadding) outer.style.padding = inset(a.contentPadding);
       if (type === 'Label' && a.horizontalAlign) outer.style.textAlign = a.horizontalAlign;
     } else if (type === 'Box') {
-      outer.style.backgroundColor = a.color || '#42556D';
+      applyColors(outer, a, { color: 'background-color' });
     } else if (type === 'Ribbon') {
       const tabs = create('div', 'tabs');
+      applyColors(outer, a, { background: 'background-color', tabBar: '--tab-bar',
+        tabNormal: '--tab-normal', tabSelected: '--tab-selected', tabHovered: '--tab-hover',
+        textColor: '--tab-text', selectedTextColor: '--tab-selected-text' });
       const saved = node.children.findIndex(tab => tab.attrs.tabId === sequences.get(nodeKey));
       const active = saved >= 0 ? saved :
         Math.max(0, node.children.findIndex(tab => tab.attrs.tabId === a.selectedTab));
@@ -198,9 +221,11 @@
       if (node.children[active]) outer.append(designWidget(node.children[active], [...path, active]));
     } else if (type === 'RibbonTab' || type === 'RibbonGroup') {
       appendChildren();
-      if (type === 'RibbonGroup')
+      if (type === 'RibbonGroup') {
+        applyColors(outer, a, { background: 'background-color',
+          titleColor: '--group-title', separator: '--group-separator' });
         outer.append(create('span', 'group-label', a.title || '그룹'));
-      else if (!node.children.length) outer.append(create('span', 'hint', '빈 리본 탭'));
+      } else if (!node.children.length) outer.append(create('span', 'hint', '빈 리본 탭'));
     } else {
       outer.append(create('span', 'hint', type));
       appendChildren();

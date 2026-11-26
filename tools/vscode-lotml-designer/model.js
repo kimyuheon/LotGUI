@@ -183,7 +183,7 @@ function edit(source, root, schema, operation) {
     const defaults = {
       Label: ' text="레이블"', Button: ' text="버튼"',
       Checkbox: ' text="확인"', TextField: ' text="입력"',
-      Box: ' width="64" height="28" color="#42556D"',
+      Box: ' width="64" height="28" color="#080A0D"',
       Row: ' spacing="8"', Column: ' spacing="8"',
       RibbonGroup: ' title="그룹"'
     };

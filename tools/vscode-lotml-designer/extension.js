@@ -188,9 +188,10 @@ function activate(context) {
     const edit = new vscode.WorkspaceEdit();
     edit.createFile(uri, { overwrite: false });
     edit.insert(uri, new vscode.Position(0, 0),
-      '<Column id="screen" padding="20" spacing="12" background="#151A24">\n' +
-      '  <Label text="새 화면" fontSize="24" />\n' +
-      '  <Button text="확인" width="96" />\n</Column>\n');
+      '<Column id="screen" padding="20" spacing="12" background="#020203">\n' +
+      '  <Label text="새 화면" fontSize="24" color="#D0D8E5" />\n' +
+      '  <Button text="확인" width="96" normal="#06080B" hovered="#090E18"\n' +
+      '          pressed="#060A11" focusRing="#457AC8" />\n</Column>\n');
     if (!await vscode.workspace.applyEdit(edit))
       throw new Error('LotML 파일을 만들지 못했습니다.');
     const document = await vscode.workspace.openTextDocument(uri);

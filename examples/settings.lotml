@@ -2,35 +2,42 @@
 <Column id="settingsDialog"
         spacing="12"
         padding="20"
-        background="#151A24"
+        background="#020203"
         cornerRadius="12">
   <Label id="title"
          text="프로젝트 설정"
          fontSize="22"
          fontWeight="600"
-         color="#F2F5FFFF" />
+         color="#D0D8E5" />
 
   <Label text="LotML과 C++ 코드는 같은 WidgetTree를 만듭니다."
-         color="#B9C2D0FF" />
+         color="#6D7D95" />
 
   <TextField id="projectName"
              text="새 프로젝트"
+             normal="#040507" hovered="#07080C"
+             textColor="#D0D8E5" focusRing="#457AC8"
              onChanged="settingsChanged"
              onSubmitted="save" />
 
   <Checkbox id="snapToGrid"
             text="격자에 맞춤"
             checked="true"
+            unchecked="#080A0D" hovered="#090E18" checkedColor="#08101D"
+            checkmark="#D0D8E5" textColor="#D0D8E5" focusRing="#457AC8"
             onChanged="settingsChanged" />
 
   <Row spacing="12" crossAlign="center">
-    <Label text="격자 크기" minWidth="100" />
+    <Label text="격자 크기" minWidth="100" color="#D0D8E5" />
     <NumericInput id="gridSize"
                   value="10"
                   minimum="0.5"
                   maximum="100"
                   step="0.5"
                   decimalPlaces="1"
+                  normal="#040507" hovered="#07080C"
+                  stepButton="#070A0E" stepButtonPressed="#08101D"
+                  textColor="#D0D8E5" indicator="#D0D8E5" focusRing="#457AC8"
                   onChanged="settingsChanged" />
   </Row>
 
@@ -38,10 +45,12 @@
     <Button id="cancelButton"
             text="취소"
             width="96"
+            normal="#06080B" hovered="#090E18" pressed="#060A11" focusRing="#457AC8"
             onClick="cancel" />
     <Button id="saveButton"
             text="저장"
             width="96"
+            normal="#08101D" hovered="#0B182A" pressed="#060A11" focusRing="#457AC8"
             onClick="save" />
   </Row>
 </Column>

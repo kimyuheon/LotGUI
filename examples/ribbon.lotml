@@ -2,27 +2,37 @@
 <Ribbon id="mainRibbon"
         selectedTab="home"
         onChanged="ribbonTabChanged"
+        background="#020203"
+        tabBar="#040406" tabNormal="#040406" tabHovered="#090E18"
+        tabPressed="#060A11" tabSelected="#08101D"
+        textColor="#6D7D95" selectedTextColor="#D0D8E5" focusRing="#457AC8"
         height="150">
   <RibbonTab tabId="home" title="홈">
     <Row spacing="8" crossAlign="stretch">
-      <RibbonGroup title="파일">
+      <RibbonGroup title="파일" background="#030405" titleColor="#6D7D95" separator="#080A0D">
         <Row spacing="6" crossAlign="center">
-          <Button text="새로 만들기" width="104" onClick="newDocument" />
-          <Button text="저장" width="104" onClick="saveDocument" />
+          <Button text="새로 만들기" width="104" onClick="newDocument"
+                  normal="#030405" hovered="#090E18" pressed="#060A11" focusRing="#457AC8" />
+          <Button text="저장" width="104" onClick="saveDocument"
+                  normal="#030405" hovered="#090E18" pressed="#060A11" focusRing="#457AC8" />
         </Row>
       </RibbonGroup>
-      <RibbonGroup title="편집">
+      <RibbonGroup title="편집" background="#030405" titleColor="#6D7D95" separator="#080A0D">
         <Row spacing="6" crossAlign="center">
-          <Button text="실행 취소" width="104" onClick="undo" />
-          <Button text="다시 실행" width="104" onClick="redo" />
+          <Button text="실행 취소" width="104" onClick="undo"
+                  normal="#030405" hovered="#090E18" pressed="#060A11" focusRing="#457AC8" />
+          <Button text="다시 실행" width="104" onClick="redo"
+                  normal="#030405" hovered="#090E18" pressed="#060A11" focusRing="#457AC8" />
         </Row>
       </RibbonGroup>
     </Row>
   </RibbonTab>
   <RibbonTab tabId="view" title="보기">
     <Row spacing="8" crossAlign="stretch">
-      <RibbonGroup title="표시">
-        <Checkbox text="격자 표시" checked="true" onChanged="gridChanged" />
+      <RibbonGroup title="표시" background="#030405" titleColor="#6D7D95" separator="#080A0D">
+        <Checkbox text="격자 표시" checked="true" onChanged="gridChanged"
+                  unchecked="#080A0D" hovered="#090E18" checkedColor="#08101D"
+                  checkmark="#D0D8E5" textColor="#D0D8E5" focusRing="#457AC8" />
       </RibbonGroup>
     </Row>
   </RibbonTab>
