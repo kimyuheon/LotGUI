@@ -95,8 +95,12 @@ if(LOTUI_BUILD_FREETYPE_TEXT)
         "${CMAKE_CURRENT_SOURCE_DIR}/../HarfBuzz"
         CACHE PATH "Optional HarfBuzz source directory")
 
-    find_package(Freetype 2.14 QUIET)
-    find_package(harfbuzz 14 CONFIG QUIET)
+    # DesktopSDK bundles static dependencies, so system packages (often
+    # shared, e.g. Homebrew) are skipped in favor of the pinned sources.
+    if(NOT LOTUI_BUILD_DESKTOP_SDK)
+        find_package(Freetype 2.14 QUIET)
+        find_package(harfbuzz 14 CONFIG QUIET)
+    endif()
 
     if(TARGET Freetype::Freetype)
         set(_lotui_freetype_target Freetype::Freetype)
@@ -261,7 +265,9 @@ if(LOTUI_BUILD_DECLARATIVE_UI)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tinyxml2"
         CACHE PATH "Optional TinyXML-2 source directory")
 
-    find_package(tinyxml2 11 CONFIG QUIET)
+    if(NOT LOTUI_BUILD_DESKTOP_SDK)
+        find_package(tinyxml2 11 CONFIG QUIET)
+    endif()
     if(TARGET tinyxml2::tinyxml2)
         set(_lotui_tinyxml2_target tinyxml2::tinyxml2)
     elseif(TARGET tinyxml2)
