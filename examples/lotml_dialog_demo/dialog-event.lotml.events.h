@@ -17,7 +17,7 @@ inline void handle_showDialog_89224e6a22(
 
     auto content = std::make_unique<Column>();
     LinearLayoutOptions contentLayout;
-    contentLayout.spacing = 18.0F;
+    contentLayout.spacing = 12.0F;
     contentLayout.crossAxisAlignment = CrossAxisAlignment::Stretch;
     content->setOptions(contentLayout);
     auto message = std::make_unique<Label>(
@@ -45,6 +45,7 @@ inline void handle_showDialog_89224e6a22(
     dialogStyle.background = colorFromSrgb(0x23272E);
     dialogStyle.titleDivider = colorFromSrgb(0x3B414A);
     dialogStyle.cornerRadius = 8.0F;
+    dialogStyle.contentPadding = {24.0F, 16.0F, 24.0F, 16.0F};
     auto dialog = std::make_unique<Dialog>(
         std::move(content), Size{365.0F, 170.0F}, dialogStyle);
     text.fontSize = 18.0F;

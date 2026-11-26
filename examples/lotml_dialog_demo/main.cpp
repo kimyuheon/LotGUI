@@ -101,16 +101,26 @@ int run(const std::filesystem::path& capture) {
             click.type = PlatformEventType::MouseButtonReleased;
             example::dispatchPlatformEvent(click, ui.tree(), *window, layout);
             if (!host->hasModal()) throw std::runtime_error("Button click did not open the dialog");
-            const auto checkButtonClearance = [&] {
+            const auto checkModalLayout = [&] {
                 if (hasArea(intersect(button->bounds(), host->modal()->bounds())))
                     throw std::runtime_error("The dialog overlaps the launch button");
+                commands.clear();
+                ui.tree().paint(commands);
+                for (const auto& command : commands) {
+                    // The only textured commands in this sample are glyphs.
+                    if (command.texture == invalidTextureId) continue;
+                    constexpr float tolerance = 0.001F;
+                    if (command.bounds.y < command.clip.y - tolerance ||
+                        command.bounds.y + command.bounds.height >
+                            command.clip.y + command.clip.height + tolerance)
+                        throw std::runtime_error("A text glyph is clipped vertically");
+                }
             };
-            checkButtonClearance();
             ui.tree().layout({0.0F, 0.0F, static_cast<float>(minimumWidth),
                 static_cast<float>(minimumHeight)});
-            checkButtonClearance();
+            checkModalLayout();
             layout(ui.tree(), window->metrics());
-            ui.tree().paint(commands);
+            checkModalLayout();
             saveFrame(renderer.drawFrameCaptured(commands), capture);
             PlatformEvent escape{PlatformEventType::KeyPressed};
             escape.key = KeyCode::Escape;
