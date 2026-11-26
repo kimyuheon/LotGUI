@@ -20,6 +20,9 @@ Applications can initially consume LotUI with `add_subdirectory()` and link
 only the targets they use. `platform_probe` demonstrates the full native-window
 to widget-tree to Vulkan path.
 
+Use the [LotUI Designer for VS Code](tools/vscode-lotml-designer/README.md)
+to edit `.lotml` layouts and preview them with the native Vulkan renderer.
+
 The desktop ImGui layer in the sibling 3dEngine project is the reference
 application for higher-level widget coverage. The audited replacement checklist
 is maintained in

@@ -1,0 +1,4 @@
+{
+  "scopeName": "text.xml.lotml",
+  "patterns": [{ "include": "text.xml" }]
+}

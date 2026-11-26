@@ -1015,6 +1015,26 @@ if(LOTUI_BUILD_EXAMPLES)
             VERBATIM)
         install(TARGETS hardware_monitor_demo RUNTIME DESTINATION bin COMPONENT Examples)
 
+        if(LOTUI_BUILD_DECLARATIVE_UI)
+            add_executable(lotml_preview
+                examples/lotml_preview/main.cpp
+                examples/platform_probe/platform_event_bridge.cpp)
+            target_link_libraries(lotml_preview PRIVATE
+                lotui_declarative lotui_vulkan lotui_widgets lotui_text_freetype)
+            if(MINGW)
+                target_link_options(lotml_preview PRIVATE -municode)
+            endif()
+            lotui_copy_legal_notices(lotml_preview)
+            add_custom_command(TARGET lotml_preview POST_BUILD
+                COMMAND "${CMAKE_COMMAND}" -E make_directory
+                    "$<TARGET_FILE_DIR:lotml_preview>/resources/fonts"
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                    "${LOTUI_EXAMPLE_FONT_FILE}"
+                    "$<TARGET_FILE_DIR:lotml_preview>/resources/fonts/NotoSansKR-Regular.ttf"
+                VERBATIM)
+            install(TARGETS lotml_preview RUNTIME DESTINATION bin COMPONENT Examples)
+        endif()
+
         add_executable(graph_canvas_demo
             examples/graph_canvas_demo/main.cpp
             examples/platform_probe/platform_event_bridge.cpp)
