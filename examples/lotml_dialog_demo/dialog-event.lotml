@@ -1,7 +1,7 @@
-<Column id="dialogEventDemo" padding="24" spacing="14" background="#020203">
+<Column id="dialogEventDemo" padding="24,18" spacing="10" background="#020203">
   <Label text="LotML 이벤트 예제" fontSize="22" fontWeight="600" color="#D0D8E5" />
   <Label text="버튼을 눌러 C++ 이벤트를 실행하세요." color="#6D7D95" />
-  <Button id="dialogButton" text="대화상자 열기" width="148"
+  <Button id="dialogButton" text="대화상자 열기" width="148" fontSize="15"
           normal="#08101D" hovered="#0B182A" pressed="#060A11" focusRing="#457AC8"
           onClick="showDialog" />
 </Column>

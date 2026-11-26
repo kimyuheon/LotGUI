@@ -18,6 +18,9 @@
 
 namespace {
 
+constexpr int minimumWidth = 520;
+constexpr int minimumHeight = 440;
+
 lotui::declarative::LoadedUi loadLayout(const std::filesystem::path& file,
     lotui::declarative::LoadOptions options) {
     using namespace lotui::declarative;
@@ -57,7 +60,8 @@ int run(const std::filesystem::path& capture) {
     using namespace lotui;
     const auto resources = executableDirectory() / "resources";
     auto platform = createPlatformBackend();
-    auto window = platform->createWindow({"LotML Dialog Event Demo", 620, 380, true});
+    auto window = platform->createWindow({
+        "LotML Dialog Event Demo", 620, 460, true, minimumWidth, minimumHeight});
     window->show();
     VulkanRenderer renderer(*window);
     auto textEngine = std::make_shared<FreetypeTextEngine>(renderer,
@@ -97,6 +101,15 @@ int run(const std::filesystem::path& capture) {
             click.type = PlatformEventType::MouseButtonReleased;
             example::dispatchPlatformEvent(click, ui.tree(), *window, layout);
             if (!host->hasModal()) throw std::runtime_error("Button click did not open the dialog");
+            const auto checkButtonClearance = [&] {
+                if (hasArea(intersect(button->bounds(), host->modal()->bounds())))
+                    throw std::runtime_error("The dialog overlaps the launch button");
+            };
+            checkButtonClearance();
+            ui.tree().layout({0.0F, 0.0F, static_cast<float>(minimumWidth),
+                static_cast<float>(minimumHeight)});
+            checkButtonClearance();
+            layout(ui.tree(), window->metrics());
             ui.tree().paint(commands);
             saveFrame(renderer.drawFrameCaptured(commands), capture);
             PlatformEvent escape{PlatformEventType::KeyPressed};
