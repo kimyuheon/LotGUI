@@ -95,6 +95,7 @@ h2 { margin: 12px 0 8px; font-size: 13px; font-weight: 600; }
 #selected { overflow-wrap: anywhere; }
 .actions { display: flex; gap: 5px; padding-block: 8px; }
 .property { display: grid; gap: 3px; margin-bottom: 7px; font-size: 12px; }
+.event-code { justify-self: start; }
 input, select {
   width: 100%;
   min-width: 0;

@@ -56,7 +56,7 @@ def main():
         element(types, "Default", Extension=extension, ContentType=mime)
 
     files = (
-        "extension.js", "model.js", "package.json", "schema.json",
+        "extension.js", "event-code.js", "model.js", "package.json", "schema.json",
         "language-configuration.json", "lotml.tmLanguage.json", "README.md",
         "media/designer.css", "media/designer.js",
     )

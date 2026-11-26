@@ -6,6 +6,7 @@ const { randomBytes } = require('node:crypto');
 const { spawn } = require('node:child_process');
 const model = require('./model');
 const schema = require('./schema.json');
+const eventCode = require('./event-code');
 
 const viewType = 'lotgui.lotmlDesigner';
 
@@ -57,17 +58,150 @@ async function previewExecutable(uri) {
   throw new Error('먼저 lotml_preview 타깃을 빌드하거나 lotgui.previewExecutable을 지정하세요.');
 }
 
-function eventNames(root) {
+function previewSnapshot(xml, root) {
   const names = new Set();
-  const walk = node => {
+  const paths = [];
+  const rows = [];
+  const insertions = [];
+  const usedIds = new Set();
+  const collectIds = node => {
+    if (node.attrs.id) usedIds.add(node.attrs.id);
+    node.children.forEach(collectIds);
+  };
+  collectIds(root);
+  let seed = 0;
+  const walk = (node, widgetPath, parent) => {
     for (const property of model.propertiesFor(schema, node)) {
       if (property.type === 'event' && node.attrs[property.name])
         names.add(node.attrs[property.name]);
     }
-    node.children.forEach(walk);
+    let id = node.attrs.id;
+    if (id === undefined) {
+      do { id = 'lotuiPreview' + seed++; } while (usedIds.has(id));
+      usedIds.add(id);
+      insertions.push({ offset: node.attributeEnd, text: ' id="' + id + '"' });
+    }
+    const index = paths.length;
+    paths.push(widgetPath);
+    const ordinal = widgetPath.at(-1) ?? 0;
+    const quoted = '"' + id.replace(/[\\"]/g, char => '\\' + char) + '"';
+    rows.push(parent + ' ' + ordinal + ' ' + quoted);
+    node.children.forEach((child, i) => walk(child, [...widgetPath, i], index));
   };
-  walk(root);
-  return [...names];
+  walk(root, [], -1);
+  for (const entry of insertions.reverse())
+    xml = xml.slice(0, entry.offset) + entry.text + xml.slice(entry.offset);
+  return { xml, events: [...names], paths, targetList: rows.join('\n') + '\n' };
+}
+
+async function revealOffset(document, offset) {
+  const position = document.positionAt(offset);
+  const selection = new vscode.Range(position, position);
+  const editor = await vscode.window.showTextDocument(document, {
+    viewColumn: vscode.ViewColumn.Beside, selection, preview: false
+  });
+  editor.revealRange(selection, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+}
+
+async function existingHandler(document, companionUri, event) {
+  const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+  if (!folder) return undefined;
+  const include = new vscode.RelativePattern(folder, '**/*.{cc,cpp,cxx,h,hpp,hxx}');
+  const exclude = '**/{build*,out,sdk,.git,.tools,vendor,third_party}/**';
+  const uris = await vscode.workspace.findFiles(include, exclude, 1500);
+  const escaped = JSON.stringify(event).slice(1, -1).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const name = '(?:u8)?"' + escaped + '"';
+  const match = new RegExp('\\.events\\s*(?:\\.\\s*(?:try_emplace|emplace|insert_or_assign)' +
+    '\\s*\\(\\s*' + name + '\\s*,|\\[\\s*' + name + '\\s*\\]\\s*=)\\s*');
+  for (const uri of uris) {
+    if (uri.path.endsWith('.lotml.events.h') || uri.toString() === companionUri.toString()) continue;
+    const open = vscode.workspace.textDocuments.find(item => item.uri.toString() === uri.toString());
+    let source;
+    try {
+      source = open ? open.getText() : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+    } catch {
+      continue;
+    }
+    const binding = match.exec(source);
+    if (!binding) continue;
+    const target = open || await vscode.workspace.openTextDocument(uri);
+    const start = binding.index + binding[0].length;
+    const symbol = /^&?\s*((?:[a-zA-Z_]\w*::)*[a-zA-Z_]\w*)/.exec(source.slice(start));
+    if (symbol) {
+      const position = target.positionAt(start + symbol[0].length - 1);
+      const definitions = await vscode.commands.executeCommand('vscode.executeDefinitionProvider', uri, position);
+      const definition = definitions?.[0];
+      if (definition) {
+        const implementation = await vscode.workspace.openTextDocument(definition.targetUri || definition.uri);
+        const range = definition.targetSelectionRange || definition.range;
+        return { document: implementation, offset: implementation.offsetAt(range.start) };
+      }
+    }
+    return { document: target, offset: start };
+  }
+}
+
+async function openEventCode(document, widgetPath, requested, version) {
+  if (document.version !== version) throw new Error('화면이 변경되었습니다. 위젯을 다시 선택하세요.');
+  const source = document.getText();
+  const root = model.parse(source);
+  const node = model.at(root, widgetPath);
+  if (!node) throw new Error('위젯 위치가 변경되었습니다.');
+  const propertiesFor = item => model.propertiesFor(schema, item);
+  const event = eventCode.defaultEvent(node, propertiesFor(node), requested);
+  if (!event) {
+    await revealOffset(document, node.start);
+    return false;
+  }
+  const boundName = node.attrs[event];
+  const name = boundName || eventCode.unusedEventName(root, node, event, propertiesFor);
+  const companionUri = document.uri.with({ path: document.uri.path + '.events.h' });
+  let companion;
+  try {
+    companion = await vscode.workspace.openTextDocument(companionUri);
+  } catch (error) {
+    // openTextDocument may report a generic error. Verify the missing file through the filesystem.
+    try {
+      await vscode.workspace.fs.stat(companionUri);
+      throw error;
+    } catch (statError) {
+      if (statError.code !== 'FileNotFound') throw statError;
+    }
+  }
+  const headerName = path.basename(document.uri.path, '.lotml');
+  const companionVersion = companion?.version;
+  const header = companion ? companion.getText() : eventCode.header(headerName);
+  const plan = eventCode.plan(header, name);
+  if (boundName && plan.edits.length) {
+    const existing = await existingHandler(document, companionUri, name);
+    if (existing) {
+      await revealOffset(existing.document, existing.offset);
+      return false;
+    }
+  }
+  if (document.version !== version || companion?.version !== companionVersion)
+    throw new Error('화면 또는 이벤트 코드가 변경되었습니다. 위젯을 다시 선택하세요.');
+  const edit = new vscode.WorkspaceEdit();
+  if (!companion) {
+    let contents = header;
+    for (const update of [...plan.edits].reverse())
+      contents = contents.slice(0, update.start) + update.text + contents.slice(update.start);
+    edit.createFile(companionUri, { overwrite: false });
+    edit.insert(companionUri, new vscode.Position(0, 0), contents);
+  } else {
+    for (const update of plan.edits)
+      edit.insert(companionUri, companion.positionAt(update.start), update.text);
+  }
+  if (!boundName) {
+    const change = model.edit(source, root, schema, { kind: 'property', path: widgetPath, name: event, value: name });
+    edit.replace(document.uri, new vscode.Range(document.positionAt(change.start),
+      document.positionAt(change.end)), change.text);
+  }
+  if (edit.size && !await vscode.workspace.applyEdit(edit))
+    throw new Error('이벤트 코드와 LotML 연결을 저장하지 못했습니다.');
+  const updated = await vscode.workspace.openTextDocument(companionUri);
+  await revealOffset(updated, plan.handler);
+  return !boundName;
 }
 
 function activate(context) {
@@ -96,6 +230,15 @@ function activate(context) {
             await send();
           } else if (message.kind === 'source') {
             await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
+          } else if (message.kind === 'openEvent') {
+            if (editing) throw new Error('편집을 적용하고 있습니다. 잠시 후 다시 선택하세요.');
+            editing = true;
+            try {
+              const changed = await openEventCode(document, message.path, message.event, message.version);
+              if (changed) await send();
+            } finally {
+              editing = false;
+            }
           } else if (message.kind === 'select' && Array.isArray(message.path)) {
             selected = message.path;
           } else if (message.kind === 'edit') {
@@ -123,7 +266,9 @@ function activate(context) {
               throw new Error('Vulkan 미리보기는 신뢰할 수 있는 작업 영역에서 실행할 수 있습니다.');
             if (preview) throw new Error('열려 있는 Vulkan 미리보기 창을 먼저 닫아 주세요.');
             const source = document.getText();
-            const events = eventNames(model.parse(source));
+            const snapshotVersion = document.version;
+            const snapshot = previewSnapshot(source, model.parse(source));
+            const { events } = snapshot;
             if (events.length > 128 || events.some(name => name.length > 256 || name.includes('\0')))
               throw new Error('미리보기가 처리할 수 있는 이벤트 이름 범위를 넘었습니다.');
             const size = (value, fallback, min, max) =>
@@ -133,24 +278,54 @@ function activate(context) {
             const exe = await previewExecutable(document.uri);
             const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'lotml-preview-'));
             const file = path.join(directory, 'layout.lotml');
-            const cleanup = () => fs.promises.unlink(file).catch(() => {})
+            const targetList = path.join(directory, 'targets');
+            const cleanup = () => Promise.all([file, targetList].map(item => fs.promises.unlink(item).catch(() => {})))
               .then(() => fs.promises.rmdir(directory)).catch(() => {});
             try {
-              await fs.promises.writeFile(file, source, 'utf8');
+              await Promise.all([fs.promises.writeFile(file, snapshot.xml, 'utf8'),
+                fs.promises.writeFile(targetList, snapshot.targetList, 'utf8')]);
               if (disposed || preview) { await cleanup(); return; }
-              const child = spawn(exe, ['--size', String(width), String(height), file, ...events], {
+              const child = spawn(exe, ['--size', String(width), String(height),
+                '--reveal', targetList, file, ...events], {
                 cwd: path.dirname(exe), shell: false, stdio: ['ignore', 'pipe', 'pipe']
               });
               preview = child;
-              child.stdout.on('data', chunk => statusOutput.append(chunk.toString()));
+              let lineBuffer = '';
+              let target;
+              child.stdout.setEncoding('utf8');
+              child.stdout.on('data', chunk => {
+                lineBuffer += chunk;
+                const lines = lineBuffer.split('\n');
+                lineBuffer = lines.pop();
+                for (const line of lines) {
+                  const message = /^LOTML_OPEN_EVENT ([0-9]+)\r?$/.exec(line);
+                  if (message) target = snapshot.paths[Number(message[1])];
+                  else statusOutput.appendLine(line.trimEnd());
+                }
+              });
               child.stderr.on('data', chunk => statusOutput.append(chunk.toString()));
               child.once('error', error => {
                 feedback('Vulkan 미리보기를 열지 못했습니다. ' + error.message);
               });
-              child.once('close', code => {
+              child.once('close', async code => {
                 preview = undefined;
                 cleanup();
-                if (code && !disposed) {
+                if (disposed) return;
+                if (lineBuffer) statusOutput.append(lineBuffer);
+                if (!code && target) {
+                  try {
+                    if (editing) throw new Error('편집을 적용하고 있습니다. 디자이너에서 다시 선택하세요.');
+                    editing = true;
+                    try {
+                      const changed = await openEventCode(document, target, undefined, snapshotVersion);
+                      if (changed) await send();
+                    } finally {
+                      editing = false;
+                    }
+                  } catch (error) {
+                    vscode.window.showWarningMessage(error.message);
+                  }
+                } else if (code) {
                   feedback('Vulkan 미리보기 오류. LotUI Designer 출력에서 자세한 내용을 확인하세요.');
                   statusOutput.show(true);
                 }

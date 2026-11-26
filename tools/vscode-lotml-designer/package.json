@@ -2,7 +2,7 @@
   "name": "lotml-designer",
   "displayName": "LotUI Designer",
   "description": "Visual editor and Vulkan preview for LotUI LotML layouts",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "publisher": "lotgui",
   "license": "MIT",
   "engines": { "vscode": "^1.85.0" },

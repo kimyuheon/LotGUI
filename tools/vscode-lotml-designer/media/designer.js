@@ -23,6 +23,8 @@
   const say = text => { byId('status').textContent = text; };
   const postEdit = (kind, options = {}) =>
     vscode.postMessage({ kind: 'edit', version, operation: { kind, path: selection, ...options } });
+  const openEvent = (path, event) =>
+    vscode.postMessage({ kind: 'openEvent', path, event, version });
   function selectRibbonAncestors(path) {
     let changedTab = false;
     for (let depth = 0; depth < path.length; depth++) {
@@ -94,6 +96,7 @@
     entry.textContent = node.type + (caption ? ' · ' + caption : '');
     entry.title = entry.textContent;
     entry.addEventListener('click', () => pick(path));
+    entry.addEventListener('dblclick', () => openEvent(path));
     byId('tree').append(entry);
     node.children.forEach((child, index) => treeItem(child, [...path, index], depth + 1));
   }
@@ -144,6 +147,7 @@
     outer.title = type + (a.id ? ' · ' + a.id : '');
     styles(node, outer);
     outer.addEventListener('click', event => { event.stopPropagation(); pick(path); });
+    outer.addEventListener('dblclick', event => { event.stopPropagation(); openEvent(path); });
     if (schema.find(item => item.type === type)?.allowsChildren) {
       outer.addEventListener('dragover', event => {
         if (event.dataTransfer.types.includes(dragType)) {
@@ -272,6 +276,13 @@
         if (event.key === 'Enter' && !event.isComposing && field.tagName === 'INPUT') field.blur();
       });
       row.append(field);
+      if (property.type === 'event') {
+        const open = create('button', 'event-code', '코드');
+        open.type = 'button';
+        open.title = property.name + ' C++ 코드 열기';
+        open.addEventListener('click', () => openEvent(propertyPath, property.name));
+        row.append(open);
+      }
       (mainProps.has(property.name) || current ? host : additional).append(row);
     }
     if (additional.childElementCount > 1) host.append(additional);
