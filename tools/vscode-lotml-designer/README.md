@@ -39,6 +39,20 @@ auto ui = loader.loadFile(layoutPath, std::move(options));
 The preview uses placeholder callbacks so application code runs when the
 layout is loaded by its C++ host.
 
+## Run the dialog event example
+
+Open `examples/lotml_dialog_demo/dialog-event.lotml` in the designer and
+double-click **대화상자 열기**. The C++ event opens in `dialog-event.lotml.events.h`.
+Build and run `lotml_dialog_demo`, then click the button to open the modal
+dialog. Close it with **확인** or **Esc**.
+
+```sh
+cmake --build build --config Release --target lotml_dialog_demo
+```
+
+In LotGUI_Sample, the **LotGUI: run example (portable)** task also lists
+`lotml_dialog_demo`.
+
 ## Install
 
 From the LotGUI or LotGUI_Sample root, build and install the extension locally.

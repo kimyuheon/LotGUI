@@ -1031,20 +1031,37 @@ if(LOTUI_BUILD_EXAMPLES)
             add_executable(lotml_preview
                 examples/lotml_preview/main.cpp
                 examples/platform_probe/platform_event_bridge.cpp)
-            target_link_libraries(lotml_preview PRIVATE
-                lotui_declarative lotui_vulkan lotui_widgets lotui_text_freetype)
-            if(MINGW)
-                target_link_options(lotml_preview PRIVATE -municode)
-            endif()
-            lotui_copy_legal_notices(lotml_preview)
-            add_custom_command(TARGET lotml_preview POST_BUILD
+            add_executable(lotml_dialog_demo
+                examples/lotml_dialog_demo/main.cpp
+                examples/platform_probe/platform_event_bridge.cpp)
+            foreach(_example lotml_preview lotml_dialog_demo)
+                target_link_libraries(${_example} PRIVATE
+                    lotui_declarative lotui_vulkan lotui_widgets lotui_text_freetype)
+                if(MINGW)
+                    target_link_options(${_example} PRIVATE -municode)
+                elseif(MSVC)
+                    target_compile_options(${_example} PRIVATE /utf-8)
+                endif()
+                lotui_copy_legal_notices(${_example})
+                add_custom_command(TARGET ${_example} POST_BUILD
+                    COMMAND "${CMAKE_COMMAND}" -E make_directory
+                        "$<TARGET_FILE_DIR:${_example}>/resources/fonts"
+                    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                        "${LOTUI_EXAMPLE_FONT_FILE}"
+                        "$<TARGET_FILE_DIR:${_example}>/resources/fonts/NotoSansKR-Regular.ttf"
+                    VERBATIM)
+                install(TARGETS ${_example} RUNTIME DESTINATION bin COMPONENT Examples)
+            endforeach()
+            add_custom_target(lotml_dialog_demo_layout
                 COMMAND "${CMAKE_COMMAND}" -E make_directory
-                    "$<TARGET_FILE_DIR:lotml_preview>/resources/fonts"
+                    "$<TARGET_FILE_DIR:lotml_dialog_demo>/resources/layouts"
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-                    "${LOTUI_EXAMPLE_FONT_FILE}"
-                    "$<TARGET_FILE_DIR:lotml_preview>/resources/fonts/NotoSansKR-Regular.ttf"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/examples/lotml_dialog_demo/dialog-event.lotml"
+                    "$<TARGET_FILE_DIR:lotml_dialog_demo>/resources/layouts/dialog-event.lotml"
                 VERBATIM)
-            install(TARGETS lotml_preview RUNTIME DESTINATION bin COMPONENT Examples)
+            add_dependencies(lotml_dialog_demo lotml_dialog_demo_layout)
+            install(FILES examples/lotml_dialog_demo/dialog-event.lotml
+                DESTINATION bin/resources/layouts COMPONENT Examples)
         endif()
 
         add_executable(graph_canvas_demo
