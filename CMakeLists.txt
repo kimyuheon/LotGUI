@@ -146,6 +146,7 @@ if(LOTUI_BUILD_FREETYPE_TEXT)
         set(HB_HAVE_GOBJECT OFF CACHE BOOL "" FORCE)
         set(HB_HAVE_ICU OFF CACHE BOOL "" FORCE)
         set(HB_HAVE_GRAPHITE2 OFF CACHE BOOL "" FORCE)
+        set(HB_HAVE_CORETEXT OFF CACHE BOOL "" FORCE)
 
         if(EXISTS "${LOTUI_HARFBUZZ_SOURCE_DIR}/CMakeLists.txt")
             add_subdirectory(
@@ -390,12 +391,17 @@ if(LOTUI_BUILD_VULKAN_RENDERER)
             NAMES vulkan-1
             HINTS "${LOTUI_VULKAN_SDK_ROOT}/Lib")
     elseif(APPLE)
+        # Prefer the Vulkan loader; frameworks are searched first by default,
+        # which would otherwise pick the static MoltenVK.xcframework.
+        set(_lotui_saved_find_framework "${CMAKE_FIND_FRAMEWORK}")
+        set(CMAKE_FIND_FRAMEWORK LAST)
         find_library(LOTUI_VULKAN_LIBRARY
             NAMES vulkan MoltenVK
             HINTS
                 "${LOTUI_VULKAN_SDK_ROOT}/lib"
                 "${LOTUI_VULKAN_SDK_ROOT}/macOS/lib"
                 "${LOTUI_VULKAN_SDK_ROOT}/MoltenVK/dylib/macOS")
+        set(CMAKE_FIND_FRAMEWORK "${_lotui_saved_find_framework}")
     else()
         find_library(LOTUI_VULKAN_LIBRARY
             NAMES vulkan
